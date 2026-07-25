@@ -1,5 +1,5 @@
 {
-  "//": "Feature profile for this deployment. `true` includes the feature's schema fragment (schema/cms/features/<id>.sql) in the generated baseline migration. Run `npm run build:migrations` after editing. Turning a feature OFF never drops existing tables — it only stops creating them on fresh installs.",
+  "//": "Feature profile for this deployment. `true` includes the feature's schema fragment (schema/cms/features/<id>.sql) in the generated baseline migration. Run `npm run build:migrations` after editing. Turning a feature OFF never drops existing tables \u2014 it only stops creating them on fresh installs.",
   "features": {
     "trash": true,
     "db-types": true,
@@ -7,7 +7,6 @@
     "plugins": true,
     "plugin-pointer-indexes": true,
     "jobs": true,
-    "credits": true,
-    "i18n": true
+    "credits": true
   }
 }

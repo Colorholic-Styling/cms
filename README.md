@@ -584,8 +584,8 @@ database and has no CLI override — features cannot each own a folder that
 Wrangler walks. It does **not** need extra databases: every feature shares the
 same two, owning tables rather than databases.
 
-`cms.features.json` selects the profile. Of the 30 objects in a core install
-and 38 optional ones, these eight features are independently removable:
+`cms.features.json` selects the profile. Of the 37 objects in a core install
+and 31 optional ones, these seven features are independently removable:
 
 | Feature | Owns |
 |---|---|
@@ -596,7 +596,6 @@ and 38 optional ones, these eight features are independently removable:
 | `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) |
 | `jobs` | `admin_jobs` (+2 indexes) |
 | `credits` | `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+3 indexes) |
-| `i18n` | `locales`, `locale_messages` (+3 indexes, 2 triggers) |
 
 After editing `cms.features.json`:
 
@@ -630,6 +629,12 @@ with the feature id.
 `npm run check:profiles` executes every profile against an in-memory SQLite and
 verifies each feature is removable without breaking the rest; it runs as part
 of `npm test`.
+
+`locales` and `locale_messages` are **core**, not a fragment: the admin chrome
+resolves the viewer's locale on every render, so the CMS cannot serve a page
+without them. The optional part is the `i18n` *code* feature — the screens for
+editing locales and translations. Serving the UI's own catalog
+(`GET /admin/i18n/catalog/:locale`) stays core too.
 
 One known coupling remains: the per-user balance is `users.credits`, a column
 on a core table, so disabling `credits` leaves that column in place.

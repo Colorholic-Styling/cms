@@ -1,16 +1,10 @@
 import { Hono } from 'hono';
 import { requirePermission } from '../../middleware/auth';
+import { pluginNav } from '../../plugins/registry';
 import { systemSettingsPage } from '../../templates/settings';
-import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from '../../templates/credit-summary';
-import { languagesPage, translationsPage, type LocaleViewRow } from '../../templates/i18n';
 import type { Env, Variables } from '../../types';
-import { getPlugins, pluginNav } from '../../plugins/registry';
-import { listPlugins } from '../../utils/plugin-store';
-import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from '../../utils/credits';
-import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../utils/plugin-limits';
 import { logAudit } from '../../utils/audit';
 import { renderPage } from '../../core/render/chrome';
-import { userCan } from '../../core/auth/permissions';
 import {
   APP_ICON_OPTIONS,
   SIDEBAR_MENU_ITEMS,
@@ -27,18 +21,6 @@ import {
   saveSidebarMenuSettings,
   saveSystemTimezone,
 } from '../../utils/settings';
-import {
-  buildTranslationCatalog,
-  deleteLocale,
-  deleteLocaleMessage,
-  listLocaleMessages,
-  listLocales,
-  loadBundledLocaleCatalog,
-  normalizeLocaleCode,
-  saveLocale,
-  saveLocaleMessage,
-} from '../../utils/i18n';
-import { clearConfigCache } from '../../plugins/config';
 
 export const settingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -48,245 +30,11 @@ settingsRoutes.use('/settings/menu', requirePermission('menu:manage'));
 // prices happens under /plugins-manage/* which stays gated by plugin:manage.
 // So no per-route permission here — editorGuard already limits it to signed-in
 // admin users, and the "Configure" links are hidden below for non-managers.
-settingsRoutes.use('/settings/languages', requirePermission('menu:manage'));
-settingsRoutes.use('/settings/languages/*', requirePermission('menu:manage'));
-settingsRoutes.use('/settings/translations', requirePermission('menu:manage'));
-settingsRoutes.use('/settings/translations/*', requirePermission('menu:manage'));
 
-
-function message(value: string | undefined): string {
-  return value ? value.slice(0, 300) : '';
-}
-
-settingsRoutes.get('/i18n/catalog/:locale', async (c) => {
-  try {
-    return c.json(await buildTranslationCatalog(c.env, c.req.param('locale'), true), 200, {
-      'Cache-Control': 'private, no-cache',
-    });
-  } catch {
-    return c.json({ error: 'Locale not found' }, 404);
-  }
-});
-
-settingsRoutes.get('/settings/languages', async (c) => {
-  const locales = await listLocales(c.env);
-  const rows: LocaleViewRow[] = locales.map((locale) => ({
-    code: locale.code,
-    label: locale.label,
-    contentEnabled: locale.content_enabled === 1,
-    uiEnabled: locale.ui_enabled === 1,
-    direction: locale.direction,
-    fallbackCode: locale.fallback_code ?? '',
-    weight: locale.weight,
-    builtin: locale.builtin === 1,
-    protected: locale.code === 'mis',
-    updateAction: `/admin/settings/languages/${encodeURIComponent(locale.code)}`,
-    deleteAction: `/admin/settings/languages/${encodeURIComponent(locale.code)}/delete`,
-    translationsHref: `/admin/settings/translations?locale=${encodeURIComponent(locale.code)}`,
-    fallbackOptions: locales.filter((option) => option.code !== locale.code).map((option) => ({
-      code: option.code,
-      label: `${option.label} (${option.code})`,
-      selected: option.code === locale.fallback_code,
-    })),
-  }));
-  return renderPage(c, languagesPage, {
-    locales: rows,
-    flash: message(c.req.query('flash')),
-    error: message(c.req.query('error')),
-  });
-});
-
-settingsRoutes.post('/settings/languages', async (c) => {
-  const form = await c.req.formData();
-  try {
-    const code = await saveLocale(c.env, Object.fromEntries(form));
-    clearConfigCache();
-    logAudit(c, 'locale.create', 'locale', code);
-    return c.redirect('/admin/settings/languages?flash=Language+added', 303);
-  } catch (error) {
-    return c.redirect(`/admin/settings/languages?error=${encodeURIComponent(error instanceof Error ? error.message : 'Unable to add language')}`, 303);
-  }
-});
-
-settingsRoutes.post('/settings/languages/:code', async (c) => {
-  const form = await c.req.formData();
-  try {
-    const code = await saveLocale(c.env, Object.fromEntries(form), c.req.param('code'));
-    clearConfigCache();
-    logAudit(c, 'locale.update', 'locale', code);
-    return c.redirect('/admin/settings/languages?flash=Language+saved', 303);
-  } catch (error) {
-    return c.redirect(`/admin/settings/languages?error=${encodeURIComponent(error instanceof Error ? error.message : 'Unable to save language')}`, 303);
-  }
-});
-
-settingsRoutes.post('/settings/languages/:code/delete', async (c) => {
-  try {
-    await deleteLocale(c.env, c.req.param('code'));
-    clearConfigCache();
-    logAudit(c, 'locale.delete', 'locale', c.req.param('code'));
-    return c.redirect('/admin/settings/languages?flash=Language+deleted', 303);
-  } catch (error) {
-    return c.redirect(`/admin/settings/languages?error=${encodeURIComponent(error instanceof Error ? error.message : 'Unable to delete language')}`, 303);
-  }
-});
-
-settingsRoutes.get('/settings/translations', async (c) => {
-  const locales = await listLocales(c.env);
-  const requested = c.req.query('locale') ?? 'en';
-  const selected = locales.find((locale) => locale.code === requested) ?? locales.find((locale) => locale.code === 'en') ?? locales[0];
-  if (!selected) return c.notFound();
-  const [messages, bundledMessages] = await Promise.all([
-    listLocaleMessages(c.env, selected.code),
-    loadBundledLocaleCatalog(c.env, selected.code),
-  ]);
-  const overrides = new Map(messages.map((entry) => [entry.message_key, entry]));
-  const messageKeys = [...new Set([...Object.keys(bundledMessages), ...overrides.keys()])].sort();
-  return renderPage(c, translationsPage, {
-    localeCode: selected.code,
-    localeLabel: selected.label,
-    localeOptions: locales.map((locale) => ({ code: locale.code, label: locale.label, selected: locale.code === selected.code })),
-    messages: messageKeys.map((key) => {
-      const override = overrides.get(key);
-      return {
-        key,
-        fileValue: bundledMessages[key] ?? '',
-        hasFileValue: key in bundledMessages,
-        overrideValue: override?.value ?? '',
-        hasOverride: !!override,
-        deleteAction: override
-          ? `/admin/settings/translations/${encodeURIComponent(selected.code)}/${encodeURIComponent(key)}/delete`
-          : '',
-      };
-    }),
-    flash: message(c.req.query('flash')),
-    error: message(c.req.query('error')),
-  });
-});
-
-settingsRoutes.post('/settings/translations', async (c) => {
-  const form = await c.req.formData();
-  const locale = String(form.get('locale') ?? 'en');
-  try {
-    await saveLocaleMessage(c.env, locale, form.get('key'), form.get('value'), String(c.get('user').sub));
-    logAudit(c, 'locale_message.upsert', 'locale', locale);
-    return c.redirect(`/admin/settings/translations?locale=${encodeURIComponent(locale)}&flash=Translation+saved`, 303);
-  } catch (error) {
-    return c.redirect(`/admin/settings/translations?locale=${encodeURIComponent(locale)}&error=${encodeURIComponent(error instanceof Error ? error.message : 'Unable to save translation')}`, 303);
-  }
-});
-
-settingsRoutes.post('/settings/translations/:locale/:key/delete', async (c) => {
-  const locale = normalizeLocaleCode(c.req.param('locale'));
-  await deleteLocaleMessage(c.env, locale, c.req.param('key'));
-  logAudit(c, 'locale_message.delete', 'locale', locale);
-  return c.redirect(`/admin/settings/translations?locale=${encodeURIComponent(locale)}&flash=Translation+deleted`, 303);
-});
 
 settingsRoutes.get('/settings/menu', (c) => c.redirect('/admin/settings/system'));
 
-function creditSummaryChargeLabel(credit: EffectiveCredit): string {
-  if (credit.def.charge === 'page_create') return `On create: ${credit.def.pageType}`;
-  if (credit.def.charge === 'recurring') {
-    return `Monthly (${credit.def.billing}) per ${creditUnitLabel(credit.def)}`;
-  }
-  return `Metered per ${credit.def.unit}`;
-}
-
-function creditSummaryChargeKey(credit: EffectiveCredit): string {
-  if (credit.def.charge === 'page_create') return 'credits.summary.on_create';
-  if (credit.def.charge === 'recurring') {
-    return credit.def.billing === 'arrears' ? 'credits.summary.monthly_arrears_per' : 'credits.summary.monthly_advance_per';
-  }
-  return 'credits.summary.metered_per';
-}
-
-function limitSummaryScopeLabel(def: NormalizedLimitDef): string {
-  if (def.scope === 'per_second') return 'Per second';
-  if (def.scope === 'per_parent') return 'Per parent page';
-  if (def.scope === 'per_pointer') return `Per ${def.pointerKey}`;
-  return 'Total';
-}
-
 // Shared row comparator: group by plugin, then by human label, then key.
-function bySummaryOrder(
-  a: { pluginLabel: string; label: string; key: string },
-  b: { pluginLabel: string; label: string; key: string },
-): number {
-  return a.pluginLabel.localeCompare(b.pluginLabel)
-    || a.label.localeCompare(b.label)
-    || a.key.localeCompare(b.key);
-}
-
-settingsRoutes.get('/settings/credits', async (c) => {
-  const [plugins, pluginRecords] = await Promise.all([
-    getPlugins(c.env),
-    listPlugins(c.env.DB),
-  ]);
-  const recordIds = new Map(pluginRecords.map((record) => [record.url, record.id]));
-  const manageHref = (binding: string, section: 'credits' | 'limits'): string => {
-    const id = recordIds.get(binding);
-    return id ? `/admin/plugins-manage/${id}/${section}` : '/admin/plugins-manage';
-  };
-
-  const rows: CreditSummaryRow[] = (await Promise.all(plugins.map(async (plugin) => {
-    const credits = await effectiveCreditsForPlugin(c.env, plugin);
-    const pluginLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
-    return credits.map((credit) => ({
-      pluginLabel,
-      pluginId: plugin.manifest.id,
-      key: credit.def.key,
-      label: credit.def.label,
-      description: credit.def.description,
-      chargeLabel: creditSummaryChargeLabel(credit),
-      chargeKey: creditSummaryChargeKey(credit),
-      chargeValue: (credit.def.charge === 'page_create' ? credit.def.pageType : creditUnitLabel(credit.def)) ?? '',
-      effectiveLabel: credit.value === 0 ? 'Free' : `${credit.value} credits`,
-      effectiveFree: credit.value === 0,
-      effectiveValue: credit.value,
-      manageHref: manageHref(plugin.binding, 'credits'),
-    }));
-  }))).flat().sort(bySummaryOrder);
-
-  const limitRows: LimitSummaryRow[] = (await Promise.all(plugins.map(async (plugin) => {
-    const limits = await effectiveLimitsForPlugin(c.env, plugin);
-    const pluginLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
-    return limits.map((limit) => ({
-      pluginLabel,
-      pluginId: plugin.manifest.id,
-      key: limit.def.key,
-      label: limit.def.label,
-      description: limit.def.description,
-      scopeLabel: limitSummaryScopeLabel(limit.def),
-      scopeKey: limit.def.scope === 'per_second'
-        ? 'credits.summary.per_second'
-        : limit.def.scope === 'per_parent'
-          ? 'credits.summary.per_parent_page'
-          : limit.def.scope === 'per_pointer'
-            ? 'credits.summary.per'
-            : 'credits.summary.total',
-      scopeValue: limit.def.scope === 'per_pointer' ? (limit.def.pointerKey ?? '') : '',
-      effectiveLabel: limit.value === null ? 'Unlimited' : `${limit.value}`,
-      effectiveUnlimited: limit.value === null,
-      effectiveValue: limit.value,
-      manageHref: manageHref(plugin.binding, 'limits'),
-    }));
-  }))).flat().sort(bySummaryOrder);
-
-  const pluginCount = new Set([...rows, ...limitRows].map((row) => row.pluginId)).size;
-  const paidCount = rows.filter((row) => row.effectiveLabel !== 'Free').length;
-
-  return renderPage(c, creditSummaryPage, {
-    rows,
-    limitRows,
-    pluginCount,
-    chargeCount: rows.length,
-    paidCount,
-    // Everyone may view the summary; only plugin managers see the edit links.
-    canConfigure: await userCan(c, 'plugin:manage'),
-  });
-});
-
 settingsRoutes.get('/settings/system', async (c) => {
   const fallbackName = c.env.SITE_TITLE ?? '0xCMS';
   const [sidebarSettings, branding, adminHome, pluginItems, systemTimezone] = await Promise.all([

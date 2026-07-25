@@ -20,7 +20,6 @@ const FEATURE_MARKERS: Record<string, string[]> = {
   'plugin-pointer-indexes': ['idx_draft_pages_pointer_event'],
   'jobs': ['CREATE TABLE IF NOT EXISTS admin_jobs('],
   'credits': ['CREATE TABLE IF NOT EXISTS credit_ledger(', 'CREATE TABLE IF NOT EXISTS credit_subscriptions('],
-  'i18n': ['CREATE TABLE IF NOT EXISTS locales(', 'CREATE TABLE IF NOT EXISTS locale_messages('],
 };
 
 const availableFeatures = env.TEST_AVAILABLE_FEATURES.split(',').filter(Boolean);
@@ -57,7 +56,9 @@ describe('migration assembly', () => {
   });
 
   it('keeps the core schema in a lean profile', () => {
-    for (const table of ['users', 'sessions', 'draft_pages', 'page_versions', 'tags', 'taxonomies', 'roles', 'settings']) {
+    // locales/locale_messages are core: the chrome resolves the viewer's
+    // locale on every render, so a profile without them cannot serve a page.
+    for (const table of ['users', 'sessions', 'draft_pages', 'page_versions', 'tags', 'taxonomies', 'roles', 'settings', 'locales', 'locale_messages']) {
       expect(env.TEST_ASSEMBLED_LEAN_BASELINE).toContain(`CREATE TABLE IF NOT EXISTS ${table}(`);
     }
     expect(env.TEST_ASSEMBLED_LEAN_BASELINE).toContain('CREATE TABLE IF NOT EXISTS audit_log (');

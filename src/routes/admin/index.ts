@@ -25,6 +25,7 @@ import { apiRoutes } from './api';
 import { pluginAdminRoutes } from './plugins';
 import { pluginsManageRoutes } from './plugins-manage';
 import { settingsRoutes } from './settings';
+import { i18nCatalogRoutes } from './i18n-catalog';
 import { viewsFor } from '../../plugins/views';
 import { featureRouters } from '../../features/routers';
 
@@ -62,5 +63,6 @@ for (const { router } of featureRouters) {
 }
 adminRoutes.route('/', tagsRoutes);
 adminRoutes.route('/', pluginsManageRoutes);
+adminRoutes.route('/', i18nCatalogRoutes);
 adminRoutes.route('/', settingsRoutes);
 adminRoutes.route('/', apiRoutes);

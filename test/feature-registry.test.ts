@@ -18,6 +18,7 @@ describe('feature registry', () => {
     expect(features.map((feature) => feature.id).sort()).toEqual([
       'credits',
       'db-types',
+      'i18n',
       'media',
       'search',
       'trash',
@@ -47,8 +48,10 @@ describe('feature registry', () => {
         expect(keys.get(navKey)).toBe(feature.id);
       }
     }
-    // And no entry may point at a feature that is not installed.
-    for (const [, owner] of keys) expect(featureInstalled(owner)).toBe(true);
+    // Deliberately NOT asserted: that every tagged entry names an installed
+    // feature. A tag outliving its feature is the designed state — it is what
+    // tells the chrome to hide the entry — so requiring it here would fail
+    // every profile that actually drops a feature.
   });
 
   it('registers every router under an installed feature id', () => {

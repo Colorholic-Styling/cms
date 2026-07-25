@@ -20,6 +20,8 @@ import { usersRoutes } from './users-roles/users-routes';
 import { mediaFilesRoutes } from './media/files-routes';
 import { mediaUploadRoutes } from './media/upload-routes';
 import { mediaPublicRoutes } from './media/public-routes';
+import { i18nRoutes } from './i18n/routes';
+import { creditSettingsRoutes } from './credits/settings-routes';
 import { rolesRoutes } from './users-roles/roles-routes';
 
 export type FeatureRouter = Hono<{ Bindings: Env; Variables: Variables }>;
@@ -39,6 +41,8 @@ export const featureRouters: readonly FeatureRouterEntry[] = [
   { id: 'users-roles', router: rolesRoutes },
   { id: 'media', router: mediaFilesRoutes },
   { id: 'media', router: mediaUploadRoutes },
+  { id: 'i18n', router: i18nRoutes },
+  { id: 'credits', router: creditSettingsRoutes },
 ];
 
 // Routers mounted OUTSIDE the admin stack, at the worker root by src/index.ts.

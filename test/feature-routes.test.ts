@@ -55,6 +55,9 @@ describe('feature router mounting', () => {
     ['users-roles', '/admin/users'],
     ['users-roles', '/admin/roles'],
     ['media', '/admin/settings/content'],
+    ['i18n', '/admin/settings/languages'],
+    ['i18n', '/admin/settings/translations'],
+    ['credits', '/admin/settings/credits'],
   ];
 
   for (const [feature, path] of entryPoints) {

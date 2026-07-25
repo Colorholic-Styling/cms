@@ -1,5 +1,5 @@
-import { adminLayout, type BaseTemplateProps } from './layout';
-import { renderView } from './liquid';
+import { adminLayout, type BaseTemplateProps } from '../../templates/layout';
+import { renderView } from '../../templates/liquid';
 
 export interface CreditSummaryRow {
   pluginLabel: string;
