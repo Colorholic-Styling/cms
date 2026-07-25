@@ -5,10 +5,25 @@
 
 import { S2T_KEYS, S2T_VALS, T2S_KEYS, T2S_VALS } from '../../dictionary/chinese-chars';
 
+/**
+ * The tables ship as base64 of UTF-16LE code units, not literal CJK text:
+ * wrangler's bundler escapes every non-ASCII character in a string literal to
+ * \uXXXX — six bytes for what UTF-8 stores in three — and offers no charset
+ * option. Decoding runs once at module load, over ~14k code points.
+ */
+function decodeTable(encoded: string): string {
+  const binary = atob(encoded);
+  const units = new Array<string>(binary.length / 2);
+  for (let i = 0; i < units.length; i++) {
+    units[i] = String.fromCharCode(binary.charCodeAt(i * 2) | (binary.charCodeAt(i * 2 + 1) << 8));
+  }
+  return units.join('');
+}
+
 function buildMap(keys: string, vals: string): Map<string, string> {
   const map = new Map<string, string>();
-  const k = [...keys];
-  const v = [...vals];
+  const k = [...decodeTable(keys)];
+  const v = [...decodeTable(vals)];
   for (let i = 0; i < k.length; i++) map.set(k[i], v[i]);
   return map;
 }
