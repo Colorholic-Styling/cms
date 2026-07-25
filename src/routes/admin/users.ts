@@ -6,7 +6,7 @@ import { usersPage, userFormPage } from '../../templates/users';
 import type { Env, Variables, User } from '../../types';
 import { logAudit } from '../../utils/audit';
 import { requirePermission } from '../../middleware/auth';
-import { renderPage } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
 import { allRoleOptions } from '../../utils/role-store';
 import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
 import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../utils/credits';

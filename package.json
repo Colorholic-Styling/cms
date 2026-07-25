@@ -15,8 +15,9 @@
     "db:migrate:published": "wrangler d1 migrations apply cms-published --local",
     "type-check": "tsc --noEmit",
     "pretest": "npm run build",
-    "test": "npm run check:profiles && vitest run",
-    "check:profiles": "node scripts/check-profiles.mjs --quiet"
+    "test": "npm run check:profiles && npm run check:boundaries && vitest run",
+    "check:profiles": "node scripts/check-profiles.mjs --quiet",
+    "check:boundaries": "node scripts/check-boundaries.mjs --quiet"
   },
   "dependencies": {
     "hono": "^4.12.32"

@@ -17,7 +17,7 @@ import { appendQuery } from '../../utils/forms';
 import { jsonError, wantsJsonResponse } from '../../middleware/auth';
 import { adminLayout } from '../../templates/layout';
 import { pluginClientView } from '../../templates/liquid';
-import { buildBaseProps } from '../../utils/admin-render';
+import { buildBaseProps } from '../../core/render/chrome';
 import { viewsFor } from '../../plugins/views';
 import {
   buildPluginProxyHeaders,

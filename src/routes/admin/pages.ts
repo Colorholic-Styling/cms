@@ -65,7 +65,9 @@ import {
 } from '../../publish';
 import type { PublishOutcome } from '../../publish';
 import { draftLectProjector } from '../../publish/projection';
-import { dashboardPagination, importExportHrefs, renderPage, userCan } from '../../utils/admin-render';
+import { dashboardPagination, renderPage } from '../../core/render/chrome';
+import { userCan } from '../../core/auth/permissions';
+import { importExportHrefs } from '../../features/import-export/links';
 import { uiTranslator } from '../../utils/i18n';
 import { loadAdminHomeSettings } from '../../utils/settings';
 import { requirePermission } from '../../middleware/auth';

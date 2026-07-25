@@ -1,36 +1,21 @@
-// Shared template-prop builders and CSV/list export responses for the admin routes.
+// The admin chrome: the props and shell every authenticated admin page shares.
+//
+// Was utils/admin-render.ts, which every admin route imports for renderPage()
+// — and which itself imported credits, publish, publish/projection, search and
+// the advanced-search template, so the trash screen transitively depended on
+// the billing engine. Those came from two things that have since moved out:
+// renderAdvancedSearch (now features/search/render.ts) and the credit
+// balances (now a contributor, see core/render/contributions.ts).
 
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { AppContext } from './context';
-import { advancedSearchPage } from '../templates/advanced-search';
-import { dashboardPageHref, num, userIdFromContext } from './forms';
-import {
-  advancedSearchFormCriteria,
-  advancedSearchOperator,
-  advancedSearchOrder,
-  advancedSearchPageSize,
-  advancedSearchPageTypes,
-  advancedSearchPathOptionsByPageType,
-  advancedSearchQueryString,
-  advancedSearchSelectedPageType,
-  advancedSearchSort,
-  advancedSearchTagGroups,
-  advancedSearchTargetPageTypes,
-  parseAdvancedSearchCriteria,
-  performAdvancedSearch,
-} from './search';
-import { resolveCmsConfig } from '../plugins/config';
-import { pluginById, pluginNav } from '../plugins/registry';
-import { editorTaxonomy, fetchUserAvatar } from './admin-queries';
-import { getCreditBalance, getSharedCreditBalance } from './credits';
-import { listLiveByTypes } from '../publish';
-import { draftLectProjector } from '../publish/projection';
-import type { DashboardListResult } from './admin-queries';
-import { withLiveStatus } from './page-logic';
-import { effectivePermissions, resolveRolePermissions } from './roles';
-import type { Permission } from '../types';
-import { viewRevision } from './view-revision';
-import { mintFormOnceToken } from './form-once';
+import type { AppContext } from '../../utils/context';
+import { dashboardPageHref, userIdFromContext } from '../../utils/forms';
+import { pluginNav } from '../../plugins/registry';
+import { fetchUserAvatar } from '../../utils/admin-queries';
+import type { DashboardListResult } from '../../utils/admin-queries';
+import { userPermissions } from '../auth/permissions';
+import { viewRevision } from '../../utils/view-revision';
+import { mintFormOnceToken } from '../../utils/form-once';
 import {
   SIDEBAR_MENU_ITEMS,
   defaultPluginNavWeight,
@@ -39,22 +24,12 @@ import {
   loadSidebarChromeSettings,
   pluginSidebarKey,
   type SidebarMenuItemKey,
-} from './settings';
+} from '../../utils/settings';
 
-import type { BaseTemplateProps, SidebarNavItem } from '../templates/layout';
-import { withActiveSidebarItems } from './sidebar';
-import { localeRegistry, resolveUiLocale } from './i18n';
-
-/** The signed-in user's effective permission set (built-in defaults + DB overrides). */
-export async function userPermissions(c: AppContext): Promise<Set<Permission>> {
-  const map = await resolveRolePermissions(c.env);
-  return effectivePermissions(map, c.get('user').role);
-}
-
-/** Convenience check used by routes to decide read-only vs editable rendering. */
-export async function userCan(c: AppContext, permission: Permission): Promise<boolean> {
-  return (await userPermissions(c)).has(permission);
-}
+import type { BaseTemplateProps, SidebarNavItem } from '../../templates/layout';
+import { withActiveSidebarItems } from '../../utils/sidebar';
+import { localeRegistry, resolveUiLocale } from '../../utils/i18n';
+import { basePropsContributors } from '../../features/contributions';
 
 /**
  * Builds the template props shared by every authenticated admin page:
@@ -66,17 +41,19 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
   const userRoles = user.role.split(',').map((role) => role.trim()).filter(Boolean);
   const fallbackSiteTitle = c.env.SITE_TITLE ?? '0xCMS';
   const requestUrl = new URL(c.req.url);
-  const [userAvatar, navItems, permissions, branding, userCredits, sharedCredits, cmsOnce, uiLocale, systemTimezone, localeState] = await Promise.all([
+  const [userAvatar, navItems, permissions, branding, cmsOnce, uiLocale, systemTimezone, localeState, contributed] = await Promise.all([
     fetchUserAvatar(c.env.DB, userIdFromContext(c)),
     pluginNav(c.env),
     userPermissions(c),
     loadAppBrandingSettings(c.env, fallbackSiteTitle),
-    getCreditBalance(c.env, userIdFromContext(c)),
-    getSharedCreditBalance(c.env),
     mintFormOnceToken(c.env.JWT_SECRET),
     resolveUiLocale(c),
     loadSystemTimezone(c.env),
     localeRegistry(c.env),
+    // Feature contributions run alongside the chrome's own queries so an
+    // enabled feature costs no extra round trip.
+    Promise.all(basePropsContributors.map((contributor) => contributor.props(c)))
+      .then((parts) => Object.assign({}, ...parts) as Partial<BaseTemplateProps>),
   ]);
   const sidebarSettings = await loadSidebarChromeSettings(c.env);
   const menuSettings = sidebarSettings.items;
@@ -187,8 +164,6 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
     userName: user.name,
     userRole: user.role,
     userAvatar: userAvatar ?? '',
-    userCredits: userCredits ?? 0,
-    sharedCredits,
     currentUserId: String(user.sub),
     pluginNav: nav,
     pluginSettingsNav: settingsNav,
@@ -221,6 +196,7 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
     showSidebarPlugins: menuSettings.plugins.visible,
     showSidebarMenu: menuSettings.system.visible,
     showSidebarTrash: menuSettings.trash.visible,
+    ...contributed,
   };
 }
 
@@ -260,121 +236,4 @@ export function dashboardPagination(
     nextHref: currentPage < totalPages ? dashboardPageHref(routeBase, currentPage + 1, limit, params) : '',
     lastHref: currentPage < totalPages ? dashboardPageHref(routeBase, totalPages, limit, params) : '',
   };
-}
-
-/** Manifest id of the plugin that owns CSV import/export since its extraction. */
-export const IMPORT_EXPORT_PLUGIN_ID = 'import-export';
-
-/** The plugin's admin base path when it is registered and enabled, else ''. */
-export async function importExportPluginBase(env: AppContext['env']): Promise<string> {
-  const plugin = await pluginById(env, IMPORT_EXPORT_PLUGIN_ID);
-  return plugin ? `/admin/plugins/${IMPORT_EXPORT_PLUGIN_ID}` : '';
-}
-
-/**
- * Dashboard Import/Export button targets. CSV import/export moved into the
- * import-export plugin — the buttons deep-link there when it's installed and
- * disappear (empty hrefs) when it isn't.
- */
-export async function importExportHrefs(
-  env: AppContext['env'],
-  pageType?: string,
-): Promise<{ importHref: string; exportHref: string }> {
-  const base = await importExportPluginBase(env);
-  if (!base) return { importHref: '', exportHref: '' };
-  return {
-    importHref: pageType ? `${base}/import/${encodeURIComponent(pageType)}` : base,
-    exportHref: pageType ? `${base}/export?page_type=${encodeURIComponent(pageType)}` : `${base}/export`,
-  };
-}
-
-export async function renderAdvancedSearch(c: AppContext, defaultPageType = 'all', canSelectPageType = true) {
-  const config = await resolveCmsConfig(c.env);
-  const criteria = parseAdvancedSearchCriteria(c.req.url);
-  const selectedPageType = canSelectPageType
-    ? advancedSearchSelectedPageType(c.req.query('page_type'), defaultPageType, config)
-    : advancedSearchSelectedPageType(undefined, defaultPageType, config);
-  const pageTypes = advancedSearchTargetPageTypes(selectedPageType, config);
-  const operator = advancedSearchOperator(c.req.query('operator'));
-  const pageSize = advancedSearchPageSize(c.req.query('pagesize'));
-  const requestedPage = Math.max(num(c.req.query('page'), 1), 1);
-  const sort = advancedSearchSort(c.req.query('sort'));
-  const order = advancedSearchOrder(c.req.query('order'));
-  const hasSearch = criteria.length > 0;
-
-  const taxonomy = await editorTaxonomy(c.env.DB);
-
-  const result = hasSearch
-    ? await performAdvancedSearch(c.env.DB, pageTypes, criteria, operator, {
-        limit: pageSize,
-        page: requestedPage,
-        sort,
-        order,
-      })
-    : {
-        results: [],
-        pagination: {
-          total: 0,
-          totalPages: 1,
-          currentPage: requestedPage,
-          limit: pageSize,
-        },
-      };
-
-  const [livePages, projectDraft] = await Promise.all([
-    listLiveByTypes(c.env, pageTypes),
-    draftLectProjector(c.env),
-  ]);
-  const liveMap = new Map(livePages.map((page) => [page.uuid, page]));
-  const routeBase = selectedPageType === 'all'
-    ? '/admin/advanced-search'
-    : `/admin/advanced-search/${encodeURIComponent(selectedPageType)}`;
-  // CSV export lives in the import-export plugin now; the button only shows
-  // when that plugin is registered and enabled.
-  const exportBase = (await importExportPluginBase(c.env))
-    ? `/admin/plugins/${IMPORT_EXPORT_PLUGIN_ID}/export-search?page_type=${encodeURIComponent(selectedPageType)}`
-    : '';
-  const queryWithoutPage = advancedSearchQueryString(criteria, operator, pageSize, { sort, order });
-  const pageQuery = (page: number) => advancedSearchQueryString(criteria, operator, pageSize, {
-    sort,
-    order,
-    page,
-  });
-  const maxCriterionIndex = criteria.reduce((max, criterion) => Math.max(max, criterion.index), 0);
-  const pathOptionsByPageType = advancedSearchPathOptionsByPageType(config);
-
-  return renderPage(c, advancedSearchPage, {
-      siteTitle: `${c.env.SITE_TITLE ?? '0xCMS'} · Advanced Search`,
-      pageTitle: selectedPageType === 'all' ? 'Advanced Search' : `Advanced Search: ${selectedPageType}`,
-      pageType: selectedPageType,
-      canSelectPageType,
-      pageTypes: advancedSearchPageTypes(config).map((pageType) => ({
-        value: pageType,
-        label: pageType,
-        selected: pageType === selectedPageType,
-      })),
-      routeBase,
-      criteria: advancedSearchFormCriteria(criteria, taxonomy.taxonomies, taxonomy.tags),
-      tagGroups: advancedSearchTagGroups(taxonomy.taxonomies, taxonomy.tags),
-      pathOptions: pathOptionsByPageType[selectedPageType] ?? pathOptionsByPageType.all,
-      pathOptionsByPageTypeJson: JSON.stringify(pathOptionsByPageType),
-      nextCriterionIndex: Math.max(2, maxCriterionIndex + 1),
-      operator,
-      pageSize,
-      sort,
-      order,
-      hasSearch,
-      count: result.pagination.total,
-      currentPage: result.pagination.currentPage,
-      totalPages: result.pagination.totalPages,
-      previousHref: result.pagination.currentPage > 1 ? `${routeBase}?${pageQuery(result.pagination.currentPage - 1)}` : '',
-      nextHref: result.pagination.currentPage < result.pagination.totalPages ? `${routeBase}?${pageQuery(result.pagination.currentPage + 1)}` : '',
-      resetHref: routeBase,
-      exportHref: exportBase ? `${exportBase}&${queryWithoutPage}` : '',
-      hasExportHref: !!exportBase,
-      bulkAction: `${routeBase}/bulk?${queryWithoutPage}`,
-      currentHref: `${routeBase}?${pageQuery(result.pagination.currentPage)}`,
-      queryWithoutPage,
-      pages: withLiveStatus(result.results, liveMap, projectDraft),
-  });
 }

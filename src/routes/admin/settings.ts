@@ -10,7 +10,8 @@ import { listPlugins } from '../../utils/plugin-store';
 import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from '../../utils/credits';
 import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../utils/plugin-limits';
 import { logAudit } from '../../utils/audit';
-import { renderPage, userCan } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
+import { userCan } from '../../core/auth/permissions';
 import {
   APP_ICON_OPTIONS,
   SIDEBAR_MENU_ITEMS,

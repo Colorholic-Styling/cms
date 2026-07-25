@@ -65,10 +65,13 @@ export interface BaseTemplateProps extends NavFlags {
   userName: string;
   userRole: string;
   userAvatar: string;
-  /** Signed-in user's current credit balance, shown in the sidebar footer. */
-  userCredits: number;
+  /** Signed-in user's current credit balance, shown in the sidebar footer.
+   *  Contributed by the credits feature; absent when it is not installed. */
+  userCredits?: number;
   /** Site-wide shared credit pool balance, shown next to the user's own. */
-  sharedCredits: number;
+  sharedCredits?: number;
+  /** Whether to render the sidebar's credit rows at all. */
+  showCredits?: boolean;
   currentUserId: string;
   /** Navigation entries contributed by active plugins, filtered to the user's roles. */
   pluginNav: Array<{ label: string; href: string }>;
@@ -127,6 +130,7 @@ export async function adminLayout(
     userAvatar: base.userAvatar,
     userCredits: base.userCredits,
     sharedCredits: base.sharedCredits,
+    showCredits: base.showCredits,
     pluginNav: base.pluginNav,
     pluginSettingsNav: base.pluginSettingsNav,
     viewRevision: base.viewRevision,
@@ -165,6 +169,8 @@ export interface LayoutOptions extends NavFlags {
   userAvatar?: string;
   userCredits?: number;
   sharedCredits?: number;
+  /** Render the sidebar credit rows (the credits feature is installed). */
+  showCredits?: boolean;
   /** Nav entries contributed by active plugins (already role-filtered). */
   pluginNav?: Array<{ label: string; href: string }>;
   /** Plugin nav entries for the Settings group (already role-filtered). */
@@ -210,6 +216,7 @@ export async function layout(views: Fetcher, opts: LayoutOptions): Promise<strin
     userRoleItems,
     userCredits,
     sharedCredits,
+    showCredits: opts.showCredits ?? false,
     userInitial: userName.trim().charAt(0).toUpperCase() || '?',
     appIcon: opts.appIcon || 'document',
     contentClass: admin ? 'md:ml-64' : '',

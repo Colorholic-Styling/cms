@@ -11,7 +11,8 @@ import {
   type AdvancedSearchBulkAction,
 } from '../../utils/admin-jobs';
 import { runCmsAdminJob } from '../../utils/admin-job-runner';
-import { renderAdvancedSearch, userCan } from '../../utils/admin-render';
+import { renderAdvancedSearch } from '../../features/search/render';
+import { userCan } from '../../core/auth/permissions';
 import type { AppContext } from '../../utils/context';
 import { appendQuery, dashboardStatusFilter, safeAdminReturnPath, str } from '../../utils/forms';
 import {

@@ -15,7 +15,8 @@ import type { Env, Variables, Permission, ResolvedPlugin } from '../../types';
 import { num, slugify, str } from '../../utils/forms';
 import { logAudit } from '../../utils/audit';
 import { requirePermission } from '../../middleware/auth';
-import { renderPage, userCan } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
+import { userCan } from '../../core/auth/permissions';
 import { clearConfigCache, resolveCmsConfig } from '../../plugins/config';
 import { getPlugins } from '../../plugins/registry';
 import {

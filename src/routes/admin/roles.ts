@@ -8,7 +8,7 @@ import type { Env, Variables, Permission } from '../../types';
 import { slugify, str } from '../../utils/forms';
 import { logAudit } from '../../utils/audit';
 import { requirePermission } from '../../middleware/auth';
-import { renderPage } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
 import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
 import { allPluginPermissions } from '../../plugins/registry';
 import {

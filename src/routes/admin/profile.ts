@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { profilePage } from '../../templates/profile';
 import type { Env, Variables, User } from '../../types';
-import { renderPage } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
 import { ROLE_LABELS, splitRoles } from '../../utils/roles';
 import { allRoleOptions } from '../../utils/role-store';
 import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../utils/credits';

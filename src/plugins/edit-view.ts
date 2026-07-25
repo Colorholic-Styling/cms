@@ -25,7 +25,7 @@ import type { ResolvedPlugin } from '../types';
 import { pluginForEditView, pluginForNewView, pluginForReadView, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { adminLayout, escHtml, type ApprovedPluginAssets } from '../templates/layout';
 import { pluginClientView } from '../templates/liquid';
-import { buildBaseProps } from '../utils/admin-render';
+import { buildBaseProps } from '../core/render/chrome';
 import { viewsFor } from './views';
 import { sanitizePluginHtmlFragment } from '../security/plugin-sanitize';
 import { isPluginClientViewResponse, pluginTenantId, readPluginClientViewData, setPluginAuthHeaders } from '../security/plugin-proxy';

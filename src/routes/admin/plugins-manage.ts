@@ -9,7 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
 import { requirePermission } from '../../middleware/auth';
-import { renderPage } from '../../utils/admin-render';
+import { renderPage } from '../../core/render/chrome';
 import { logAudit } from '../../utils/audit';
 import { str, num } from '../../utils/forms';
 import { getPlugins, clearManifestCache } from '../../plugins/registry';
