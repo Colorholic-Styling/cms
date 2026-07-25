@@ -2,7 +2,7 @@
 // Admin-gated (roles:manage). The 'admin' role is all-powerful and locked.
 
 import { Hono } from 'hono';
-import { roleFormPage, rolesPage } from '../../templates/roles';
+import { roleFormPage, rolesPage } from './roles-template';
 import { PERMISSIONS, PERMISSION_DESCRIPTIONS } from '../../types';
 import type { Env, Variables, Permission } from '../../types';
 import { slugify, str } from '../../utils/forms';

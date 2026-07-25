@@ -2,7 +2,7 @@
 // (users:manage). Users are created by OAuth login, not here.
 
 import { Hono } from 'hono';
-import { usersPage, userFormPage } from '../../templates/users';
+import { usersPage, userFormPage } from './users-template';
 import type { Env, Variables, User } from '../../types';
 import { logAudit } from '../../utils/audit';
 import { requirePermission } from '../../middleware/auth';
@@ -10,7 +10,7 @@ import { renderPage } from '../../core/render/chrome';
 import { allRoleOptions } from '../../utils/role-store';
 import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
 import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../utils/credits';
-import { creditLedgerRowForView } from '../../templates/users';
+import { creditLedgerRowForView } from '../../templates/credit-ledger';
 import type { AppContext } from '../../utils/context';
 
 export const usersRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

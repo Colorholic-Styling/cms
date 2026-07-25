@@ -1,6 +1,6 @@
 import { adminLayout, type BaseTemplateProps } from './layout';
 import { renderView } from './liquid';
-import type { UserCreditLedgerRow } from './users';
+import type { UserCreditLedgerRow } from './credit-ledger';
 
 export interface ProfileIdentity {
   id: string;

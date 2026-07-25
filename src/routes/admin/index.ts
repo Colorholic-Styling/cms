@@ -20,8 +20,6 @@ import { authMiddleware, editorGuard } from '../../middleware/auth';
 import type { Env, Variables } from '../../types';
 import { pagesRoutes } from './pages';
 import { tagsRoutes } from './tags';
-import { usersRoutes } from './users';
-import { rolesRoutes } from './roles';
 import { profileRoutes } from './profile';
 import { apiRoutes } from './api';
 import { pluginAdminRoutes } from './plugins';
@@ -63,8 +61,6 @@ for (const { router } of featureRouters) {
   adminRoutes.route('/', router);
 }
 adminRoutes.route('/', tagsRoutes);
-adminRoutes.route('/', usersRoutes);
-adminRoutes.route('/', rolesRoutes);
 adminRoutes.route('/', pluginsManageRoutes);
 adminRoutes.route('/', settingsRoutes);
 adminRoutes.route('/', apiRoutes);

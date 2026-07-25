@@ -1,9 +1,6 @@
-import { adminLayout, type BaseTemplateProps } from './layout';
-import { renderView } from './liquid';
-import type { CreditLedgerRow } from '../utils/credits';
-
-/** The display-relevant columns shared by credit_ledger and shared_credit_ledger rows. */
-type CreditLedgerViewSource = Pick<CreditLedgerRow, 'delta' | 'balance_after' | 'action' | 'note' | 'created_by' | 'created_at'>;
+import { adminLayout, type BaseTemplateProps } from '../../templates/layout';
+import { renderView } from '../../templates/liquid';
+import type { UserCreditLedgerRow } from '../../templates/credit-ledger';
 
 export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
   users: Array<{
@@ -36,30 +33,6 @@ export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
     sharedCreditLedger: opts.sharedCreditLedger,
   });
   return adminLayout(views, opts, { title: 'Users', body });
-}
-
-export interface UserCreditLedgerRow {
-  delta: string;
-  isSpend: boolean;
-  balanceAfter: number;
-  action: string;
-  note: string;
-  createdBy: string;
-  createdAt: string;
-}
-
-/** Maps a credit_ledger or shared_credit_ledger row to the display shape
- *  shared by the users admin and the profile page. */
-export function creditLedgerRowForView(row: CreditLedgerViewSource): UserCreditLedgerRow {
-  return {
-    delta: row.delta > 0 ? `+${row.delta}` : String(row.delta),
-    isSpend: row.delta < 0,
-    balanceAfter: row.balance_after,
-    action: row.action,
-    note: row.note ?? '',
-    createdBy: row.created_by,
-    createdAt: row.created_at,
-  };
 }
 
 export async function userFormPage(views: Fetcher, opts: BaseTemplateProps & {

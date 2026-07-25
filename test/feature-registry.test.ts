@@ -20,6 +20,7 @@ describe('feature registry', () => {
       'db-types',
       'search',
       'trash',
+      'users-roles',
     ]);
   });
 

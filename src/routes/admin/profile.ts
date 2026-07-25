@@ -5,7 +5,7 @@ import { renderPage } from '../../core/render/chrome';
 import { ROLE_LABELS, splitRoles } from '../../utils/roles';
 import { allRoleOptions } from '../../utils/role-store';
 import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../utils/credits';
-import { creditLedgerRowForView } from '../../templates/users';
+import { creditLedgerRowForView } from '../../templates/credit-ledger';
 import { logAudit } from '../../utils/audit';
 import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../utils/i18n';
 import { appendQuery, safeAdminReturnPath } from '../../utils/forms';

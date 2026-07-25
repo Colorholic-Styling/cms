@@ -52,6 +52,8 @@ describe('feature router mounting', () => {
     ['db-types', '/admin/block_types'],
     ['search', '/admin/advanced-search'],
     ['search', '/admin/advanced-search/default'],
+    ['users-roles', '/admin/users'],
+    ['users-roles', '/admin/roles'],
   ];
 
   for (const [feature, path] of entryPoints) {
