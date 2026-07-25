@@ -438,6 +438,32 @@ served on the CMS origin.
 > third party. Review its source, pin approved asset hashes, grant least
 > privilege, and rotate/revoke its dedicated secret if compromised.
 
+### Automatic tenant registration
+
+A multi-tenant plugin Worker serves several CMS hosts and keeps one
+`tenant:<cms origin>` record per host in its own `TENANTS` KV namespace, holding
+that pair's secret. Steps 3 above (copy the secret by hand) becomes a button
+when the plugin's manifest declares `"autoTenant": true`: **Admin → Plugins →
+(plugin) → Connect plugin**. Rotating the secret re-pushes it automatically.
+
+The handshake never puts the secret on an unauthenticated wire, and never lets a
+caller talk this CMS into registering someone else:
+
+1. The CMS mints a single-use ticket (256-bit, 5-minute TTL), stores only its
+   SHA-256 in `settings`, and POSTs `{tenant, plugin_id, ticket}` to the
+   plugin's `/__plugin/tenants/enroll`. **No secret in this request.**
+2. The plugin redeems the ticket by calling `POST {tenant}/__cms/tenant/claim`
+   — dialing the named origin *itself*, so a request that lies about which CMS
+   it is can never be redeemed. Only this response carries the secret.
+3. The CMS destroys the ticket (compare-and-delete, so a wrong guess cannot burn
+   a pending enrollment and two racing claims cannot both win) and audits the
+   outcome as `plugin.tenant.connect`.
+
+Requirements: `CANONICAL_ORIGIN` must be set — it is both the tenant id and the
+origin the plugin verifies against — and the plugin must have a dedicated
+secret. **Disconnect** asks the plugin to drop this CMS's record, authenticated
+with the pairwise secret, so it can only ever remove its own row.
+
 ### Plugin write-back authentication
 
 Server-to-server calls from a plugin to `/__cms/*` must send:

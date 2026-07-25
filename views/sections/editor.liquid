@@ -985,6 +985,52 @@ class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg fo
       return true;
     }
 
+    // What "Copy fields" last put on the clipboard, kept per browser so the
+    // paste button can appear on the page you move to — reading the real
+    // clipboard needs a permission the browser only grants on a click.
+    const clipboardStoreKey = 'cms-page-fields-clipboard';
+
+    function storedPayload() {
+      try {
+        return window.localStorage.getItem(clipboardStoreKey) || '';
+      } catch (_error) {
+        return '';
+      }
+    }
+
+    function storePayload(raw) {
+      try {
+        window.localStorage.setItem(clipboardStoreKey, raw);
+      } catch (_error) {
+        // Private mode or a full quota: paste still works from the clipboard.
+      }
+    }
+
+    // Reads the clipboard only where that needs no prompt, so it is safe to call
+    // on load; everywhere else this returns '' and the stored copy is used.
+    async function silentClipboardRead() {
+      try {
+        if (!navigator.clipboard || !navigator.permissions) return '';
+        const permission = await navigator.permissions.query({ name: 'clipboard-read' });
+        if (permission.state !== 'granted') return '';
+        return await navigator.clipboard.readText();
+      } catch (_error) {
+        return '';
+      }
+    }
+
+    function setPasteVisible(visible) {
+      // `.inline-flex` is emitted after `.hidden`, so both have to be toggled.
+      pasteButton.classList.toggle('hidden', !visible);
+      pasteButton.classList.toggle('inline-flex', visible);
+    }
+
+    async function refreshPasteVisible() {
+      setPasteVisible(!!parsePayload(storedPayload()) || !!parsePayload(await silentClipboardRead()));
+    }
+
+    const pasteButton = fieldsClipboard.querySelector('[data-fields-paste]');
+
     fieldsClipboard.querySelector('[data-fields-copy]').addEventListener('click', async () => {
       const fields = collectFields();
       const count = Object.keys(fields).length;
@@ -997,6 +1043,8 @@ class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg fo
         count,
         language: currentLanguage() || '-',
       });
+      storePayload(payload);
+      setPasteVisible(true);
       try {
         await navigator.clipboard.writeText(payload);
         closePanel();
@@ -1008,15 +1056,16 @@ class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg fo
       }
     });
 
-    fieldsClipboard.querySelector('[data-fields-paste]').addEventListener('click', async () => {
+    pasteButton.addEventListener('click', async () => {
       let raw = '';
       try {
         raw = await navigator.clipboard.readText();
       } catch (_error) {
         raw = '';
       }
-      // Firefox and insecure origins can't read the clipboard for us; fall back
-      // to a box the user pastes into themselves.
+      // The real clipboard wins when it holds a field set; otherwise fall back to
+      // what this browser last copied (Firefox and insecure origins never read).
+      if (!parsePayload(raw)) raw = storedPayload();
       if (!parsePayload(raw)) {
         openPanel(text('data-paste-manual', 'Paste the copied fields here, then choose Apply.'), '', true);
         return;
@@ -1024,8 +1073,33 @@ class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg fo
       if (pasteFrom(raw)) closePanel();
     });
 
+    // A real ⌘V outside a text field carries the clipboard with it, so field sets
+    // copied elsewhere (another browser, a message from a colleague) still land
+    // even though the button had nothing to reveal itself for.
+    document.addEventListener('paste', (event) => {
+      const target = event.target;
+      if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+      const raw = (event.clipboardData && event.clipboardData.getData('text/plain')) || '';
+      if (!parsePayload(raw)) return;
+      event.preventDefault();
+      storePayload(raw);
+      setPasteVisible(true);
+      if (pasteFrom(raw)) closePanel();
+    });
+
+    // Another tab may have copied since this page loaded.
+    window.addEventListener('storage', (event) => {
+      if (event.key === clipboardStoreKey) refreshPasteVisible();
+    });
+    window.addEventListener('focus', refreshPasteVisible);
+    refreshPasteVisible();
+
     panelApply.addEventListener('click', () => {
-      if (pasteFrom(panelText.value.trim())) closePanel();
+      const raw = panelText.value.trim();
+      if (!pasteFrom(raw)) return;
+      storePayload(raw);
+      setPasteVisible(true);
+      closePanel();
     });
     panelClose.addEventListener('click', closePanel);
   }

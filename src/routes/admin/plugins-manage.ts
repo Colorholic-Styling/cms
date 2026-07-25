@@ -36,6 +36,7 @@ import {
 } from '../../utils/plugin-page-types';
 import { PLUGIN_ORIGIN } from '../../plugins/registry';
 import { pluginTenantId } from '../../security/plugin-proxy';
+import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../../utils/plugin-enroll';
 import {
   countLimitUsage,
   declaredLimits,
@@ -221,8 +222,11 @@ pluginsManageRoutes.post('/plugins-manage', async (c) => {
 // ── Edit ────────────────────────────────────────────────────────────────────
 
 pluginsManageRoutes.get('/plugins-manage/:id/edit', async (c) => {
-  const plugin = await getPlugin(c.env.DB, Number(c.req.param('id')));
-  if (!plugin) return c.notFound();
+  const id = Number(c.req.param('id'));
+  const found = await resolvedPluginFor(c.env, id);
+  if (!found) return c.notFound();
+  const { row: plugin, resolved } = found;
+  const tenantId = pluginTenantId(c.env);
   return renderPage(c, pluginFormPage, {
     isNew: false,
     id: plugin.id,
@@ -232,9 +236,49 @@ pluginsManageRoutes.get('/plugins-manage/:id/edit', async (c) => {
     sortOrder: plugin.sort_order,
     config: plugin.config ?? '',
     secret: plugin.secret ?? '',
-    tenantKvKey: `tenant:${pluginTenantId(c.env)}`,
+    tenantKvKey: `tenant:${tenantId}`,
+    // Connect is offered only when the plugin says it accepts enrollment AND
+    // we have a canonical origin for it to verify us against.
+    autoTenant: !!resolved && manifestAllowsAutoTenant(resolved.manifest) && !!tenantId,
     flash: c.req.query('flash') ?? undefined,
   });
+});
+
+/** Maps an enrollment outcome onto the flash code the edit page renders. */
+function enrollFlash(prefix: string, result: { ok: boolean; code: string }): string {
+  return result.ok ? `${prefix}-ok` : `${prefix}-${result.code}`;
+}
+
+pluginsManageRoutes.post('/plugins-manage/:id/connect', async (c) => {
+  const id = Number(c.req.param('id'));
+  const found = await resolvedPluginFor(c.env, id);
+  if (!found) return c.notFound();
+  const { row, resolved } = found;
+  if (!resolved) return c.redirect(`/admin/plugins-manage/${id}/edit?flash=connect-unreachable`);
+
+  const result = await enrollPluginTenant(c.env, resolved, c.get('user').email);
+  logAudit(c, 'plugin.tenant.connect', 'plugin', row.url, {
+    ok: result.ok,
+    code: result.code,
+    ...(result.detail ? { detail: result.detail } : {}),
+  });
+  return c.redirect(`/admin/plugins-manage/${id}/edit?flash=${enrollFlash('connect', result)}`);
+});
+
+pluginsManageRoutes.post('/plugins-manage/:id/disconnect', async (c) => {
+  const id = Number(c.req.param('id'));
+  const found = await resolvedPluginFor(c.env, id);
+  if (!found) return c.notFound();
+  const { row, resolved } = found;
+  if (!resolved) return c.redirect(`/admin/plugins-manage/${id}/edit?flash=disconnect-unreachable`);
+
+  const result = await revokePluginTenant(c.env, resolved);
+  logAudit(c, 'plugin.tenant.disconnect', 'plugin', row.url, {
+    ok: result.ok,
+    code: result.code,
+    ...(result.detail ? { detail: result.detail } : {}),
+  });
+  return c.redirect(`/admin/plugins-manage/${id}/edit?flash=${enrollFlash('disconnect', result)}`);
 });
 
 pluginsManageRoutes.post('/plugins-manage/:id/rotate-secret', async (c) => {
@@ -244,6 +288,21 @@ pluginsManageRoutes.post('/plugins-manage/:id/rotate-secret', async (c) => {
   await setPluginSecret(c.env.DB, id, generatePluginSecret());
   invalidate();
   logAudit(c, 'plugin.rotate_secret', 'plugin', plugin.url);
+
+  // Rotation breaks the connection the instant it lands, so push the new
+  // secret straight away for plugins that accept enrollment — otherwise the
+  // admin is left with a plugin that 403s until they remember to reconnect.
+  const resolved = (await getPlugins(c.env)).find((candidate) => candidate.binding === plugin.url);
+  if (resolved && manifestAllowsAutoTenant(resolved.manifest)) {
+    const result = await enrollPluginTenant(c.env, resolved, c.get('user').email);
+    logAudit(c, 'plugin.tenant.connect', 'plugin', plugin.url, {
+      ok: result.ok,
+      code: result.code,
+      after: 'rotate',
+      ...(result.detail ? { detail: result.detail } : {}),
+    });
+    return c.redirect(`/admin/plugins-manage/${id}/edit?flash=${enrollFlash('rotate-connect', result)}`);
+  }
   return c.redirect(`/admin/plugins-manage/${id}/edit?flash=secret-rotated`);
 });
 

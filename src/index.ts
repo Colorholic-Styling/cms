@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { authRoutes } from './routes/auth';
 import { adminRoutes } from './routes/admin';
 import { cmsApiRoutes } from './routes/cms-api';
+import { cmsTenantRoutes } from './routes/cms-tenant';
 import { mediaRoutes } from './routes/media';
 import { errorPage } from './templates/errors';
 import {
@@ -88,6 +89,9 @@ app.route('/admin', adminRoutes);
 
 // ── Plugin API — plugin page read/write, PLUGIN_SECRET-authenticated ──────────
 app.route('/__cms', cmsApiRoutes);
+
+// ── Plugin tenant enrollment — ticket-authenticated, pre-secret handshake ─────
+app.route('/__cms', cmsTenantRoutes);
 
 // ── Media files from optional R2 binding ──────────────────────────────────────
 app.route('/', mediaRoutes);

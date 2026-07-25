@@ -364,6 +364,17 @@ export interface PluginManifest {
    * utils/credits.ts.
    */
   credits?: PluginCreditDef[];
+  /**
+   * When true the plugin serves `POST /__plugin/tenants/enroll` and this CMS
+   * can register itself as a tenant instead of an operator hand-writing the
+   * plugin's TENANTS KV record. The flag is only a hint that the button should
+   * be offered: the plugin authenticates the enrollment itself by redeeming a
+   * single-use ticket back at this CMS's canonical origin, and grants nothing
+   * on the strength of the manifest alone. See utils/plugin-enroll.ts.
+   */
+  autoTenant?: boolean;
+  /** Snake-case alias for manifests that expose auto_tenant. */
+  auto_tenant?: boolean;
 }
 
 /** How a declared plugin limit counts existing pages. */

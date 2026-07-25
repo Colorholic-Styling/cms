@@ -19,10 +19,17 @@
          data-nothing-to-copy="{{ "view_strings.snippets_structured_editor.nothing_to_copy" | t }}">
       <button type="button" data-fields-copy
               title="{{ "view_strings.snippets_structured_editor.copy_fields_hint" | t }}"
-              class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">{{ "view_strings.snippets_structured_editor.copy_fields" | t }}</button>
+              class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#copy"></use></svg>
+        {{ "view_strings.snippets_structured_editor.copy_fields" | t }}
+      </button>
+      {%- comment -%}Hidden until something copied is available to paste — the editor script reveals it.{%- endcomment -%}
       <button type="button" data-fields-paste
               title="{{ "view_strings.snippets_structured_editor.paste_fields_hint" | t }}"
-              class="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">{{ "view_strings.snippets_structured_editor.paste_fields" | t }}</button>
+              class="hidden shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#paste"></use></svg>
+        {{ "view_strings.snippets_structured_editor.paste_fields" | t }}
+      </button>
       {% if hasLanguageContent %}
         <label for="structured_language" class="flex min-w-0 items-center gap-2 text-xs text-gray-500">
           {{ "view_strings.snippets_structured_editor.language" | t }}

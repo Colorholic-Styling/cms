@@ -58,6 +58,34 @@ export async function pluginsManagePage(views: Fetcher, opts: BaseTemplateProps 
   return adminLayout(views, opts, { title: 'Plugins', body });
 }
 
+/**
+ * Flash code → translation key for the plugin form. Enrollment adds a family of
+ * outcome codes (`connect-*`, `disconnect-*`, `rotate-connect-*`); unknown
+ * codes render nothing rather than a missing-key placeholder.
+ */
+function pluginFormFlashKey(flash: string | undefined): string {
+  if (!flash) return '';
+  const keys: Record<string, string> = {
+    'secret-generated': 'plugins.form.registered_flash',
+    'secret-rotated': 'plugins.form.rotated_flash',
+    'connect-ok': 'plugins.form.connect_ok',
+    'connect-unreachable': 'plugins.form.connect_unreachable',
+    'connect-rejected': 'plugins.form.connect_rejected',
+    'connect-not-supported': 'plugins.form.connect_not_supported',
+    'connect-no-secret': 'plugins.form.connect_no_secret',
+    'connect-no-canonical-origin': 'plugins.form.connect_no_origin',
+    'rotate-connect-ok': 'plugins.form.rotate_connect_ok',
+    'disconnect-ok': 'plugins.form.disconnect_ok',
+    'disconnect-unreachable': 'plugins.form.connect_unreachable',
+    'disconnect-rejected': 'plugins.form.disconnect_rejected',
+    'disconnect-no-secret': 'plugins.form.connect_no_secret',
+  };
+  // Every rotate-then-connect failure carries the same advice: the secret DID
+  // rotate, the plugin just did not take it.
+  if (!keys[flash] && flash.startsWith('rotate-connect-')) return 'plugins.form.rotate_connect_failed';
+  return keys[flash] ?? '';
+}
+
 export async function pluginFormPage(views: Fetcher, opts: BaseTemplateProps & {
   isNew: boolean;
   id?: number;
@@ -68,16 +96,15 @@ export async function pluginFormPage(views: Fetcher, opts: BaseTemplateProps & {
   config: string;
   secret?: string;
   tenantKvKey?: string;
+  autoTenant?: boolean;
   flash?: string;
   error?: string;
 }): Promise<string> {
-  const { isNew, id, label, url, enabled, sortOrder, config, secret, tenantKvKey, flash, error } = opts;
+  const { isNew, id, label, url, enabled, sortOrder, config, secret, tenantKvKey, autoTenant, flash, error } = opts;
   const heading = isNew ? 'Register Plugin' : 'Edit Plugin';
-  const flashMessageKey = flash === 'secret-generated'
-    ? 'plugins.form.registered_flash'
-    : flash === 'secret-rotated'
-      ? 'plugins.form.rotated_flash'
-      : '';
+  const flashMessageKey = pluginFormFlashKey(flash);
+  // A failed enrollment is a warning, not the usual informational flash.
+  const flashIsError = !!flash && /-(unreachable|rejected|not-supported|no-secret|no-canonical-origin)$/.test(flash);
 
   const body = await renderView(views, '/templates/plugin-form.json', {
     headingKey: isNew ? 'plugins.form.register_title' : 'plugins.form.edit_title',
@@ -92,12 +119,16 @@ export async function pluginFormPage(views: Fetcher, opts: BaseTemplateProps & {
     error: error ?? '',
     hasFlash: !!flashMessageKey,
     flashMessageKey,
+    flashIsError,
     showSecret: !isNew,
     secret: secret ?? '',
     tenantKvKey: tenantKvKey ?? '',
     tenantKvValue: JSON.stringify({ secret: secret ?? '' }),
     usesSharedSecret: !secret,
     rotateSecretAction: isNew ? '' : `/admin/plugins-manage/${id}/rotate-secret`,
+    autoTenant: !isNew && !!autoTenant,
+    connectAction: isNew ? '' : `/admin/plugins-manage/${id}/connect`,
+    disconnectAction: isNew ? '' : `/admin/plugins-manage/${id}/disconnect`,
   });
 
   return adminLayout(views, opts, { title: heading, body });

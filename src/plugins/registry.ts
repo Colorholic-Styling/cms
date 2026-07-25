@@ -133,6 +133,8 @@ function isPluginManifest(value: unknown): value is PluginManifest {
   if (typeof value.name !== 'string' || !value.name.trim() || value.name.length > 200) return false;
   if (typeof value.version !== 'string' || !value.version.trim() || value.version.length > 100) return false;
   if (value.i18n !== undefined && typeof value.i18n !== 'boolean') return false;
+  if (value.autoTenant !== undefined && typeof value.autoTenant !== 'boolean') return false;
+  if (value.auto_tenant !== undefined && typeof value.auto_tenant !== 'boolean') return false;
 
   const arrayFields = [
     'hooks', 'autoPublishTypes', 'nav', 'fieldTypes', 'editViews', 'newViews',
