@@ -577,7 +577,7 @@ into the flat files Wrangler applies:
 
 ```
 src/core/schema.sql + every enabled fragment  →  migrations/0001_initial_schema.sql
-src/publish/schema.sql                        →  migrations/published/0001_published_schema.sql
+src/core/publish/schema.sql                   →  migrations/published/0001_published_schema.sql
 ```
 
 This exists because Wrangler allows exactly one `migrations_dir` per D1
@@ -705,7 +705,7 @@ The default `d1` target upserts the snapshot into `PUBLISHED_DB.live_pages` by
 
 ## Publish targets
 
-Publishing is adapter-based (`src/publish/`). Built-in targets are selected with
+Publishing is adapter-based (`src/core/publish/`). Built-in targets are selected with
 the `PUBLISH_TARGETS` var (comma-separated, defaults to `"d1"`):
 
 | Target | Requires | What it does |
