@@ -10,7 +10,7 @@ import {
   sweepCreditSubscriptions,
   type CreditSubscriptionRow,
 } from '../src/core/credits/subscriptions';
-import type { PluginManifest } from '../src/types';
+import type { PluginManifest } from '../src/plugins/types';
 
 // Recurring credit billing: plugin-reported usage snapshots
 // (POST /__cms/credits/usage) upsert subscription rows the cron sweep bills

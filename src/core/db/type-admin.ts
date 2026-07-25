@@ -3,7 +3,7 @@
 // config-vs-DB listing rules.
 
 import type { AppContext } from '../http/context';
-import type { ResolvedPlugin } from '../../types';
+import type { ResolvedPlugin } from '../../plugins/types';
 
 export interface ConfigTypeRow {
   slug: string;

@@ -21,7 +21,8 @@
 // Trash restore is likewise not gated.
 // ============================================================
 
-import type { Env, PluginLimitDef, PluginLimitScope, PluginManifest, ResolvedPlugin } from '../types';
+import type { Env } from '../types';
+import type { PluginLimitDef, PluginLimitScope, PluginManifest, ResolvedPlugin } from './types';
 import { getPlugins } from './registry';
 import { listPageTypeApprovals } from './page-types';
 import { getSetting, saveSetting } from '../core/db/settings';

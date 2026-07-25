@@ -8,7 +8,8 @@
 // ============================================================
 
 import type { AppContext } from '../core/http/context';
-import type { Env, JWTPayload, PluginHookEvent } from '../types';
+import type { Env, JWTPayload } from '../types';
+import type { PluginHookEvent } from './types';
 import { pluginsForHook, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { pluginTenantId } from './proxy';
 import { logAudit } from '../core/db/audit';

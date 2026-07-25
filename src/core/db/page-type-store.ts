@@ -8,7 +8,8 @@
 // ============================================================
 
 import type { BlueprintEntry, CmsConfig } from '../../cms-config';
-import type { Env, PageType, PluginContentTypes } from '../../types';
+import type { Env, PageType } from '../../types';
+import type { PluginContentTypes } from '../../plugins/types';
 import { getSetting, saveSetting } from './settings';
 
 /** Loads all database-defined page types, ordered for display. */

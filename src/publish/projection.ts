@@ -11,7 +11,8 @@
 // publish".
 // ============================================================
 
-import type { Env, PublishLectRule } from '../types';
+import type { Env } from '../types';
+import type { PublishLectRule } from '../plugins/types';
 import { getPlugins } from '../plugins/registry';
 import { safeParseLect, stringifyLect } from '../core/db/lect';
 

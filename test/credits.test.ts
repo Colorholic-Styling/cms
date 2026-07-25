@@ -18,7 +18,8 @@ import {
   transferSharedCredits,
 } from '../src/core/credits/service';
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
-import type { JWTPayload, PluginManifest } from '../src/types';
+import type { JWTPayload } from '../src/types';
+import type { PluginManifest } from '../src/plugins/types';
 
 // Credit system: manifest-declared costs, admin-configured prices, charged by
 // the host on page creates (both doors) and plugin-reported metered usage,

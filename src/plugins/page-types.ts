@@ -6,7 +6,7 @@
 // delegated scopes after an admin approves them here.
 // ============================================================
 
-import type { PluginPageTypeApproval, PluginPageTypeAccess } from '../types';
+import type { PluginPageTypeApproval, PluginPageTypeAccess } from './types';
 
 export const PAGE_TYPE_WILDCARD = '*';
 

@@ -10,7 +10,7 @@
 // returning empty, keeping zero-plugin installs working unchanged.
 // ============================================================
 
-import type { PluginRecord } from '../types';
+import type { PluginRecord } from './types';
 
 function missingTable(error: unknown): boolean {
   return error instanceof Error && /no such table: plugins/i.test(error.message);

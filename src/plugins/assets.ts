@@ -8,7 +8,7 @@
 // unapproved (fail closed) rather than served stale-trusted.
 // ============================================================
 
-import type { PluginAssetApproval } from '../types';
+import type { PluginAssetApproval } from './types';
 
 function missingTable(error: unknown): boolean {
   return error instanceof Error && /no such table: plugin_asset_approvals/i.test(error.message);

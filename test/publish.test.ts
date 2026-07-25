@@ -12,7 +12,8 @@ import {
 } from '../src/publish';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
 import type { PublishSnapshot } from '../src/publish/adapter';
-import type { Env, Page, ResolvedPlugin } from '../src/types';
+import type { Env, Page } from '../src/types';
+import type { ResolvedPlugin } from '../src/plugins/types';
 
 const PAGE: Page = {
   id: 9001,

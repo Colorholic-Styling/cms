@@ -65,7 +65,7 @@ import {
   type PluginLimitRow,
   type PluginListItem,
 } from '../../templates/plugins-manage';
-import type { PluginManifest, PluginPageTypeAccess } from '../../types';
+import type { PluginManifest, PluginPageTypeAccess } from '../../plugins/types';
 
 export const pluginsManageRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

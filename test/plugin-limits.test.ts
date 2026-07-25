@@ -9,7 +9,8 @@ import {
   loadLimitValues,
   saveLimitValues,
 } from '../src/plugins/limits';
-import type { JWTPayload, PluginManifest } from '../src/types';
+import type { JWTPayload } from '../src/types';
+import type { PluginManifest } from '../src/plugins/types';
 
 // Plugin quota limits: manifest-declared, admin-configured, host-enforced on
 // every create path (/__cms API and the built-in admin editor).

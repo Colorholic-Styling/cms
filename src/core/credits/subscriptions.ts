@@ -37,7 +37,8 @@
 // cancels; a later usage report reactivates the row as a fresh subscription.
 // ============================================================
 
-import type { Env, PluginCreditBilling } from '../../types';
+import type { Env } from '../../types';
+import type { PluginCreditBilling } from '../../plugins/types';
 import { getPlugins } from '../../plugins/registry';
 import { type EffectiveCredit, effectiveCreditsForPlugin, spendCredits } from './service';
 

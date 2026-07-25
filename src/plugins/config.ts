@@ -16,7 +16,8 @@ import {
   loadPageTypeExtensions,
 } from '../core/db/page-type-store';
 import { dbBlockTypeToContentTypes, listDbBlockTypes } from '../core/db/block-type-store';
-import type { Env, PluginContentTypes } from '../types';
+import type { Env } from '../types';
+import type { PluginContentTypes } from './types';
 import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../core/i18n';
 
 const CONFIG_TTL_MS = 60_000;

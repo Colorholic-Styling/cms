@@ -8,7 +8,8 @@
 // ============================================================
 
 import type { BlueprintEntry } from '../../cms-config';
-import type { BlockType, PluginContentTypes } from '../../types';
+import type { BlockType } from '../../types';
+import type { PluginContentTypes } from '../../plugins/types';
 
 /** Loads all database-defined block types, ordered for display. */
 export async function listDbBlockTypes(db: D1DatabaseClient): Promise<BlockType[]> {

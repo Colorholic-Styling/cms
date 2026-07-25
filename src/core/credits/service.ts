@@ -32,7 +32,8 @@
 // (transferSharedCredits); admins top the pool up via adjustSharedCredits.
 // ============================================================
 
-import type { Env, PluginCreditBilling, PluginCreditCharge, PluginCreditDef, PluginManifest, ResolvedPlugin } from '../../types';
+import type { Env } from '../../types';
+import type { PluginCreditBilling, PluginCreditCharge, PluginCreditDef, PluginManifest, ResolvedPlugin } from '../../plugins/types';
 import { getPlugins } from '../../plugins/registry';
 import { limitScopeTypes } from '../../plugins/limits';
 import { getSetting, saveSetting } from '../db/settings';

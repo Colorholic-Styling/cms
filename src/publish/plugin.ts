@@ -13,7 +13,7 @@
 // awaited and a non-2xx response counts as a target failure.
 // ============================================================
 
-import type { ResolvedPlugin } from '../types';
+import type { ResolvedPlugin } from '../plugins/types';
 import type { PublishAdapter, PublishSnapshot } from './adapter';
 import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from '../plugins/registry';
 

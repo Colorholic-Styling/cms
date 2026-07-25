@@ -21,7 +21,7 @@
 // ============================================================
 
 import type { AppContext } from '../core/http/context';
-import type { ResolvedPlugin } from '../types';
+import type { ResolvedPlugin } from './types';
 import { pluginForEditView, pluginForNewView, pluginForReadView, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { adminLayout, escHtml, type ApprovedPluginAssets } from '../core/render/layout';
 import { pluginClientView } from '../core/render/liquid';
