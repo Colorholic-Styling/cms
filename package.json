@@ -5,7 +5,8 @@
   "scripts": {
     "setup": "node scripts/install.mjs",
     "dev": "npm run build && wrangler dev --local",
-    "build": "npm run build:css && npm run build:js",
+    "build": "npm run build:migrations && npm run build:css && npm run build:js",
+    "build:migrations": "node scripts/build-migrations.mjs",
     "build:css": "tailwindcss -i styles/admin.css -o views/assets/admin.css --minify",
     "build:js": "esbuild client/richtext-md.js --bundle --minify --format=iife --outfile=views/assets/richtext-md.js",
     "deploy": "npm run build && wrangler deploy",
