@@ -6,9 +6,9 @@ import type { Env, Variables } from '../../types';
 import { authenticatePlugin, forbiddenPageType } from './auth';
 import { stringList } from './serialize';
 import { resolveCmsConfig } from '../../plugins/config';
-import { editorTaxonomy, ensureTagByName } from '../../utils/admin-queries';
-import { advancedSearchPathSpecs } from '../../utils/search';
-import { pageTypeScopeAllows } from '../../utils/plugin-page-types';
+import { editorTaxonomy, ensureTagByName } from '../../core/db/admin-queries';
+import { advancedSearchPathSpecs } from '../../core/db/search';
+import { pageTypeScopeAllows } from '../../plugins/page-types';
 
 export const contentApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

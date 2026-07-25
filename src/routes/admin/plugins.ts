@@ -11,12 +11,12 @@
 import { Hono } from 'hono';
 import type { Env, Permission, Variables } from '../../types';
 import { pluginById, PLUGIN_ORIGIN, PLUGIN_PREFIX } from '../../plugins/registry';
-import type { AppContext } from '../../utils/context';
-import { effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
-import { appendQuery } from '../../utils/forms';
-import { jsonError, wantsJsonResponse } from '../../middleware/auth';
-import { adminLayout } from '../../templates/layout';
-import { pluginClientView } from '../../templates/liquid';
+import type { AppContext } from '../../core/http/context';
+import { effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
+import { appendQuery } from '../../core/http/forms';
+import { jsonError, wantsJsonResponse } from '../../core/auth/guards';
+import { adminLayout } from '../../core/render/layout';
+import { pluginClientView } from '../../core/render/liquid';
 import { buildBaseProps } from '../../core/render/chrome';
 import { viewsFor } from '../../plugins/views';
 import {
@@ -27,20 +27,20 @@ import {
   pluginDocumentResponse,
   warnSharedPluginOrigin,
   wantsCmsChrome,
-} from '../../security/plugin-proxy';
-import { sanitizePluginHtmlFragment } from '../../security/plugin-sanitize';
-import { buildContentSecurityPolicy } from '../../security/http';
-import { currentCspNonce } from '../../utils/request-context';
-import { cmsAdminJobMessage, createPluginAdminActionJob } from '../../utils/admin-jobs';
-import { computeIntegrity, getAssetApproval, listApprovals } from '../../utils/plugin-assets';
+} from '../../plugins/proxy';
+import { sanitizePluginHtmlFragment } from '../../plugins/sanitize';
+import { buildContentSecurityPolicy } from '../../core/http/headers';
+import { currentCspNonce } from '../../core/http/request-context';
+import { cmsAdminJobMessage, createPluginAdminActionJob } from '../../core/jobs/queue';
+import { computeIntegrity, getAssetApproval, listApprovals } from '../../plugins/assets';
 import {
   claimFormOnceToken,
   extractFormOnceToken,
   releaseFormOnceToken,
-} from '../../utils/form-once';
-import type { ApprovedPluginAssets } from '../../templates/layout';
+} from '../../core/auth/form-once';
+import type { ApprovedPluginAssets } from '../../core/render/layout';
 import type { PluginManifest } from '../../types';
-import { pluginViewRevision, pluginWorkerRevision } from '../../utils/view-revision';
+import { pluginViewRevision, pluginWorkerRevision } from '../../core/http/view-revision';
 
 export const pluginAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

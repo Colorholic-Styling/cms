@@ -8,14 +8,14 @@
 // balances (now a feature contribution, see core/feature.ts).
 
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
-import type { AppContext } from '../../utils/context';
-import { dashboardPageHref, userIdFromContext } from '../../utils/forms';
+import type { AppContext } from '../http/context';
+import { dashboardPageHref, userIdFromContext } from '../http/forms';
 import { pluginNav } from '../../plugins/registry';
-import { fetchUserAvatar } from '../../utils/admin-queries';
-import type { DashboardListResult } from '../../utils/admin-queries';
+import { fetchUserAvatar } from '../db/admin-queries';
+import type { DashboardListResult } from '../db/admin-queries';
 import { userPermissions } from '../auth/permissions';
-import { viewRevision } from '../../utils/view-revision';
-import { mintFormOnceToken } from '../../utils/form-once';
+import { viewRevision } from '../http/view-revision';
+import { mintFormOnceToken } from '../auth/form-once';
 import {
   SIDEBAR_MENU_ITEMS,
   defaultPluginNavWeight,
@@ -24,11 +24,11 @@ import {
   loadSidebarChromeSettings,
   pluginSidebarKey,
   type SidebarMenuItemKey,
-} from '../../utils/settings';
+} from '../db/settings';
 
-import type { BaseTemplateProps, SidebarNavItem } from '../../templates/layout';
-import { withActiveSidebarItems } from '../../utils/sidebar';
-import { localeRegistry, resolveUiLocale } from '../../utils/i18n';
+import type { BaseTemplateProps, SidebarNavItem } from './layout';
+import { withActiveSidebarItems } from './sidebar';
+import { localeRegistry, resolveUiLocale } from '../i18n';
 import { featureInstalled, features } from '../../features';
 
 /** The optional feature owning a sidebar entry, if any. */

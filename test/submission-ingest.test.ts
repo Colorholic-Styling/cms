@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ingestSubmissions, isSubmissionMirror } from '../src/utils/submission-ingest';
+import { ingestSubmissions, isSubmissionMirror } from '../src/core/db/submission-ingest';
 import { publishPageToTargets, unpublishPageFromTargets } from '../src/publish';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
 

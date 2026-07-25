@@ -20,8 +20,8 @@ import { d1Adapter } from './d1';
 import { r2Adapter } from './r2';
 import { pluginAdapter } from './plugin';
 import { getPlugins } from '../plugins/registry';
-import { pluginTenantId } from '../security/plugin-proxy';
-import { isSubmissionMirror } from '../utils/submission-ingest';
+import { pluginTenantId } from '../plugins/proxy';
+import { isSubmissionMirror } from '../core/db/submission-ingest';
 import { projectLect, publishLectRules } from './projection';
 
 export interface PublishOutcome {

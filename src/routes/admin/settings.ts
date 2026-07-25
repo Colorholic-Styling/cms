@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
-import { requirePermission } from '../../middleware/auth';
+import { requirePermission } from '../../core/auth/guards';
 import { pluginNav } from '../../plugins/registry';
 import { systemSettingsPage } from '../../templates/settings';
 import type { Env, Variables } from '../../types';
-import { logAudit } from '../../utils/audit';
+import { logAudit } from '../../core/db/audit';
 import { renderPage } from '../../core/render/chrome';
 import {
   APP_ICON_OPTIONS,
@@ -20,7 +20,7 @@ import {
   saveAppBrandingSettings,
   saveSidebarMenuSettings,
   saveSystemTimezone,
-} from '../../utils/settings';
+} from '../../core/db/settings';
 
 export const settingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

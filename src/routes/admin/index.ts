@@ -16,7 +16,7 @@
 // ============================================================
 
 import { Hono } from 'hono';
-import { authMiddleware, editorGuard } from '../../middleware/auth';
+import { authMiddleware, editorGuard } from '../../core/auth/guards';
 import type { Env, Variables } from '../../types';
 import { pagesRoutes } from './pages';
 import { tagsRoutes } from './tags';

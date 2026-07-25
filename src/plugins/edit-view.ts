@@ -20,18 +20,18 @@
 // markup through Liquid snippets / view files rather than inline scripts.
 // ============================================================
 
-import type { AppContext } from '../utils/context';
+import type { AppContext } from '../core/http/context';
 import type { ResolvedPlugin } from '../types';
 import { pluginForEditView, pluginForNewView, pluginForReadView, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
-import { adminLayout, escHtml, type ApprovedPluginAssets } from '../templates/layout';
-import { pluginClientView } from '../templates/liquid';
+import { adminLayout, escHtml, type ApprovedPluginAssets } from '../core/render/layout';
+import { pluginClientView } from '../core/render/liquid';
 import { buildBaseProps } from '../core/render/chrome';
 import { viewsFor } from './views';
-import { sanitizePluginHtmlFragment } from '../security/plugin-sanitize';
-import { isPluginClientViewResponse, pluginTenantId, readPluginClientViewData, setPluginAuthHeaders } from '../security/plugin-proxy';
-import { listApprovals } from '../utils/plugin-assets';
-import { pluginViewRevision, pluginWorkerRevision } from '../utils/view-revision';
-import { resolveUiLocale } from '../utils/i18n';
+import { sanitizePluginHtmlFragment } from './sanitize';
+import { isPluginClientViewResponse, pluginTenantId, readPluginClientViewData, setPluginAuthHeaders } from './proxy';
+import { listApprovals } from './assets';
+import { pluginViewRevision, pluginWorkerRevision } from '../core/http/view-revision';
+import { resolveUiLocale } from '../core/i18n';
 
 /** Editor context the CMS sends to a plugin's `/__plugin/edit` endpoint. */
 export interface EditViewContext {

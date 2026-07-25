@@ -3,7 +3,7 @@
 // ============================================================
 
 import type { BlueprintEntry } from './cms-config';
-import type { CmsAdminJobMessage } from './utils/admin-jobs';
+import type { CmsAdminJobMessage } from './core/jobs/queue';
 
 declare global {
   /** Query surface shared by a raw D1 binding and a D1 Sessions API client. */

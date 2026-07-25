@@ -7,7 +7,7 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
-import { buildTranslationCatalog } from '../../utils/i18n';
+import { buildTranslationCatalog } from '../../core/i18n';
 
 export const i18nCatalogRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

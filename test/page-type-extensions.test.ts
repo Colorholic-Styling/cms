@@ -7,10 +7,10 @@ import {
   applyPageTypeExtensions,
   loadPageTypeExtensions,
   savePageTypeExtension,
-} from '../src/utils/page-type-store';
+} from '../src/core/db/page-type-store';
 import { cmsConfig } from '../src/cms-config';
 import type { CmsConfig } from '../src/cms-config';
-import { saveSetting } from '../src/utils/settings';
+import { saveSetting } from '../src/core/db/settings';
 
 const cmsEnv = env as unknown as Env;
 

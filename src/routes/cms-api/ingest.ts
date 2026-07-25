@@ -4,7 +4,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
 import { authenticatePlugin } from './auth';
-import { ingestSubmissions } from '../../utils/submission-ingest';
+import { ingestSubmissions } from '../../core/db/submission-ingest';
 
 export const ingestApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

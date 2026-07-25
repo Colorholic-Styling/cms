@@ -1,7 +1,7 @@
 // Lifecycle hooks and audit entries for plugin-originated writes. The actor
 // is the calling plugin, not a signed-in user, so these never read c.get('user').
 
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 import { deliverHooks, type HookEvent, type HookPage } from '../../plugins/hooks';
 
 // ── Lifecycle hook + audit (plugin actor, no signed-in user) ──────────────────

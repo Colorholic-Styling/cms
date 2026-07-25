@@ -9,8 +9,8 @@ import {
   listLocales,
   saveLocale,
   saveLocaleMessage,
-} from '../src/utils/i18n';
-import { APP_ICON_OPTIONS, SIDEBAR_MENU_ITEMS } from '../src/utils/settings';
+} from '../src/core/i18n';
+import { APP_ICON_OPTIONS, SIDEBAR_MENU_ITEMS } from '../src/core/db/settings';
 import { USER_ROLES } from '../src/types';
 
 const cmsEnv = env as unknown as Env;

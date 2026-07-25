@@ -3,9 +3,9 @@
 
 import type { Page } from '../../types';
 import type { ApiPage, ApiPageTag, AdvancedSearchInput } from './types';
-import { safeParseLect } from '../../utils/lect';
-import type { Lect } from '../../utils/lect';
-import type { AdvancedSearchCriterion } from '../../utils/search';
+import { safeParseLect } from '../../core/db/lect';
+import type { Lect } from '../../core/db/lect';
+import type { AdvancedSearchCriterion } from '../../core/db/search';
 
 // ── Serialization ─────────────────────────────────────────────────────────────
 

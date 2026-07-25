@@ -12,7 +12,7 @@
 // ============================================================
 
 import type { LivePageSnapshot, PublishAdapter, PublishSnapshot } from './adapter';
-import { safeParseLect } from '../utils/lect';
+import { safeParseLect } from '../core/db/lect';
 
 interface IndexEntry {
   uuid: string;

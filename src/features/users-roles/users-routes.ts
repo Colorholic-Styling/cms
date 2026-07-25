@@ -4,14 +4,14 @@
 import { Hono } from 'hono';
 import { usersPage, userFormPage } from './users-template';
 import type { Env, Variables, User } from '../../types';
-import { logAudit } from '../../utils/audit';
-import { requirePermission } from '../../middleware/auth';
+import { logAudit } from '../../core/db/audit';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
-import { allRoleOptions } from '../../utils/role-store';
-import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
-import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../utils/credits';
+import { allRoleOptions } from '../../core/auth/role-store';
+import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
+import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../core/credits/service';
 import { creditLedgerRowForView } from '../../templates/credit-ledger';
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 
 export const usersRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

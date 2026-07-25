@@ -4,9 +4,9 @@
 // users, roles — transitively imported the search engine, the publish layer
 // and the projection code that only this one screen needs.
 
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 import { advancedSearchPage } from './template';
-import { num } from '../../utils/forms';
+import { num } from '../../core/http/forms';
 import {
   advancedSearchFormCriteria,
   advancedSearchOperator,
@@ -21,14 +21,14 @@ import {
   advancedSearchTargetPageTypes,
   parseAdvancedSearchCriteria,
   performAdvancedSearch,
-} from '../../utils/search';
+} from '../../core/db/search';
 import { resolveCmsConfig } from '../../plugins/config';
-import { editorTaxonomy } from '../../utils/admin-queries';
+import { editorTaxonomy } from '../../core/db/admin-queries';
 import { listLiveByTypes } from '../../publish';
 import { draftLectProjector } from '../../publish/projection';
-import { withLiveStatus } from '../../utils/page-logic';
+import { withLiveStatus } from '../../core/db/page-logic';
 import { renderPage } from '../../core/render/chrome';
-import { IMPORT_EXPORT_PLUGIN_ID, importExportPluginBase } from '../import-export/links';
+import { IMPORT_EXPORT_PLUGIN_ID, importExportPluginBase } from '../../plugins/import-export';
 
 export async function renderAdvancedSearch(c: AppContext, defaultPageType = 'all', canSelectPageType = true) {
   const config = await resolveCmsConfig(c.env);

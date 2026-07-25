@@ -12,9 +12,9 @@ import { typeFormPage, typeListPage } from './template';
 import type { TypeAdminCopy, TypeFormModel, TypeFormOption } from './template';
 import { cmsConfig, type CmsConfig } from '../../cms-config';
 import type { Env, Variables, Permission, ResolvedPlugin } from '../../types';
-import { num, slugify, str } from '../../utils/forms';
-import { logAudit } from '../../utils/audit';
-import { requirePermission } from '../../middleware/auth';
+import { num, slugify, str } from '../../core/http/forms';
+import { logAudit } from '../../core/db/audit';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { clearConfigCache, resolveCmsConfig } from '../../plugins/config';
@@ -23,10 +23,10 @@ import {
   listDbPageTypes,
   loadPageTypeExtensions,
   savePageTypeExtension,
-} from '../../utils/page-type-store';
-import { listDbBlockTypes } from '../../utils/block-type-store';
-import { configOnlyTypes, validateTypeForm } from '../../utils/type-admin';
-import type { AppContext } from '../../utils/context';
+} from '../../core/db/page-type-store';
+import { listDbBlockTypes } from '../../core/db/block-type-store';
+import { configOnlyTypes, validateTypeForm } from '../../core/db/type-admin';
+import type { AppContext } from '../../core/http/context';
 
 interface DbTypeRow {
   id: number;

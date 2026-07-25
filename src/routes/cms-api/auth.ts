@@ -4,11 +4,11 @@
 // x-plugin-id and prove it with that row's own secret. Writes are scoped to
 // the plugin's manifest blueprint types plus admin-approved writeTypes.
 
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 import type { PluginAuth } from './types';
 import { pluginById } from '../../plugins/registry';
-import { timingSafeEqualStr } from '../../security/plugin-proxy';
-import { listPageTypeApprovals } from '../../utils/plugin-page-types';
+import { timingSafeEqualStr } from '../../plugins/proxy';
+import { listPageTypeApprovals } from '../../plugins/page-types';
 
 // ── Auth + scoping ────────────────────────────────────────────────────────────
 

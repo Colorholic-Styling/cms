@@ -2,14 +2,14 @@ import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
 import { clearConfigCache } from '../src/plugins/config';
-import { declaredCredits, getCreditBalance } from '../src/utils/credits';
+import { declaredCredits, getCreditBalance } from '../src/core/credits/service';
 import {
   addMonthsUTC,
   blockCost,
   sqliteDate,
   sweepCreditSubscriptions,
   type CreditSubscriptionRow,
-} from '../src/utils/credit-subscriptions';
+} from '../src/core/credits/subscriptions';
 import type { PluginManifest } from '../src/types';
 
 // Recurring credit billing: plugin-reported usage snapshots

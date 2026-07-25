@@ -6,8 +6,8 @@
 
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { signJWT } from '../src/security/jwt';
-import { clearRolePermissionsCache } from '../src/utils/roles';
+import { signJWT } from '../src/core/auth/jwt';
+import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import type { JWTPayload } from '../src/types';
 
 const IncomingRequest = Request;

@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
 import { authenticatePlugin } from './auth';
 import { asFiniteNumber } from './serialize';
-import { countLimitUsage, effectiveLimitsForPlugin } from '../../utils/plugin-limits';
+import { countLimitUsage, effectiveLimitsForPlugin } from '../../plugins/limits';
 
 export const limitsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

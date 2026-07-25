@@ -4,13 +4,13 @@
 import { Hono } from 'hono';
 import { dispatchHook } from '../../../plugins/hooks';
 import type { Env, Variables } from '../../../types';
-import { appendQuery, safeAdminReturnPath } from '../../../utils/forms';
-import { trashDraftPage } from '../../../utils/admin-queries';
+import { appendQuery, safeAdminReturnPath } from '../../../core/http/forms';
+import { trashDraftPage } from '../../../core/db/admin-queries';
 import { describeFailures, publishPageToTargets, unpublishPageFromTargets } from '../../../publish';
 import type { PublishOutcome } from '../../../publish';
-import { requirePermission } from '../../../middleware/auth';
-import { pullPublishedPageToDraft } from '../../../utils/page-store';
-import { isSubmissionMirror } from '../../../utils/submission-ingest';
+import { requirePermission } from '../../../core/auth/guards';
+import { pullPublishedPageToDraft } from '../../../core/db/page-store';
+import { isSubmissionMirror } from '../../../core/db/submission-ingest';
 
 
 export const pageLifecycleRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

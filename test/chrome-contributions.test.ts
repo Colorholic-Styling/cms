@@ -9,8 +9,8 @@
 
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { signJWT } from '../src/security/jwt';
-import { clearRolePermissionsCache } from '../src/utils/roles';
+import { signJWT } from '../src/core/auth/jwt';
+import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import { features } from '../src/features';
 import type { JWTPayload } from '../src/types';
 
@@ -86,7 +86,7 @@ describe('admin chrome feature contributions', () => {
     // the server HTML — is what decides whether the balances appear. Without
     // a contributor it must be false rather than undefined, so the sidebar
     // renders no balances instead of a blank "{{ userCredits }}" row.
-    const { layout } = await import('../src/templates/layout');
+    const { layout } = await import('../src/core/render/layout');
     const withoutCredits = await layout(env.VIEWS, {
       title: 'x',
       siteTitle: 'x',

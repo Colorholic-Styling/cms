@@ -14,10 +14,10 @@ import {
   dbPageTypeToContentTypes,
   listDbPageTypes,
   loadPageTypeExtensions,
-} from '../utils/page-type-store';
-import { dbBlockTypeToContentTypes, listDbBlockTypes } from '../utils/block-type-store';
+} from '../core/db/page-type-store';
+import { dbBlockTypeToContentTypes, listDbBlockTypes } from '../core/db/block-type-store';
 import type { Env, PluginContentTypes } from '../types';
-import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../utils/i18n';
+import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../core/i18n';
 
 const CONFIG_TTL_MS = 60_000;
 let cached: { config: CmsConfig; expires: number } | null = null;

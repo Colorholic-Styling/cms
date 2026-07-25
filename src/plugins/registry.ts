@@ -8,7 +8,7 @@
 // ============================================================
 
 import type { Env, PluginHookEvent, PluginManifest, ResolvedPlugin, PluginRecord } from '../types';
-import { listEnabledPlugins } from '../utils/plugin-store';
+import { listEnabledPlugins } from './store';
 
 /** Reserved prefix every plugin Worker serves its CMS-facing endpoints under. */
 export const PLUGIN_PREFIX = '/__plugin';

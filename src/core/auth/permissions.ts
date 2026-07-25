@@ -4,8 +4,8 @@
 // a rendering one, and routes that only need a permission check should not
 // pull in the admin chrome to get one.
 
-import type { AppContext } from '../../utils/context';
-import { effectivePermissions, resolveRolePermissions } from '../../utils/roles';
+import type { AppContext } from '../http/context';
+import { effectivePermissions, resolveRolePermissions } from './roles';
 import type { Permission } from '../../types';
 
 /** The signed-in user's effective permission set (built-in defaults + DB overrides). */

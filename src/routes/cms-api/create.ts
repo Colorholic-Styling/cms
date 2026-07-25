@@ -3,19 +3,19 @@
 // Ids and slugs are allocated up front for the whole batch so a bulk insert
 // stays a single D1 round trip and cannot collide with itself mid-flight.
 
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 import type { ApiPage, PageInput, PluginAuth, PreparedCreate } from './types';
 import { forbiddenPageTypeBody } from './auth';
 import { asFiniteNumber, asPositiveSafeInteger, coerceLect, hasSubmittedValue } from './serialize';
 import { emitPluginHooks } from './hooks';
 import type { HookPage } from '../../plugins/hooks';
-import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../utils/lect';
+import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../core/db/lect';
 import { resolveCmsConfig } from '../../plugins/config';
-import { withDraftMetadata } from '../../utils/page-logic';
-import { slugify } from '../../utils/forms';
-import { pageTypeScopeAllows } from '../../utils/plugin-page-types';
-import { checkCreateLimits, createCandidate } from '../../utils/plugin-limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../utils/credits';
+import { withDraftMetadata } from '../../core/db/page-logic';
+import { slugify } from '../../core/http/forms';
+import { pageTypeScopeAllows } from '../../plugins/page-types';
+import { checkCreateLimits, createCandidate } from '../../plugins/limits';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../core/credits/service';
 
 /** Largest batch accepted by POST /pages/batch — bounds D1 write volume per call. */
 

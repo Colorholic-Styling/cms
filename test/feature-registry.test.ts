@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { assertFeatureRegistry, type CmsFeature } from '../src/core/feature';
 import { featureInstalled, features } from '../src/features';
 import { featureRouters } from '../src/features/routers';
-import { SIDEBAR_MENU_ITEMS } from '../src/utils/settings';
+import { SIDEBAR_MENU_ITEMS } from '../src/core/db/settings';
 
 describe('feature registry', () => {
   it('installs the expected feature set', () => {

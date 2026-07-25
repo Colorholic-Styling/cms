@@ -2,11 +2,11 @@
 
 import { Hono } from 'hono';
 import { cmsConfig } from '../../cms-config';
-import { getLectLocalizedValue, safeParseLect } from '../../utils/lect';
+import { getLectLocalizedValue, safeParseLect } from '../../core/db/lect';
 import type { Env, Variables, Tag, Taxonomy } from '../../types';
-import { num } from '../../utils/forms';
-import { requirePermission } from '../../middleware/auth';
-import type { AppContext } from '../../utils/context';
+import { num } from '../../core/http/forms';
+import { requirePermission } from '../../core/auth/guards';
+import type { AppContext } from '../../core/http/context';
 import { resolveCmsConfig } from '../../plugins/config';
 
 export const apiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

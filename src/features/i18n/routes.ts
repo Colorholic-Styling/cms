@@ -6,9 +6,9 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../middleware/auth';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
-import { logAudit } from '../../utils/audit';
+import { logAudit } from '../../core/db/audit';
 import { languagesPage, translationsPage, type LocaleViewRow } from './template';
 import { clearConfigCache } from '../../plugins/config';
 import {
@@ -20,7 +20,7 @@ import {
   loadBundledLocaleCatalog,
   saveLocale,
   saveLocaleMessage,
-} from '../../utils/i18n';
+} from '../../core/i18n';
 
 export const i18nRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

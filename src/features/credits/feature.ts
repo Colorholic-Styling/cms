@@ -1,6 +1,6 @@
 import type { CmsFeature } from '../../core/feature';
-import { getCreditBalance, getSharedCreditBalance } from '../../utils/credits';
-import { userIdFromContext } from '../../utils/forms';
+import { getCreditBalance, getSharedCreditBalance } from '../../core/credits/service';
+import { userIdFromContext } from '../../core/http/forms';
 
 /**
  * Metered billing. The admin screens still live in routes/admin (users,

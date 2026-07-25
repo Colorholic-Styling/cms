@@ -8,10 +8,10 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../middleware/auth';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
-import { logAudit } from '../../utils/audit';
-import { str, num } from '../../utils/forms';
+import { logAudit } from '../../core/db/audit';
+import { str, num } from '../../core/http/forms';
 import { getPlugins, clearManifestCache } from '../../plugins/registry';
 import { clearConfigCache } from '../../plugins/config';
 import {
@@ -25,18 +25,18 @@ import {
   setPluginSecret,
   generatePluginSecret,
   type PluginInput,
-} from '../../utils/plugin-store';
-import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAsset } from '../../utils/plugin-assets';
+} from '../../plugins/store';
+import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAsset } from '../../plugins/assets';
 import {
   approvePageTypeAccess,
   getPageTypeApproval,
   isPageTypeWildcard,
   listPageTypeApprovals,
   revokePageTypeAccess,
-} from '../../utils/plugin-page-types';
+} from '../../plugins/page-types';
 import { PLUGIN_ORIGIN } from '../../plugins/registry';
-import { pluginTenantId } from '../../security/plugin-proxy';
-import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../../utils/plugin-enroll';
+import { pluginTenantId } from '../../plugins/proxy';
+import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../../plugins/enroll';
 import {
   countLimitUsage,
   declaredLimits,
@@ -45,7 +45,7 @@ import {
   saveLimitValues,
   type NormalizedLimitDef,
   type PluginLimitValues,
-} from '../../utils/plugin-limits';
+} from '../../plugins/limits';
 import {
   creditUnitLabel,
   declaredCredits,
@@ -53,7 +53,7 @@ import {
   saveCreditValues,
   type NormalizedCreditDef,
   type PluginCreditValues,
-} from '../../utils/credits';
+} from '../../core/credits/service';
 import {
   pluginsManagePage,
   pluginFormPage,

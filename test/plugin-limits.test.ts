@@ -2,13 +2,13 @@ import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
 import { clearConfigCache } from '../src/plugins/config';
-import { signJWT } from '../src/security/jwt';
+import { signJWT } from '../src/core/auth/jwt';
 import {
   declaredLimits,
   limitsSettingKey,
   loadLimitValues,
   saveLimitValues,
-} from '../src/utils/plugin-limits';
+} from '../src/plugins/limits';
 import type { JWTPayload, PluginManifest } from '../src/types';
 
 // Plugin quota limits: manifest-declared, admin-configured, host-enforced on

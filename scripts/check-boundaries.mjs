@@ -6,9 +6,10 @@
 // billing engine and the search index. Nothing failed when that happened,
 // which is why it kept happening.
 //
-// These rules make it fail. They are deliberately narrow — the src/features
-// layout is still transitional, so this checks the one boundary that has
-// already been paid for rather than a layering scheme that does not exist yet.
+// These rules make it fail. They cover the layering the refactor paid for:
+// core/ never depends on a feature, features never depend on each other, the
+// chrome reaches feature code only through the manifest registry, and no
+// import cycle runs through it.
 //
 // Usage: node scripts/check-boundaries.mjs [--quiet]
 // ============================================================
@@ -27,13 +28,16 @@ const ROUTERS = 'src/features/routers.ts';
 // Feature machinery the chrome must never pull in directly: every admin page
 // render would pay for it, and no admin page except one needs it.
 const FORBIDDEN_IN_CHROME = [
-  'src/utils/search.ts',
+  'src/core/db/search.ts',
+  'src/core/db/chinese.ts',
   'src/publish/index.ts',
   'src/publish/projection.ts',
-  'src/templates/advanced-search.ts',
-  'src/utils/chinese.ts',
+  'src/features/search/template.ts',
   'dictionary/chinese-chars.ts',
 ];
+
+// Paths in FORBIDDEN_IN_CHROME must exist, or the rule silently passes forever.
+// They have moved once already (the utils/ dissolution), so this is checked.
 
 const files = [];
 (function walk(dir) {
@@ -74,6 +78,12 @@ function closure(root, blocked = new Set()) {
 
 const failures = [];
 
+for (const forbidden of FORBIDDEN_IN_CHROME) {
+  if (!files.includes(forbidden) && forbidden.startsWith('src/')) {
+    failures.push(`FORBIDDEN_IN_CHROME lists ${forbidden}, which no longer exists — the rule would pass by accident`);
+  }
+}
+
 // 1. The chrome may reach feature code only through the contributor registry.
 const withoutRegistry = closure(CHROME, new Set([REGISTRY]));
 for (const file of withoutRegistry) {
@@ -88,14 +98,33 @@ for (const forbidden of FORBIDDEN_IN_CHROME) {
   if (full.has(forbidden)) failures.push(`${CHROME} reaches ${forbidden}; every admin render would pay for it`);
 }
 
-// 3. Outside the chrome, core/ must not know that features exist at all.
-for (const file of files.filter((candidate) => candidate.startsWith('src/core/') && candidate !== CHROME)) {
+// 3. core/ may not reach into features/ at all, except the chrome reading the
+//    manifest registry. This is the layering the utils/ dissolution paid for:
+//    without it, "core" is just a folder name.
+for (const file of files.filter((f) => f.startsWith('src/core/'))) {
   for (const target of graph.get(file) ?? []) {
-    if (target.startsWith('src/features/')) failures.push(`${file} imports ${target}; only ${CHROME} may reach features, via ${REGISTRY}`);
+    if (!target.startsWith('src/features/')) continue;
+    if (file === CHROME && target === REGISTRY) continue;
+    failures.push(`${file} imports ${target}; core must not depend on a feature (only ${CHROME} -> ${REGISTRY})`);
   }
 }
 
-// 4. The registry is the one place that names features, so keep it a list of
+// 4. A feature may not import a sibling feature. Shared code belongs in core/
+//    or plugins/; a genuine dependency should become a `requires` entry and an
+//    explicit exception here, not an ad-hoc import.
+const featureOf = (file) => (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
+for (const file of files) {
+  const owner = featureOf(file);
+  if (!owner) continue;
+  for (const target of graph.get(file) ?? []) {
+    const other = featureOf(target);
+    if (other && other !== owner) {
+      failures.push(`${file} imports ${target}; features must not depend on each other`);
+    }
+  }
+}
+
+// 5. The registry is the one place that names features, so keep it a list of
 //    imports and a little validation — heavier logic there would not survive
 //    being generated from cms.features.json.
 for (const target of graph.get(REGISTRY) ?? []) {
@@ -104,7 +133,7 @@ for (const target of graph.get(REGISTRY) ?? []) {
   }
 }
 
-// 5. Routers are registered separately precisely so the chrome never sees
+// 6. Routers are registered separately precisely so the chrome never sees
 //    them: a router reaches back into the chrome via renderPage, so importing
 //    one from the manifest registry would re-bloat the chrome and make the
 //    graph cyclic.
@@ -117,7 +146,7 @@ for (const file of full) {
   }
 }
 
-// 6. No import cycle may run through the chrome. This is the failure mode the
+// 7. No import cycle may run through the chrome. This is the failure mode the
 //    router split exists to prevent, and it is silent until a bundler happens
 //    to order the modules badly.
 const cycle = (() => {
@@ -142,7 +171,7 @@ const cycle = (() => {
 })();
 if (cycle) failures.push(`import cycle through the chrome: ${cycle.join(' -> ')}`);
 
-// 7. Every registered router must belong to an installed feature, or the two
+// 8. Every registered router must belong to an installed feature, or the two
 //    registries have drifted and a route is mounted for a feature that is
 //    supposed to be gone.
 const featureIds = [...(readFileSync(path.join(rootDir, REGISTRY), 'utf8').matchAll(/import\s+\{\s*(\w+)\s*\}\s+from\s+'\.\/([\w-]+)\//g))]

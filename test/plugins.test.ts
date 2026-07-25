@@ -5,10 +5,10 @@ import { clearManifestCache, getPlugins, __injectPluginFetcher, __clearInjectedF
 import { deliverHook } from '../src/plugins/hooks';
 import { viewsFor } from '../src/plugins/views';
 import { cmsConfig } from '../src/cms-config';
-import { signJWT } from '../src/security/jwt';
-import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/utils/admin-jobs';
-import { approveAsset, computeIntegrity } from '../src/utils/plugin-assets';
-import { mintFormOnceToken } from '../src/utils/form-once';
+import { signJWT } from '../src/core/auth/jwt';
+import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/core/jobs/queue';
+import { approveAsset, computeIntegrity } from '../src/plugins/assets';
+import { mintFormOnceToken } from '../src/core/auth/form-once';
 import type { Env, JWTPayload } from '../src/types';
 
 const EVENTS_MANIFEST = {

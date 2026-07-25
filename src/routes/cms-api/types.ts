@@ -2,7 +2,7 @@
 // code, so every module can import from here without creating a cycle.
 
 import type { ResolvedPlugin } from '../../types';
-import type { Lect } from '../../utils/lect';
+import type { Lect } from '../../core/db/lect';
 
 export interface ApiPage {
   id: number;

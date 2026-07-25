@@ -5,10 +5,10 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../middleware/auth';
-import { rateLimitByIP } from '../../middleware/rate-limit';
-import { logAudit } from '../../utils/audit';
-import { slugify, str } from '../../utils/forms';
+import { requirePermission } from '../../core/auth/guards';
+import { rateLimitByIP } from '../../core/http/rate-limit';
+import { logAudit } from '../../core/db/audit';
+import { slugify, str } from '../../core/http/forms';
 import { validateUpload } from './security';
 
 export const mediaUploadRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

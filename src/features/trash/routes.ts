@@ -3,12 +3,12 @@
 import { Hono } from 'hono';
 import { trashPage } from './template';
 import type { Env, Variables, Page, PageTag, PageVersion } from '../../types';
-import { restoreTrashedPages } from '../../utils/admin-queries';
+import { restoreTrashedPages } from '../../core/db/admin-queries';
 import { dashboardPagination, renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
-import { dashboardPageNumber, dashboardPageSize } from '../../utils/forms';
-import { logAudit } from '../../utils/audit';
-import { requireAnyPermission, requirePermission } from '../../middleware/auth';
+import { dashboardPageNumber, dashboardPageSize } from '../../core/http/forms';
+import { logAudit } from '../../core/db/audit';
+import { requireAnyPermission, requirePermission } from '../../core/auth/guards';
 
 export const trashRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

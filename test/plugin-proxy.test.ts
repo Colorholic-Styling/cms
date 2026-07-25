@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pluginDocumentResponse } from '../src/security/plugin-proxy';
+import { pluginDocumentResponse } from '../src/plugins/proxy';
 
 describe('plugin document CSP', () => {
   it('allows loopback HTTP images when the CMS document is served locally', () => {

@@ -1,5 +1,5 @@
-import { adminLayout, type BaseTemplateProps } from '../../templates/layout';
-import { renderView } from '../../templates/liquid';
+import { adminLayout, type BaseTemplateProps } from '../../core/render/layout';
+import { renderView } from '../../core/render/liquid';
 import type { UserCreditLedgerRow } from '../../templates/credit-ledger';
 
 export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {

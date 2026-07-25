@@ -5,11 +5,11 @@ import { Hono } from 'hono';
 import { roleFormPage, rolesPage } from './roles-template';
 import { PERMISSIONS, PERMISSION_DESCRIPTIONS } from '../../types';
 import type { Env, Variables, Permission } from '../../types';
-import { slugify, str } from '../../utils/forms';
-import { logAudit } from '../../utils/audit';
-import { requirePermission } from '../../middleware/auth';
+import { slugify, str } from '../../core/http/forms';
+import { logAudit } from '../../core/db/audit';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
-import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../utils/roles';
+import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
 import { allPluginPermissions } from '../../plugins/registry';
 import {
   createCustomRole,
@@ -17,8 +17,8 @@ import {
   getRoleForEdit,
   listRolesForAdmin,
   saveRolePermissions,
-} from '../../utils/role-store';
-import type { AppContext } from '../../utils/context';
+} from '../../core/auth/role-store';
+import type { AppContext } from '../../core/http/context';
 
 export const rolesRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

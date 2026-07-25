@@ -2,7 +2,7 @@ import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
 import { clearConfigCache } from '../src/plugins/config';
-import { signJWT } from '../src/security/jwt';
+import { signJWT } from '../src/core/auth/jwt';
 import {
   adjustCredits,
   adjustSharedCredits,
@@ -16,8 +16,8 @@ import {
   spendCredits,
   transferCredits,
   transferSharedCredits,
-} from '../src/utils/credits';
-import { clearRolePermissionsCache } from '../src/utils/roles';
+} from '../src/core/credits/service';
+import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import type { JWTPayload, PluginManifest } from '../src/types';
 
 // Credit system: manifest-declared costs, admin-configured prices, charged by

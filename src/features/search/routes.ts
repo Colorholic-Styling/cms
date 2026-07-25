@@ -2,25 +2,25 @@
 // import-export plugin; renderAdvancedSearch links there when it's installed.)
 
 import { Hono } from 'hono';
-import { requirePermission } from '../../middleware/auth';
+import { requirePermission } from '../../core/auth/guards';
 import { resolveCmsConfig } from '../../plugins/config';
 import type { Env, Permission, Variables } from '../../types';
 import {
   cmsAdminJobMessage,
   createAdvancedSearchBulkActionJob,
   type AdvancedSearchBulkAction,
-} from '../../utils/admin-jobs';
-import { runCmsAdminJob } from '../../utils/admin-job-runner';
+} from '../../core/jobs/queue';
+import { runCmsAdminJob } from '../../core/jobs/runner';
 import { renderAdvancedSearch } from './render';
 import { userCan } from '../../core/auth/permissions';
-import type { AppContext } from '../../utils/context';
-import { appendQuery, dashboardStatusFilter, safeAdminReturnPath, str } from '../../utils/forms';
+import type { AppContext } from '../../core/http/context';
+import { appendQuery, dashboardStatusFilter, safeAdminReturnPath, str } from '../../core/http/forms';
 import {
   advancedSearchOperator,
   advancedSearchSelectedPageType,
   advancedSearchTargetPageTypes,
   parseAdvancedSearchCriteria,
-} from '../../utils/search';
+} from '../../core/db/search';
 
 export const searchRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

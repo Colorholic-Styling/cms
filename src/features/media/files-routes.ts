@@ -5,9 +5,9 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../middleware/auth';
+import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
-import { logAudit } from '../../utils/audit';
+import { logAudit } from '../../core/db/audit';
 import { contentListPage, type ContentListMediaItem } from './content-list-template';
 
 export const mediaFilesRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

@@ -4,25 +4,25 @@
 import { Hono } from 'hono';
 import { dashboardPage } from '../../../templates/dashboard';
 import { resolveCmsConfig } from '../../../plugins/config';
-import { advancedSearchPageTypes } from '../../../utils/search';
+import { advancedSearchPageTypes } from '../../../core/db/search';
 import { dispatchHook } from '../../../plugins/hooks';
-import { blueprintToLect, stringifyLect } from '../../../utils/lect';
+import { blueprintToLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page } from '../../../types';
 import type { BlueprintEntry } from '../../../cms-config';
-import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../utils/forms';
-import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../utils/plugin-limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../utils/credits';
-import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../utils/page-logic';
-import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../utils/admin-queries';
+import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
+import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../plugins/limits';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../core/credits/service';
+import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
+import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../publish';
 import { draftLectProjector } from '../../../publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
 import { userCan } from '../../../core/auth/permissions';
-import { importExportHrefs } from '../../../features/import-export/links';
-import { loadAdminHomeSettings } from '../../../utils/settings';
-import { requirePermission } from '../../../middleware/auth';
-import type { AppContext } from '../../../utils/context';
-import { savePageVersionAndSetCurrent } from '../../../utils/page-store';
+import { importExportHrefs } from '../../../plugins/import-export';
+import { loadAdminHomeSettings } from '../../../core/db/settings';
+import { requirePermission } from '../../../core/auth/guards';
+import type { AppContext } from '../../../core/http/context';
+import { savePageVersionAndSetCurrent } from '../../../core/db/page-store';
 
 
 export const pageDashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

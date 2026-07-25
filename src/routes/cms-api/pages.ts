@@ -9,7 +9,7 @@
 import { Hono } from 'hono';
 import type { Env, Variables, Page } from '../../types';
 import type { AdvancedSearchInput, ApiPage, DuplicateInput, PageInput } from './types';
-import type { AppContext } from '../../utils/context';
+import type { AppContext } from '../../core/http/context';
 import { authenticatePlugin, forbiddenPageType } from './auth';
 import {
   asFiniteNumber,
@@ -37,19 +37,19 @@ import {
   generatedPageVersionIds,
 } from './create';
 import type { HookPage } from '../../plugins/hooks';
-import { checkCreateLimits, createCandidate } from '../../utils/plugin-limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../utils/credits';
+import { checkCreateLimits, createCandidate } from '../../plugins/limits';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../core/credits/service';
 import { emitPluginHook, emitPluginHooks } from './hooks';
-import { chineseSearchVariants } from '../../utils/chinese';
-import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../utils/search';
-import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../utils/lect';
+import { chineseSearchVariants } from '../../core/db/chinese';
+import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../core/db/search';
+import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../core/db/lect';
 import { resolveCmsConfig } from '../../plugins/config';
-import { withDraftMetadata } from '../../utils/page-logic';
-import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../utils/admin-queries';
-import { slugify } from '../../utils/forms';
-import { pageTypeScopeAllows } from '../../utils/plugin-page-types';
+import { withDraftMetadata } from '../../core/db/page-logic';
+import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../core/db/admin-queries';
+import { slugify } from '../../core/http/forms';
+import { pageTypeScopeAllows } from '../../plugins/page-types';
 import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../publish';
-import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../utils/page-store';
+import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../core/db/page-store';
 
 const DUPLICATE_BATCH = 100;
 const DUPLICATE_MAX_PER_CALL = 1000;

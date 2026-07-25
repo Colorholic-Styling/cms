@@ -4,15 +4,15 @@
 import { resolveCmsConfig } from '../../../plugins/config';
 import { pluginEditView, pluginNewView, pluginReadView } from '../../../plugins/edit-view';
 import type { EditViewContext, ReadViewContext } from '../../../plugins/edit-view';
-import { stringifyLect } from '../../../utils/lect';
-import type { Lect } from '../../../utils/lect';
+import { stringifyLect } from '../../../core/db/lect';
+import type { Lect } from '../../../core/db/lect';
 import type { Page, PageVersion } from '../../../types';
-import { editorsFromForm, nullableStr, num } from '../../../utils/forms';
-import { blockNamesFor, blockPropsByName, blueprintPropsFor, lectsMatch } from '../../../utils/page-logic';
-import { editorTaxonomy, parentPageOption } from '../../../utils/admin-queries';
+import { editorsFromForm, nullableStr, num } from '../../../core/http/forms';
+import { blockNamesFor, blockPropsByName, blueprintPropsFor, lectsMatch } from '../../../core/db/page-logic';
+import { editorTaxonomy, parentPageOption } from '../../../core/db/admin-queries';
 import { getLiveLect } from '../../../publish';
 import { draftLectProjector } from '../../../publish/projection';
-import type { AppContext } from '../../../utils/context';
+import type { AppContext } from '../../../core/http/context';
 
 
 // survives validation re-renders and the post-save reload.

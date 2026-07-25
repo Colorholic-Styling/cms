@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkerEnv } from '../src/types';
-import { withD1Sessions } from '../src/utils/d1-sessions';
+import { withD1Sessions } from '../src/core/http/d1-sessions';
 
 describe('withD1Sessions', () => {
   it('starts both database bindings on the primary', () => {

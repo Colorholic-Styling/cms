@@ -13,7 +13,7 @@
 
 import type { Env, PublishLectRule } from '../types';
 import { getPlugins } from '../plugins/registry';
-import { safeParseLect, stringifyLect } from '../utils/lect';
+import { safeParseLect, stringifyLect } from '../core/db/lect';
 
 /**
  * Effective projection rules by page type. A rule is honored only when the

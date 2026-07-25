@@ -9,9 +9,9 @@ import type { Env, Variables } from '../../types';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { getPlugins } from '../../plugins/registry';
-import { listPlugins } from '../../utils/plugin-store';
-import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from '../../utils/credits';
-import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../utils/plugin-limits';
+import { listPlugins } from '../../plugins/store';
+import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from '../../core/credits/service';
+import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../plugins/limits';
 import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from './summary-template';
 
 export const creditSettingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

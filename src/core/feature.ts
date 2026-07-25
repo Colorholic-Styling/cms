@@ -10,8 +10,8 @@
 // fragments); the two are kept in step by hand until the registry is
 // generated from the manifest.
 
-import type { AppContext } from '../utils/context';
-import type { BaseTemplateProps } from '../templates/layout';
+import type { AppContext } from './http/context';
+import type { BaseTemplateProps } from './render/layout';
 
 export interface CmsFeature {
   /** Matches the feature id in cms.features.json. */

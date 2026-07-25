@@ -547,7 +547,7 @@ describe('publish registry', () => {
       await publishPageToTargets(testEnv, PAGE.id);
 
       const { draftLectProjector } = await import('../src/publish/projection');
-      const { withLiveStatus } = await import('../src/utils/page-logic');
+      const { withLiveStatus } = await import('../src/core/db/page-logic');
       const draft = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?')
         .bind(PAGE.id)
         .first<Page>();
