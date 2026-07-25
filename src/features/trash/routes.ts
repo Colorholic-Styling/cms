@@ -1,7 +1,7 @@
 // Trash listing, restore-to-draft, and permanent delete.
 
 import { Hono } from 'hono';
-import { trashPage } from '../../templates/trash';
+import { trashPage } from './template';
 import type { Env, Variables, Page, PageTag, PageVersion } from '../../types';
 import { restoreTrashedPages } from '../../utils/admin-queries';
 import { dashboardPagination, renderPage } from '../../core/render/chrome';

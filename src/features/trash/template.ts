@@ -1,6 +1,6 @@
-import { adminLayout, type BaseTemplateProps } from './layout';
-import { renderView } from './liquid';
-import type { Page } from '../types';
+import { adminLayout, type BaseTemplateProps } from '../../templates/layout';
+import { renderView } from '../../templates/liquid';
+import type { Page } from '../../types';
 
 interface TrashPagination {
   total: number;

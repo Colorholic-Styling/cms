@@ -1,8 +1,8 @@
 // The seam that keeps optional features out of the admin chrome
-// (src/core/render/contributions.ts).
+// (src/core/feature.ts + src/features/index.ts).
 //
 // buildBaseProps() no longer knows what credits are: it merges whatever the
-// contributors in src/features/contributions.ts return. These tests pin the
+// features in src/features/index.ts return. These tests pin the
 // resulting behaviour so the merge cannot silently stop happening — a
 // regression that would blank the sidebar balances on every admin page
 // without failing any other test.
@@ -11,7 +11,7 @@ import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { signJWT } from '../src/security/jwt';
 import { clearRolePermissionsCache } from '../src/utils/roles';
-import { basePropsContributors } from '../src/features/contributions';
+import { features } from '../src/features';
 import type { JWTPayload } from '../src/types';
 
 const IncomingRequest = Request;
@@ -107,7 +107,7 @@ describe('admin chrome feature contributions', () => {
   });
 
   it('registers each contributor under a cms.features.json id', () => {
-    const ids = basePropsContributors.map((contributor) => contributor.id);
+    const ids = features.map((feature) => feature.id);
     expect(ids).toEqual([...new Set(ids)]);
     expect(ids).toContain('credits');
   });

@@ -21,7 +21,8 @@ const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const quiet = process.argv.includes('--quiet');
 
 const CHROME = 'src/core/render/chrome.ts';
-const REGISTRY = 'src/features/contributions.ts';
+const REGISTRY = 'src/features/index.ts';
+const ROUTERS = 'src/features/routers.ts';
 
 // Feature machinery the chrome must never pull in directly: every admin page
 // render would pay for it, and no admin page except one needs it.
@@ -95,10 +96,61 @@ for (const file of files.filter((candidate) => candidate.startsWith('src/core/')
 }
 
 // 4. The registry is the one place that names features, so keep it a list of
-//    imports and nothing else — logic there would not survive being generated.
+//    imports and a little validation — heavier logic there would not survive
+//    being generated from cms.features.json.
 for (const target of graph.get(REGISTRY) ?? []) {
   if (!target.startsWith('src/features/') && !target.startsWith('src/core/')) {
     failures.push(`${REGISTRY} imports ${target}; it should only list feature contributors`);
+  }
+}
+
+// 5. Routers are registered separately precisely so the chrome never sees
+//    them: a router reaches back into the chrome via renderPage, so importing
+//    one from the manifest registry would re-bloat the chrome and make the
+//    graph cyclic.
+if (full.has(ROUTERS)) {
+  failures.push(`${CHROME} reaches ${ROUTERS}; feature routers must stay out of the manifest registry`);
+}
+for (const file of full) {
+  if (/^src\/features\/[^/]+\/routes\.ts$/.test(file)) {
+    failures.push(`${CHROME} reaches ${file}; only ${ROUTERS} may import feature routers`);
+  }
+}
+
+// 6. No import cycle may run through the chrome. This is the failure mode the
+//    router split exists to prevent, and it is silent until a bundler happens
+//    to order the modules badly.
+const cycle = (() => {
+  const trail = [];
+  const onPath = new Set();
+  const done = new Set();
+  const walk = (node) => {
+    if (onPath.has(node)) return [...trail.slice(trail.indexOf(node)), node];
+    if (done.has(node)) return null;
+    onPath.add(node);
+    trail.push(node);
+    for (const next of graph.get(node) ?? []) {
+      const found = walk(next);
+      if (found) return found;
+    }
+    onPath.delete(node);
+    done.add(node);
+    trail.pop();
+    return null;
+  };
+  return walk(CHROME);
+})();
+if (cycle) failures.push(`import cycle through the chrome: ${cycle.join(' -> ')}`);
+
+// 7. Every registered router must belong to an installed feature, or the two
+//    registries have drifted and a route is mounted for a feature that is
+//    supposed to be gone.
+const featureIds = [...(readFileSync(path.join(rootDir, REGISTRY), 'utf8').matchAll(/import\s+\{\s*(\w+)\s*\}\s+from\s+'\.\/([\w-]+)\//g))]
+  .map((match) => match[2]);
+const routerIds = [...(readFileSync(path.join(rootDir, ROUTERS), 'utf8').matchAll(/id:\s*'([\w-]+)'/g))].map((match) => match[1]);
+for (const id of routerIds) {
+  if (!featureIds.includes(id)) {
+    failures.push(`${ROUTERS} mounts a router for "${id}", which is not installed in ${REGISTRY}`);
   }
 }
 

@@ -5,7 +5,7 @@
 // the advanced-search template, so the trash screen transitively depended on
 // the billing engine. Those came from two things that have since moved out:
 // renderAdvancedSearch (now features/search/render.ts) and the credit
-// balances (now a contributor, see core/render/contributions.ts).
+// balances (now a feature contribution, see core/feature.ts).
 
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppContext } from '../../utils/context';
@@ -29,7 +29,12 @@ import {
 import type { BaseTemplateProps, SidebarNavItem } from '../../templates/layout';
 import { withActiveSidebarItems } from '../../utils/sidebar';
 import { localeRegistry, resolveUiLocale } from '../../utils/i18n';
-import { basePropsContributors } from '../../features/contributions';
+import { featureInstalled, features } from '../../features';
+
+/** The optional feature owning a sidebar entry, if any. */
+function menuItemFeature(item: typeof SIDEBAR_MENU_ITEMS[number]): string | undefined {
+  return 'feature' in item ? item.feature : undefined;
+}
 
 /**
  * Builds the template props shared by every authenticated admin page:
@@ -51,8 +56,8 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
     loadSystemTimezone(c.env),
     localeRegistry(c.env),
     // Feature contributions run alongside the chrome's own queries so an
-    // enabled feature costs no extra round trip.
-    Promise.all(basePropsContributors.map((contributor) => contributor.props(c)))
+    // installed feature costs no extra round trip.
+    Promise.all(features.map((feature) => feature.baseProps?.(c) ?? {}))
       .then((parts) => Object.assign({}, ...parts) as Partial<BaseTemplateProps>),
   ]);
   const sidebarSettings = await loadSidebarChromeSettings(c.env);
@@ -91,7 +96,11 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
   };
   const orderedSidebarItems = SIDEBAR_MENU_ITEMS
     .map((item, index) => ({ item, index, setting: menuSettings[item.key] }))
-    .filter((entry) => entry.setting.visible && canSeeMenuItem(entry.item.key))
+    // An entry owned by a feature disappears with that feature, whatever the
+    // saved menu settings say.
+    .filter((entry) => featureInstalled(menuItemFeature(entry.item))
+      && entry.setting.visible
+      && canSeeMenuItem(entry.item.key))
     .sort((a, b) => a.setting.weight - b.setting.weight || a.index - b.index);
   const sidebarSettingsNavEntries: Array<{ item: SidebarNavItem; weight: number; index: number }> = orderedSidebarItems
     .filter((entry) => entry.item.group === 'settings')
@@ -195,7 +204,7 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
     showSidebarRoles: menuSettings.roles.visible,
     showSidebarPlugins: menuSettings.plugins.visible,
     showSidebarMenu: menuSettings.system.visible,
-    showSidebarTrash: menuSettings.trash.visible,
+    showSidebarTrash: menuSettings.trash.visible && featureInstalled('trash'),
     ...contributed,
   };
 }

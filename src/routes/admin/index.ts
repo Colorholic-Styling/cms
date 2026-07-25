@@ -4,9 +4,12 @@
 // Composed from feature sub-routers, all mounted under /admin:
 //   search  – /advanced-search* (CSV import/export moved to the import-export plugin)
 //   pages   – dashboard, /pages/* CRUD, list, publish, trash-on-delete
-//   trash   – /trash* (list, restore, permanent delete)
 //   tags    – /tags* and /taxonomies*
 //   api     – /api/* JSON endpoints and /upload
+//
+// Optional features (src/features/index.ts) mount their own routers between
+// `pages` and `tags` — where their explicit mounts used to sit. /trash* is
+// one of those now.
 //
 // NOTE on ordering: Hono matches in registration order, so `search` is
 // mounted before `pages` to ensure its static `/advanced-search...` routes
@@ -18,7 +21,6 @@ import { authMiddleware, editorGuard } from '../../middleware/auth';
 import type { Env, Variables } from '../../types';
 import { searchRoutes } from './search';
 import { pagesRoutes } from './pages';
-import { trashRoutes } from './trash';
 import { tagsRoutes } from './tags';
 import { blockTypesRoutes, pageTypesRoutes } from './db-types';
 import { usersRoutes } from './users';
@@ -29,6 +31,7 @@ import { pluginAdminRoutes } from './plugins';
 import { pluginsManageRoutes } from './plugins-manage';
 import { settingsRoutes } from './settings';
 import { viewsFor } from '../../plugins/views';
+import { featureRouters } from '../../features/routers';
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -58,7 +61,11 @@ adminRoutes.route('/', searchRoutes);
 adminRoutes.route('/', pluginAdminRoutes);
 adminRoutes.route('/', profileRoutes);
 adminRoutes.route('/', pagesRoutes);
-adminRoutes.route('/', trashRoutes);
+// Installed optional features, mounted where their routers used to sit
+// explicitly. Removing an entry from src/features/routers.ts unmounts it.
+for (const { router } of featureRouters) {
+  adminRoutes.route('/', router);
+}
 adminRoutes.route('/', tagsRoutes);
 adminRoutes.route('/', pageTypesRoutes);
 adminRoutes.route('/', blockTypesRoutes);
