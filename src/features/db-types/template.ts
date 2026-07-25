@@ -3,9 +3,9 @@
 // generic list/form model renders both; per-entity wording and the form view
 // path come from the TypeAdminCopy the route spec provides.
 
-import { adminLayout, type BaseTemplateProps } from './layout';
-import { renderView } from './liquid';
-import type { ConfigTypeRow } from '../utils/type-admin';
+import { adminLayout, type BaseTemplateProps } from '../../templates/layout';
+import { renderView } from '../../templates/liquid';
+import type { ConfigTypeRow } from '../../utils/type-admin';
 
 /** Per-entity wording and view wiring for the shared type templates. */
 export interface TypeAdminCopy {

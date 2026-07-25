@@ -22,7 +22,6 @@ import type { Env, Variables } from '../../types';
 import { searchRoutes } from './search';
 import { pagesRoutes } from './pages';
 import { tagsRoutes } from './tags';
-import { blockTypesRoutes, pageTypesRoutes } from './db-types';
 import { usersRoutes } from './users';
 import { rolesRoutes } from './roles';
 import { profileRoutes } from './profile';
@@ -67,8 +66,6 @@ for (const { router } of featureRouters) {
   adminRoutes.route('/', router);
 }
 adminRoutes.route('/', tagsRoutes);
-adminRoutes.route('/', pageTypesRoutes);
-adminRoutes.route('/', blockTypesRoutes);
 adminRoutes.route('/', usersRoutes);
 adminRoutes.route('/', rolesRoutes);
 adminRoutes.route('/', pluginsManageRoutes);

@@ -8,8 +8,8 @@
 // extra columns, and the form-option decoration.
 
 import { Hono } from 'hono';
-import { typeFormPage, typeListPage } from '../../templates/type-admin';
-import type { TypeAdminCopy, TypeFormModel, TypeFormOption } from '../../templates/type-admin';
+import { typeFormPage, typeListPage } from './template';
+import type { TypeAdminCopy, TypeFormModel, TypeFormOption } from './template';
 import { cmsConfig, type CmsConfig } from '../../cms-config';
 import type { Env, Variables, Permission, ResolvedPlugin } from '../../types';
 import { num, slugify, str } from '../../utils/forms';

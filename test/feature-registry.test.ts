@@ -12,8 +12,14 @@ import { featureRouters } from '../src/features/routers';
 import { SIDEBAR_MENU_ITEMS } from '../src/utils/settings';
 
 describe('feature registry', () => {
-  it('installs trash and credits', () => {
-    expect(features.map((feature) => feature.id).sort()).toEqual(['credits', 'trash']);
+  it('installs the expected feature set', () => {
+    // Deliberately explicit: adding or dropping a feature is a decision, so it
+    // should show up as a change here rather than passing silently.
+    expect(features.map((feature) => feature.id).sort()).toEqual([
+      'credits',
+      'db-types',
+      'trash',
+    ]);
   });
 
   it('reports installed features and treats unowned nav entries as visible', () => {
