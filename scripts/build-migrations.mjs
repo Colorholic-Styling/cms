@@ -8,11 +8,11 @@
 // wrangler already points at:
 //
 //   src/core/schema.sql + every enabled fragment -> migrations/0001_initial_schema.sql
-//   src/publish/schema.sql                       -> migrations/published/0001_published_schema.sql
+//   src/core/publish/schema.sql                  -> migrations/published/0001_published_schema.sql
 //
 // A fragment is any src/**/schema.sql or src/**/*.schema.sql that declares
 // `-- feature: <id>` in its header; the id, not the path, is what
-// cms.features.json switches on. src/core/schema.sql and src/publish/schema.sql
+// cms.features.json switches on. src/core/schema.sql and src/core/publish/schema.sql
 // declare no id and are always included.
 //
 // The baseline filenames never change. D1 tracks applied migrations by name
@@ -39,7 +39,7 @@ import { fileURLToPath } from 'node:url';
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const srcDir = path.join(rootDir, 'src');
 const CORE_SCHEMA = path.join(srcDir, 'core', 'schema.sql');
-const PUBLISHED_SCHEMA = path.join(srcDir, 'publish', 'schema.sql');
+const PUBLISHED_SCHEMA = path.join(srcDir, 'core', 'publish', 'schema.sql');
 const manifestPath = path.join(rootDir, 'cms.features.json');
 
 const CMS_BASELINE = path.join(rootDir, 'migrations', '0001_initial_schema.sql');

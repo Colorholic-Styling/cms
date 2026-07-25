@@ -48,7 +48,7 @@ import { withDraftMetadata } from '../../core/db/page-logic';
 import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../core/db/admin-queries';
 import { slugify } from '../../core/http/forms';
 import { pageTypeScopeAllows } from '../../plugins/page-types';
-import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../publish';
+import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../core/publish';
 import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../core/db/page-store';
 
 const DUPLICATE_BATCH = 100;

@@ -14,14 +14,14 @@
 // implements live-state reads serves the admin UI's publish badges.
 // ============================================================
 
-import type { Env, Page } from '../types';
+import type { Env, Page } from '../../types';
 import type { LivePageSnapshot, PublishAdapter, PublishSnapshot, PublishSnapshotTag } from './adapter';
 import { d1Adapter } from './d1';
 import { r2Adapter } from './r2';
 import { pluginAdapter } from './plugin';
-import { getPlugins } from '../plugins/registry';
-import { pluginTenantId } from '../plugins/proxy';
-import { isSubmissionMirror } from '../core/db/submission-ingest';
+import { getPlugins } from '../../plugins/registry';
+import { pluginTenantId } from '../../plugins/proxy';
+import { isSubmissionMirror } from '../db/submission-ingest';
 import { projectLect, publishLectRules } from './projection';
 
 export interface PublishOutcome {

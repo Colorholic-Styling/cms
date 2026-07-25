@@ -10,8 +10,8 @@ import type { Page, PageVersion } from '../../../types';
 import { editorsFromForm, nullableStr, num } from '../../../core/http/forms';
 import { blockNamesFor, blockPropsByName, blueprintPropsFor, lectsMatch } from '../../../core/db/page-logic';
 import { editorTaxonomy, parentPageOption } from '../../../core/db/admin-queries';
-import { getLiveLect } from '../../../publish';
-import { draftLectProjector } from '../../../publish/projection';
+import { getLiveLect } from '../../../core/publish';
+import { draftLectProjector } from '../../../core/publish/projection';
 import type { AppContext } from '../../../core/http/context';
 
 

@@ -1,17 +1,17 @@
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { d1Adapter } from '../src/publish/d1';
-import { r2Adapter } from '../src/publish/r2';
-import { pluginAdapter } from '../src/publish/plugin';
+import { d1Adapter } from '../src/core/publish/d1';
+import { r2Adapter } from '../src/core/publish/r2';
+import { pluginAdapter } from '../src/core/publish/plugin';
 import {
   getPublishAdapters,
   liveMapForDraftPages,
   publishPageToTargets,
   unpublishPageFromTargets,
   unpublishPagesFromTargets,
-} from '../src/publish';
+} from '../src/core/publish';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import type { PublishSnapshot } from '../src/publish/adapter';
+import type { PublishSnapshot } from '../src/core/publish/adapter';
 import type { Env, Page } from '../src/types';
 import type { ResolvedPlugin } from '../src/plugins/types';
 
@@ -526,7 +526,7 @@ describe('publish registry', () => {
 
     it('drop-mode strips secrets from event pages; unowned rules are ignored', async () => {
       await registerPlugin(projectingPlugin());
-      const { publishLectRules, projectLect } = await import('../src/publish/projection');
+      const { publishLectRules, projectLect } = await import('../src/core/publish/projection');
       const rules = await publishLectRules(registryEnv({ PLUGIN_SECRET: 's3cret' }));
       expect(rules.guest).toBeTruthy();
       expect(rules.event).toEqual({ drop: ['checkin_lite_passcode'] });
@@ -547,7 +547,7 @@ describe('publish registry', () => {
       const testEnv = registryEnv({ PLUGIN_SECRET: 's3cret' });
       await publishPageToTargets(testEnv, PAGE.id);
 
-      const { draftLectProjector } = await import('../src/publish/projection');
+      const { draftLectProjector } = await import('../src/core/publish/projection');
       const { withLiveStatus } = await import('../src/core/db/page-logic');
       const draft = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?')
         .bind(PAGE.id)

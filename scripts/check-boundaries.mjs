@@ -30,8 +30,8 @@ const ROUTERS = 'src/features/routers.ts';
 const FORBIDDEN_IN_CHROME = [
   'src/core/db/search.ts',
   'src/core/db/chinese.ts',
-  'src/publish/index.ts',
-  'src/publish/projection.ts',
+  'src/core/publish/index.ts',
+  'src/core/publish/projection.ts',
   'src/features/search/template.ts',
   'dictionary/chinese-chars.ts',
 ];

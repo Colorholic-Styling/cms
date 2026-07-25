@@ -24,8 +24,8 @@ import {
 } from '../../core/db/search';
 import { resolveCmsConfig } from '../../plugins/config';
 import { editorTaxonomy } from '../../core/db/admin-queries';
-import { listLiveByTypes } from '../../publish';
-import { draftLectProjector } from '../../publish/projection';
+import { listLiveByTypes } from '../../core/publish';
+import { draftLectProjector } from '../../core/publish/projection';
 import { withLiveStatus } from '../../core/db/page-logic';
 import { renderPage } from '../../core/render/chrome';
 import { IMPORT_EXPORT_PLUGIN_ID, importExportPluginBase } from '../../plugins/import-export';

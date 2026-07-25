@@ -14,8 +14,8 @@ import { checkCreateLimits, createCandidate, limitViolationMessage } from '../..
 import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../core/credits/service';
 import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
 import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
-import { liveMapForDraftPages } from '../../../publish';
-import { draftLectProjector } from '../../../publish/projection';
+import { liveMapForDraftPages } from '../../../core/publish';
+import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
 import { userCan } from '../../../core/auth/permissions';
 import { importExportHrefs } from '../../../plugins/import-export';

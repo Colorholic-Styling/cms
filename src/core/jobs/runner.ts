@@ -6,7 +6,7 @@ import {
   publishPageToTargets,
   unpublishPageFromTargets,
   unpublishPagesFromTargets,
-} from '../../publish';
+} from '../publish';
 import type { Env, JWTPayload, Page } from '../../types';
 import { trashDraftPages, type TrashedPageRef } from '../db/admin-queries';
 import {

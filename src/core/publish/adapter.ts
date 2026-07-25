@@ -7,7 +7,7 @@
 // ./index.ts builds the snapshot once and orchestrates the rest.
 // ============================================================
 
-import type { Page } from '../types';
+import type { Page } from '../../types';
 
 /** A published tag link, denormalized so write-only targets (R2 JSON, plugins)
  *  can emit self-contained documents without a database to join against. */

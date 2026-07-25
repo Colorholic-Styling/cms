@@ -25,7 +25,7 @@ import type { FormValue } from '../../core/http/forms';
 import { ensureDefaultLectName } from '../../core/db/page-logic';
 import { logAudit } from '../../core/db/audit';
 import { requirePermission } from '../../core/auth/guards';
-import { removeTagFromTargets } from '../../publish';
+import { removeTagFromTargets } from '../../core/publish';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { resolveCmsConfig } from '../../plugins/config';

@@ -19,7 +19,7 @@ import { checkCreateLimits, createCandidate, limitViolationMessage } from '../..
 import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../core/credits/service';
 import { applyStructuredAction, isStructuredEditorAction, lectForPage, lectFromForm, withDraftMetadata } from '../../../core/db/page-logic';
 import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption } from '../../../core/db/admin-queries';
-import { publishPageToTargets } from '../../../publish';
+import { publishPageToTargets } from '../../../core/publish';
 import { renderPage } from '../../../core/render/chrome';
 import { uiTranslator } from '../../../core/i18n';
 import { requirePermission } from '../../../core/auth/guards';
