@@ -112,7 +112,12 @@ for (const file of files.filter((f) => f.startsWith('src/core/'))) {
 // 4. A feature may not import a sibling feature. Shared code belongs in core/
 //    or plugins/; a genuine dependency should become a `requires` entry and an
 //    explicit exception here, not an ad-hoc import.
-const featureOf = (file) => (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
+// `generated/` is the registry, not a slice: it aggregates every feature by
+// design, which is exactly what this rule forbids everywhere else.
+const featureOf = (file) => {
+  const owner = (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
+  return owner === 'generated' ? undefined : owner;
+};
 for (const file of files) {
   const owner = featureOf(file);
   if (!owner) continue;
@@ -130,6 +135,15 @@ for (const file of files) {
 for (const target of graph.get(REGISTRY) ?? []) {
   if (!target.startsWith('src/features/') && !target.startsWith('src/core/')) {
     failures.push(`${REGISTRY} imports ${target}; it should only list feature contributors`);
+  }
+}
+
+// 5b. The generated manifest list must not reach a router, or generation would
+//     reintroduce the cycle the two-file split exists to prevent.
+const GENERATED_MANIFESTS = 'src/features/generated/manifests.ts';
+for (const file of closure(GENERATED_MANIFESTS)) {
+  if (/^src\/features\/[^/]+\/routes(\.ts|\/)/.test(file)) {
+    failures.push(`${GENERATED_MANIFESTS} reaches ${file}; manifests must not pull in routers`);
   }
 }
 

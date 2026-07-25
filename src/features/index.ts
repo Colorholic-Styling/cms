@@ -1,35 +1,19 @@
 // The installed features.
 //
-// Removing an entry here removes the feature's sidebar entries and its share
-// of every admin render. Remove its router from ./routers.ts too and — because
-// those two files are the only things that import it — esbuild drops the
-// feature's modules from the bundle.
-//
-// Keep both in step with cms.features.json, which selects the matching schema
-// fragments. All three become generated from one manifest later.
+// The list itself is generated from cms.features.json — see
+// scripts/build-features.mjs. Dropping a feature is one edit there: its
+// manifest leaves this registry, its routers leave ./routers, its schema
+// fragment leaves the generated baseline, and because nothing else imports
+// the slice, esbuild drops its modules from the bundle.
 //
 // Nothing outside src/features may import a feature module directly; core
 // reaches features only through this registry (enforced by
 // scripts/check-boundaries.mjs).
 
 import { assertFeatureRegistry, type CmsFeature } from '../core/feature';
-import { trashFeature } from './trash/feature';
-import { dbTypesFeature } from './db-types/feature';
-import { searchFeature } from './search/feature';
-import { usersRolesFeature } from './users-roles/feature';
-import { mediaFeature } from './media/feature';
-import { i18nFeature } from './i18n/feature';
-import { creditsFeature } from './credits/feature';
+import { featureManifests } from './generated/manifests';
 
-export const features: readonly CmsFeature[] = [
-  trashFeature,
-  dbTypesFeature,
-  searchFeature,
-  usersRolesFeature,
-  mediaFeature,
-  i18nFeature,
-  creditsFeature,
-];
+export const features: readonly CmsFeature[] = featureManifests;
 
 assertFeatureRegistry(features);
 

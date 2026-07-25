@@ -111,14 +111,18 @@ export function requiredFeatures(id) {
  */
 function resolveOrder(features) {
   const available = availableFeatures();
+  // Only ids with a fragment take part in schema assembly; code-only
+  // features contribute nothing here.
   const enabled = Object.entries(features)
-    .filter(([, on]) => on === true)
+    .filter(([id, on]) => on === true && available.includes(id))
     .map(([id]) => id);
 
+  // A feature may be schema-only (plugins, jobs), code-only (search,
+  // users-roles) or both. Only a name that is neither is a typo.
   for (const id of Object.keys(features)) {
-    if (!available.includes(id)) {
-      throw new Error(`cms.features.json lists "${id}", but no schema fragment declares that feature`);
-    }
+    if (available.includes(id)) continue;
+    if (existsSync(path.join(srcDir, 'features', id))) continue;
+    throw new Error(`cms.features.json lists "${id}", but there is no schema fragment declaring it and no src/features/${id}/`);
   }
   for (const id of available) {
     if (!(id in features)) {
@@ -172,7 +176,9 @@ export function buildCms(features) {
   const order = resolveOrder(features);
   const files = [CORE_SCHEMA, ...order.map(fragmentPath)];
   const parts = [path.relative(rootDir, CORE_SCHEMA), ...order.map((id) => path.relative(rootDir, fragmentPath(id)))];
-  const disabled = Object.entries(features).filter(([, on]) => on !== true).map(([id]) => id);
+  const disabled = Object.entries(features)
+    .filter(([id, on]) => on !== true && availableFeatures().includes(id))
+    .map(([id]) => id);
   if (disabled.length) parts.push(`(disabled: ${disabled.join(', ')})`);
   return concat(generatedHeader('Initial CMS schema — applied to the private CMS (admin) database.', parts), files);
 }

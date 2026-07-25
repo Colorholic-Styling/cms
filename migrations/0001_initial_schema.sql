@@ -6,13 +6,13 @@
 --
 -- Assembled from:
 --   src/core/schema.sql
---   src/features/trash/schema.sql
+--   src/features/credits/schema.sql
 --   src/features/db-types/schema.sql
+--   src/core/jobs/schema.sql
 --   src/features/media/schema.sql
 --   src/plugins/schema.sql
 --   src/plugins/pointer-indexes.schema.sql
---   src/core/jobs/schema.sql
---   src/features/credits/schema.sql
+--   src/features/trash/schema.sql
 -- ============================================================
 
 -- ============================================================
@@ -289,74 +289,80 @@ BEGIN
     WHERE locale_code = NEW.locale_code AND message_key = NEW.message_key;
 END;
 
--- Feature: trash — soft-delete holding area with full version history.
--- feature: trash
--- Without it, page deletes must be hard deletes.
+-- Feature: credits — metered billing for chargeable actions.
+-- feature: credits
+-- Per-user and site-wide balances, append-only ledgers, and the recurring
+-- subscriptions billed by the cron sweep.
+--
+-- requires: core
+--
+-- KNOWN COUPLING: the per-user balance itself is still `users.credits`, a
+-- column on a core table, so disabling this feature leaves that column in
+-- place. Moving it to a table owned by this fragment is what makes the
+-- feature fully separable.
 
--- Trash Pages
-CREATE TABLE IF NOT EXISTS trash_pages(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+-- Per-user credit balance audit ledger.
+CREATE TABLE IF NOT EXISTS credit_ledger(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    plugin_id TEXT,
+    note TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    name TEXT NOT NULL,
-    slug TEXT NOT NULL,
-    weight INTEGER DEFAULT 5,
-    start DATETIME,
-    end DATETIME,
-    -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
-    timezone TEXT,
-    page_type TEXT,
-    -- Current-version pointer preserved while the page sits in trash.
-    current_page_version_id INTEGER,
-    lect TEXT,
-    page_id INTEGER,
-    -- Original draft parent id, retained so a trashed child can be restored
-    -- under a parent that remains live (page_id references another trash row).
-    source_page_id INTEGER,
-    creator INTEGER,
-    editors TEXT,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- Trash Page Tags
-CREATE TABLE IF NOT EXISTS trash_page_tags(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    page_id INTEGER,
-    tag_id INTEGER NOT NULL,
-    weight INTEGER DEFAULT 5,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+-- Site-wide shared credit balance and append-only ledger.
+CREATE TABLE IF NOT EXISTS shared_credits(
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    balance INTEGER NOT NULL DEFAULT 0
 );
 
--- Trash Page Versions – mirrors page_versions for trashed pages so deleting
--- a page no longer loses its history and a restore brings every version back.
-CREATE TABLE IF NOT EXISTS trash_page_versions(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+INSERT OR IGNORE INTO shared_credits (id, balance) VALUES (1, 0);
+
+CREATE TABLE IF NOT EXISTS shared_credit_ledger(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    user_id INTEGER,
+    entity_type TEXT,
+    entity_id TEXT,
+    plugin_id TEXT,
+    note TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    page_id INTEGER NOT NULL,
-    lect TEXT,
-    action TEXT,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_trash_page_versions_page_id ON trash_page_versions(page_id);
-CREATE INDEX IF NOT EXISTS idx_trash_pages_source_page_id ON trash_pages(source_page_id);
+-- Recurring credit subscriptions: one row per (user, plugin, cost),
+-- created/updated by plugin usage reports (POST /__cms/credits/usage) and
+-- billed monthly by the cron sweep. See utils/credit-subscriptions.ts.
+CREATE TABLE IF NOT EXISTS credit_subscriptions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    plugin_id TEXT NOT NULL,
+    credit_key TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    peak_quantity INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+    next_charge_at TEXT NOT NULL,
+    last_charged_at TEXT,
+    last_mode TEXT CHECK (last_mode IN ('advance', 'arrears')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, plugin_id, credit_key),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
 
-CREATE TRIGGER IF NOT EXISTS trash_pages_updated_at AFTER UPDATE ON trash_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE trash_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trash_page_tags_updated_at AFTER UPDATE ON trash_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE trash_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_shared_credit_ledger_user ON shared_credit_ledger(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_credit_subscriptions_due ON credit_subscriptions(status, next_charge_at);
 
 -- Feature: db-types — runtime-editable page and block types.
 -- feature: db-types
@@ -402,6 +408,34 @@ CREATE TABLE IF NOT EXISTS block_types(
 CREATE TRIGGER IF NOT EXISTS block_types_updated_at AFTER UPDATE ON block_types WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
     UPDATE block_types SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
+
+-- Feature: jobs — durable admin background jobs backed by the queue binding.
+-- feature: jobs
+-- Without it, long plugin actions and bulk edits run synchronously and risk
+-- the 1000-subrequest per-invocation limit. See utils/admin-job-runner.ts.
+
+CREATE TABLE IF NOT EXISTS admin_jobs(
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK (type IN ('plugin_admin_action', 'advanced_search_bulk_action')),
+    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed')),
+    plugin_id TEXT,
+    method TEXT,
+    path TEXT,
+    content_type TEXT,
+    body TEXT,
+    user_json TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    result_status INTEGER,
+    result_location TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_jobs_status_updated ON admin_jobs(status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_admin_jobs_plugin_created ON admin_jobs(plugin_id, created_at);
 
 -- Feature: media — R2-backed uploads and the file browser.
 -- feature: media
@@ -496,105 +530,71 @@ CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_edm
 CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_contact
     ON draft_pages(json_extract(lect, '$._pointers.contact'), page_type, updated_at DESC, id DESC);
 
--- Feature: jobs — durable admin background jobs backed by the queue binding.
--- feature: jobs
--- Without it, long plugin actions and bulk edits run synchronously and risk
--- the 1000-subrequest per-invocation limit. See utils/admin-job-runner.ts.
+-- Feature: trash — soft-delete holding area with full version history.
+-- feature: trash
+-- Without it, page deletes must be hard deletes.
 
-CREATE TABLE IF NOT EXISTS admin_jobs(
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL CHECK (type IN ('plugin_admin_action', 'advanced_search_bulk_action')),
-    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed')),
-    plugin_id TEXT,
-    method TEXT,
-    path TEXT,
-    content_type TEXT,
-    body TEXT,
-    user_json TEXT,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    result_status INTEGER,
-    result_location TEXT,
-    error TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    started_at TEXT,
-    completed_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_admin_jobs_status_updated ON admin_jobs(status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_admin_jobs_plugin_created ON admin_jobs(plugin_id, created_at);
-
--- Feature: credits — metered billing for chargeable actions.
--- feature: credits
--- Per-user and site-wide balances, append-only ledgers, and the recurring
--- subscriptions billed by the cron sweep.
---
--- requires: core
---
--- KNOWN COUPLING: the per-user balance itself is still `users.credits`, a
--- column on a core table, so disabling this feature leaves that column in
--- place. Moving it to a table owned by this fragment is what makes the
--- feature fully separable.
-
--- Per-user credit balance audit ledger.
-CREATE TABLE IF NOT EXISTS credit_ledger(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    delta INTEGER NOT NULL,
-    balance_after INTEGER NOT NULL,
-    action TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id TEXT,
-    plugin_id TEXT,
-    note TEXT,
-    created_by TEXT NOT NULL DEFAULT '',
+-- Trash Pages
+CREATE TABLE IF NOT EXISTS trash_pages(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    weight INTEGER DEFAULT 5,
+    start DATETIME,
+    end DATETIME,
+    -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
+    timezone TEXT,
+    page_type TEXT,
+    -- Current-version pointer preserved while the page sits in trash.
+    current_page_version_id INTEGER,
+    lect TEXT,
+    page_id INTEGER,
+    -- Original draft parent id, retained so a trashed child can be restored
+    -- under a parent that remains live (page_id references another trash row).
+    source_page_id INTEGER,
+    creator INTEGER,
+    editors TEXT,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
 );
 
--- Site-wide shared credit balance and append-only ledger.
-CREATE TABLE IF NOT EXISTS shared_credits(
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    balance INTEGER NOT NULL DEFAULT 0
-);
-
-INSERT OR IGNORE INTO shared_credits (id, balance) VALUES (1, 0);
-
-CREATE TABLE IF NOT EXISTS shared_credit_ledger(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    delta INTEGER NOT NULL,
-    balance_after INTEGER NOT NULL,
-    action TEXT NOT NULL,
-    user_id INTEGER,
-    entity_type TEXT,
-    entity_id TEXT,
-    plugin_id TEXT,
-    note TEXT,
-    created_by TEXT NOT NULL DEFAULT '',
+-- Trash Page Tags
+CREATE TABLE IF NOT EXISTS trash_page_tags(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    page_id INTEGER,
+    tag_id INTEGER NOT NULL,
+    weight INTEGER DEFAULT 5,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
 );
 
--- Recurring credit subscriptions: one row per (user, plugin, cost),
--- created/updated by plugin usage reports (POST /__cms/credits/usage) and
--- billed monthly by the cron sweep. See utils/credit-subscriptions.ts.
-CREATE TABLE IF NOT EXISTS credit_subscriptions(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    plugin_id TEXT NOT NULL,
-    credit_key TEXT NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 0,
-    peak_quantity INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
-    next_charge_at TEXT NOT NULL,
-    last_charged_at TEXT,
-    last_mode TEXT CHECK (last_mode IN ('advance', 'arrears')),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, plugin_id, credit_key),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+-- Trash Page Versions – mirrors page_versions for trashed pages so deleting
+-- a page no longer loses its history and a restore brings every version back.
+CREATE TABLE IF NOT EXISTS trash_page_versions(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    page_id INTEGER NOT NULL,
+    lect TEXT,
+    action TEXT,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(user_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_shared_credit_ledger_user ON shared_credit_ledger(user_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_credit_subscriptions_due ON credit_subscriptions(status, next_charge_at);
+CREATE INDEX IF NOT EXISTS idx_trash_page_versions_page_id ON trash_page_versions(page_id);
+CREATE INDEX IF NOT EXISTS idx_trash_pages_source_page_id ON trash_pages(source_page_id);
+
+CREATE TRIGGER IF NOT EXISTS trash_pages_updated_at AFTER UPDATE ON trash_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE trash_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trash_page_tags_updated_at AFTER UPDATE ON trash_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE trash_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
