@@ -12,7 +12,7 @@ import { authRoutes } from './routes/auth';
 import { adminRoutes } from './routes/admin';
 import { cmsApiRoutes } from './routes/cms-api';
 import { cmsTenantRoutes } from './routes/cms-tenant';
-import { mediaRoutes } from './routes/media';
+import { publicRouters } from './features/routers';
 import { errorPage } from './templates/errors';
 import {
   canonicalHostResponse,
@@ -93,8 +93,10 @@ app.route('/__cms', cmsApiRoutes);
 // ── Plugin tenant enrollment — ticket-authenticated, pre-secret handshake ─────
 app.route('/__cms', cmsTenantRoutes);
 
-// ── Media files from optional R2 binding ──────────────────────────────────────
-app.route('/', mediaRoutes);
+// ── Public routes contributed by installed features (media delivery) ─────────
+for (const { router } of publicRouters) {
+  app.route('/', router);
+}
 
 app.get('/views/*', async (c) => {
   const path = c.req.path.slice('/views'.length);

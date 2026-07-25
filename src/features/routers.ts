@@ -17,6 +17,9 @@ import { trashRoutes } from './trash/routes';
 import { blockTypesRoutes, pageTypesRoutes } from './db-types/routes';
 import { searchRoutes } from './search/routes';
 import { usersRoutes } from './users-roles/users-routes';
+import { mediaFilesRoutes } from './media/files-routes';
+import { mediaUploadRoutes } from './media/upload-routes';
+import { mediaPublicRoutes } from './media/public-routes';
 import { rolesRoutes } from './users-roles/roles-routes';
 
 export type FeatureRouter = Hono<{ Bindings: Env; Variables: Variables }>;
@@ -34,4 +37,14 @@ export const featureRouters: readonly FeatureRouterEntry[] = [
   { id: 'search', router: searchRoutes },
   { id: 'users-roles', router: usersRoutes },
   { id: 'users-roles', router: rolesRoutes },
+  { id: 'media', router: mediaFilesRoutes },
+  { id: 'media', router: mediaUploadRoutes },
+];
+
+// Routers mounted OUTSIDE the admin stack, at the worker root by src/index.ts.
+// A feature that serves the public site (media delivery, and any future
+// public-facing feature) registers here instead of above: these routes have
+// no signed-in user and no admin chrome.
+export const publicRouters: readonly FeatureRouterEntry[] = [
+  { id: 'media', router: mediaPublicRoutes },
 ];

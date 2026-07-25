@@ -1,15 +1,15 @@
 import { Hono } from 'hono';
-import { applyMediaResponseHeaders, mediaObjectResponse } from '../security/media';
-import type { Env, Variables } from '../types';
+import { applyMediaResponseHeaders, mediaObjectResponse } from './security';
+import type { Env, Variables } from '../../types';
 
-export const mediaRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+export const mediaPublicRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 /** Square thumbnail edge, in pixels, for the admin media pickers. */
 const PREVIEW_SIZE = 100;
 /** Images binding input ceiling; larger objects are served untransformed. */
 const MAX_TRANSFORM_BYTES = 20 * 1024 * 1024;
 
-mediaRoutes.get('/media-preview/*', async (c) => {
+mediaPublicRoutes.get('/media-preview/*', async (c) => {
   if (!c.env.MEDIA_BUCKET) return c.notFound();
   const key = c.req.path.replace(/^\/media-preview\//, '');
 
@@ -26,7 +26,7 @@ mediaRoutes.get('/media-preview/*', async (c) => {
   return await mediaObjectResponse(c.env.MEDIA_BUCKET, key) ?? c.notFound();
 });
 
-mediaRoutes.get('/media/*', async (c) => {
+mediaPublicRoutes.get('/media/*', async (c) => {
   if (!c.env.MEDIA_BUCKET) return c.notFound();
   const key = c.req.path.replace(/^\/media\//, '');
   return await mediaObjectResponse(c.env.MEDIA_BUCKET, key) ?? c.notFound();

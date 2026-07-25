@@ -18,6 +18,7 @@ describe('feature registry', () => {
     expect(features.map((feature) => feature.id).sort()).toEqual([
       'credits',
       'db-types',
+      'media',
       'search',
       'trash',
       'users-roles',

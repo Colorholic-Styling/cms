@@ -1,13 +1,10 @@
-// Admin JSON API endpoints and media upload.
+// Admin JSON API endpoints.
 
 import { Hono } from 'hono';
 import { cmsConfig } from '../../cms-config';
 import { getLectLocalizedValue, safeParseLect } from '../../utils/lect';
 import type { Env, Variables, Tag, Taxonomy } from '../../types';
-import { num, slugify, str } from '../../utils/forms';
-import { validateUpload } from '../../security/media';
-import { rateLimitByIP } from '../../middleware/rate-limit';
-import { logAudit } from '../../utils/audit';
+import { num } from '../../utils/forms';
 import { requirePermission } from '../../middleware/auth';
 import type { AppContext } from '../../utils/context';
 import { resolveCmsConfig } from '../../plugins/config';
@@ -309,56 +306,4 @@ apiRoutes.delete('/api/presence/:pageId', requirePermission('content:write'), as
       headers: { 'X-User-Id': String(user.sub) },
     },
   );
-});
-
-// ── Upload ───────────────────────────────────────────────────────────────────
-
-apiRoutes.use('/upload', rateLimitByIP((env) => env.UPLOAD_RATE_LIMITER));
-apiRoutes.use('/upload', requirePermission('media:upload'));
-
-apiRoutes.post('/upload', async (c) => {
-  if (!c.env.MEDIA_BUCKET) {
-    return c.json({ success: false, error: 'MEDIA_BUCKET binding is not configured' }, 501);
-  }
-
-  const form = await c.req.formData();
-  const uploadDirectory = slugify(str(form.get('dir')) || 'upload') || 'upload';
-  const now = new Date();
-  const datePath = `${now.getUTCFullYear()}/${now.getUTCMonth() + 1}/${now.getUTCDate()}`;
-  const files: string[] = [];
-  const errors: Array<{ file: string; error: string }> = [];
-  let errorStatus: 413 | 415 | undefined;
-
-  for (const [, value] of form.entries()) {
-    if (typeof value === 'string') continue;
-    const file = value as File;
-    if (!file.name) continue;
-
-    const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-    const validation = validateUpload(file, headerBytes);
-    if (!validation.ok) {
-      errors.push({ file: file.name, error: validation.error });
-      errorStatus = errorStatus ?? validation.status;
-      continue;
-    }
-
-    const safeName = file.name.replace(/[^a-z0-9-_.]/gi, '');
-    const key = `${uploadDirectory}/${datePath}/${crypto.randomUUID()}-${safeName}`;
-    await c.env.MEDIA_BUCKET.put(key, file.stream(), {
-      httpMetadata: { contentType: validation.contentType },
-    });
-    const url = `/media/${key}`;
-    await c.env.DB.prepare(
-      'INSERT INTO media_files (key, url, filename, content_type, size) VALUES (?, ?, ?, ?, ?)',
-    )
-      .bind(key, url, file.name, validation.contentType, file.size)
-      .run();
-    logAudit(c, 'media.upload', 'media', key, { filename: file.name, size: file.size });
-    files.push(url);
-  }
-
-  if (errors.length > 0 && files.length === 0) {
-    return c.json({ success: false, files, errors }, errorStatus ?? 415);
-  }
-  return c.json({ success: true, files, errors });
 });

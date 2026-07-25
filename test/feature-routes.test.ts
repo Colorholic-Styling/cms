@@ -54,6 +54,7 @@ describe('feature router mounting', () => {
     ['search', '/admin/advanced-search/default'],
     ['users-roles', '/admin/users'],
     ['users-roles', '/admin/roles'],
+    ['media', '/admin/settings/content'],
   ];
 
   for (const [feature, path] of entryPoints) {
@@ -62,6 +63,22 @@ describe('feature router mounting', () => {
       expect(response.status, `${path} returned ${response.status}`).toBe(200);
     });
   }
+
+  it('mounts a feature public router at the worker root', async () => {
+    // publicRouters is a second registry, mounted by src/index.ts outside the
+    // admin stack — nothing else covers that path, and /media/* is served to
+    // anonymous visitors, so a mounting mistake would not surface in any
+    // admin test.
+    await env.MEDIA_BUCKET!.put('upload/probe.txt', 'hello');
+    ipCounter += 1;
+    const response = await worker.fetch(new IncomingRequest('http://localhost/media/upload/probe.txt', {
+      redirect: 'manual',
+      headers: { 'Sec-Fetch-Site': 'same-origin', 'CF-Connecting-IP': '10.12.0.1' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe('hello');
+  });
 
   it('does not let the page routes shadow a later-mounted feature', async () => {
     // The features block is mounted after pagesRoutes. Page routes are all

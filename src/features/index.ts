@@ -17,6 +17,7 @@ import { trashFeature } from './trash/feature';
 import { dbTypesFeature } from './db-types/feature';
 import { searchFeature } from './search/feature';
 import { usersRolesFeature } from './users-roles/feature';
+import { mediaFeature } from './media/feature';
 import { creditsFeature } from './credits/feature';
 
 export const features: readonly CmsFeature[] = [
@@ -24,6 +25,7 @@ export const features: readonly CmsFeature[] = [
   dbTypesFeature,
   searchFeature,
   usersRolesFeature,
+  mediaFeature,
   creditsFeature,
 ];
 

@@ -42,7 +42,7 @@ export const SIDEBAR_MENU_ITEMS = [
   { key: 'credits', label: 'Credit Summary', description: 'Chargeable actions and effective prices across plugins.', href: '/admin/settings/credits', icon: 'coins', group: 'settings', defaultWeight: 65, feature: 'credits' },
   { key: 'languages', label: 'Languages', description: 'Content languages and CMS interface translations.', href: '/admin/settings/languages', icon: 'globe', group: 'settings', defaultWeight: 67 },
   { key: 'system', label: 'System', description: 'App branding, menu visibility, and menu order.', href: '/admin/settings/system', icon: 'settings', group: 'settings', defaultWeight: 70 },
-  { key: 'content', label: 'Files', description: 'Media files in the bucket and the pages that reference them.', href: '/admin/settings/content', icon: 'folder', group: 'settings', defaultWeight: 80 },
+  { key: 'content', label: 'Files', description: 'Media files in the bucket and the pages that reference them.', href: '/admin/settings/content', icon: 'folder', group: 'settings', defaultWeight: 80, feature: 'media' },
   { key: 'trash', label: 'Trash', description: 'Deleted content review link.', href: '/admin/trash', icon: 'trash', group: 'main', defaultWeight: 40, feature: 'trash' },
 ] as const;
 
