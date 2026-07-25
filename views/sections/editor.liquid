@@ -804,6 +804,231 @@ class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg fo
   document.getElementById('page-name')?.addEventListener('input', (event) => autoSlug(event.target.value));
   document.getElementById('copy-slug-btn')?.addEventListener('click', () => copyToClipboard('#slug'));
   document.getElementById('structured_language')?.addEventListener('change', (event) => switchEditorLanguage(event.target.value));
+
+  // ── Copy / paste all fields ───────────────────────────────────────────────
+  // Serialises every lect-encoded field on the form (settings, content, blocks
+  // and items) as JSON, so a whole page's values can be moved to another page
+  // or to another language. Value-field names carry a "|<language>" suffix; it
+  // is stripped on copy and re-applied from the language currently on screen on
+  // paste, which is what makes an en → mis paste land in the right inputs.
+  // Fields the target form doesn't have (a block the other page lacks, a field
+  // of a different page type) are reported as skipped rather than applied.
+  const fieldsClipboard = document.querySelector('[data-fields-clipboard]');
+  const fieldsPanel = document.querySelector('[data-fields-clipboard-panel]');
+  if (editorForm && fieldsClipboard && fieldsPanel) {
+    const panelHint = fieldsPanel.querySelector('[data-fields-panel-hint]');
+    const panelText = fieldsPanel.querySelector('[data-fields-clipboard-text]');
+    const panelApply = fieldsPanel.querySelector('[data-fields-panel-apply]');
+    const panelClose = fieldsPanel.querySelector('[data-fields-panel-close]');
+    const fieldsStatus = document.querySelector('[data-fields-status]');
+    const languageSelect = document.getElementById('structured_language');
+    const text = (key, fallback) => fieldsClipboard.getAttribute(key) || fallback;
+
+    function currentLanguage() {
+      return languageSelect ? languageSelect.value : '';
+    }
+
+    // `_type` and `_id` identify a block instance rather than describe it —
+    // overwriting them would repoint the target's blocks at the source's.
+    function isCopyableName(name) {
+      return /^[.@*#\d]/.test(name) && !/@_(?:id|type)$/.test(name);
+    }
+
+    function lectFieldNodes() {
+      return Array.from(editorForm.querySelectorAll('input[name], textarea[name], select[name]'))
+        .filter((el) => isCopyableName(el.getAttribute('name') || ''));
+    }
+
+    function fieldKey(name) {
+      return name.replace(/\|[A-Za-z0-9_-]+$/, '');
+    }
+
+    function collectFields() {
+      const fields = {};
+      lectFieldNodes().forEach((el) => {
+        const key = fieldKey(el.getAttribute('name'));
+        if (el.type === 'radio') {
+          if (el.checked) fields[key] = el.value;
+          else if (!(key in fields)) fields[key] = '';
+        } else if (el.type === 'checkbox') {
+          fields[key] = el.checked ? el.value : '';
+        } else {
+          fields[key] = el.value;
+        }
+      });
+      return fields;
+    }
+
+    // A page reference posts its id from a hidden input; its visible combobox
+    // has to be relabelled by hand (page-ref.js only reacts to typing).
+    function syncPageRef(el) {
+      if (!el.hasAttribute('data-page-ref-id')) return;
+      const search = el.closest('[data-page-ref]')?.querySelector('[data-page-ref-search]');
+      if (search) search.value = el.value ? '#' + el.value : '';
+    }
+
+    function setFieldValue(nodes, value) {
+      const first = nodes[0];
+      if (first.type === 'radio') {
+        let matched = false;
+        nodes.forEach((el) => {
+          const checked = el.value === value;
+          matched = matched || checked;
+          if (el.checked !== checked) {
+            el.checked = checked;
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+        });
+        return matched || value === '';
+      }
+      if (first.type === 'checkbox') {
+        const checked = value !== '' && value !== 'no';
+        if (first.checked !== checked) {
+          first.checked = checked;
+          first.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return true;
+      }
+      // A select can't hold a value it has no option for (a block type's own
+      // option list) — leave it alone and count it as skipped.
+      if (first.tagName === 'SELECT' && !Array.from(first.options).some((option) => option.value === value)) {
+        return false;
+      }
+      first.value = value;
+      // The richtext, picture and live-sync bindings all listen for these.
+      first.dispatchEvent(new Event('input', { bubbles: true }));
+      first.dispatchEvent(new Event('change', { bubbles: true }));
+      syncPageRef(first);
+      return true;
+    }
+
+    function applyFields(fields) {
+      const byKey = new Map();
+      lectFieldNodes().forEach((el) => {
+        const key = fieldKey(el.getAttribute('name'));
+        if (!byKey.has(key)) byKey.set(key, []);
+        byKey.get(key).push(el);
+      });
+      let applied = 0;
+      let skipped = 0;
+      Object.keys(fields).forEach((key) => {
+        const nodes = byKey.get(key);
+        const value = fields[key] == null ? '' : String(fields[key]);
+        if (nodes && setFieldValue(nodes, value)) applied += 1;
+        else skipped += 1;
+      });
+      return { applied, skipped };
+    }
+
+    function showStatus(message) {
+      if (!fieldsStatus) return;
+      fieldsStatus.textContent = message;
+      fieldsStatus.classList.remove('hidden');
+    }
+
+    function openPanel(hint, value, withApply) {
+      panelHint.textContent = hint;
+      panelText.value = value;
+      panelApply.classList.toggle('hidden', !withApply);
+      fieldsPanel.classList.remove('hidden');
+      panelText.focus();
+      if (!withApply) panelText.select();
+    }
+
+    function closePanel() {
+      fieldsPanel.classList.add('hidden');
+      panelText.value = '';
+    }
+
+    function fill(template, values) {
+      return Object.keys(values).reduce(
+        (message, key) => message.split('{' + key + '}').join(String(values[key])),
+        template,
+      );
+    }
+
+    function payloadFor(fields) {
+      return JSON.stringify({
+        kind: 'cms-page-fields',
+        version: 1,
+        language: currentLanguage(),
+        pageType: document.getElementById('page_type')?.value || '',
+        fields,
+      }, null, 2);
+    }
+
+    function parsePayload(raw) {
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (_error) {
+        return null;
+      }
+      if (!parsed || parsed.kind !== 'cms-page-fields' || !parsed.fields || typeof parsed.fields !== 'object') return null;
+      return parsed;
+    }
+
+    function pasteFrom(raw) {
+      const parsed = parsePayload(raw);
+      if (!parsed) {
+        showStatus(text('data-paste-invalid', 'That text is not a copied set of page fields.'));
+        return false;
+      }
+      const count = Object.keys(parsed.fields).length;
+      const confirmed = confirm(fill(text('data-paste-confirm', 'Replace {count} fields on this form with the values copied from {from}?'), {
+        count,
+        from: parsed.language || '?',
+      }));
+      if (!confirmed) return false;
+      const result = applyFields(parsed.fields);
+      showStatus(fill(text('data-pasted-status', 'Filled {applied} fields, {skipped} skipped. Save to keep the changes.'), result));
+      return true;
+    }
+
+    fieldsClipboard.querySelector('[data-fields-copy]').addEventListener('click', async () => {
+      const fields = collectFields();
+      const count = Object.keys(fields).length;
+      if (!count) {
+        showStatus(text('data-nothing-to-copy', 'There are no fields to copy.'));
+        return;
+      }
+      const payload = payloadFor(fields);
+      const status = fill(text('data-copied-status', 'Copied {count} fields ({language}).'), {
+        count,
+        language: currentLanguage() || '-',
+      });
+      try {
+        await navigator.clipboard.writeText(payload);
+        closePanel();
+        showStatus(status);
+      } catch (_error) {
+        // No clipboard permission (or an insecure origin): hand over the text.
+        openPanel(text('data-copy-manual', 'Copy this text, then paste it on the other page or language.'), payload, false);
+        showStatus(status);
+      }
+    });
+
+    fieldsClipboard.querySelector('[data-fields-paste]').addEventListener('click', async () => {
+      let raw = '';
+      try {
+        raw = await navigator.clipboard.readText();
+      } catch (_error) {
+        raw = '';
+      }
+      // Firefox and insecure origins can't read the clipboard for us; fall back
+      // to a box the user pastes into themselves.
+      if (!parsePayload(raw)) {
+        openPanel(text('data-paste-manual', 'Paste the copied fields here, then choose Apply.'), '', true);
+        return;
+      }
+      if (pasteFrom(raw)) closePanel();
+    });
+
+    panelApply.addEventListener('click', () => {
+      if (pasteFrom(panelText.value.trim())) closePanel();
+    });
+    panelClose.addEventListener('click', closePanel);
+  }
 </script>
 
 <script nonce="{{ nonce }}">

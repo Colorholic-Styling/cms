@@ -668,6 +668,19 @@
     "snippets_structured_editor.block_type": "区块类型",
     "snippets_structured_editor.add_block": "添加区块",
     "snippets_structured_editor.delete_block": "删除区块",
-    "snippets_structured_editor.no_blocks_yet": "暂无区块。"
+    "snippets_structured_editor.no_blocks_yet": "暂无区块。",
+    "snippets_structured_editor.copy_fields": "复制字段",
+    "snippets_structured_editor.copy_fields_hint": "复制当前语言下本表单的所有字段值（设置、内容、区块）",
+    "snippets_structured_editor.paste_fields": "粘贴字段",
+    "snippets_structured_editor.paste_fields_hint": "用在其他页面或语言复制的字段值填充本表单",
+    "snippets_structured_editor.copy_manual": "复制这段文本，然后在另一个页面或语言中粘贴。",
+    "snippets_structured_editor.paste_manual": "把复制的字段粘贴到这里，然后点击应用。",
+    "snippets_structured_editor.apply": "应用",
+    "snippets_structured_editor.close": "关闭",
+    "snippets_structured_editor.copied_status": "已复制 {count} 个字段（{language}）。",
+    "snippets_structured_editor.pasted_status": "已填入 {applied} 个字段，跳过 {skipped} 个。请保存以保留更改。",
+    "snippets_structured_editor.paste_confirm": "用从 {from} 复制的值替换本表单的 {count} 个字段？",
+    "snippets_structured_editor.paste_invalid": "这段文本不是复制的页面字段。",
+    "snippets_structured_editor.nothing_to_copy": "没有可复制的字段。"
   }
 }

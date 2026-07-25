@@ -668,6 +668,19 @@
     "snippets_structured_editor.block_type": "Block type",
     "snippets_structured_editor.add_block": "Add Block",
     "snippets_structured_editor.delete_block": "Delete Block",
-    "snippets_structured_editor.no_blocks_yet": "No blocks yet."
+    "snippets_structured_editor.no_blocks_yet": "No blocks yet.",
+    "snippets_structured_editor.copy_fields": "Copy fields",
+    "snippets_structured_editor.copy_fields_hint": "Copy every field value on this form (settings, content, blocks) for the language shown",
+    "snippets_structured_editor.paste_fields": "Paste fields",
+    "snippets_structured_editor.paste_fields_hint": "Fill this form from field values copied on another page or language",
+    "snippets_structured_editor.copy_manual": "Copy this text, then paste it on the other page or language.",
+    "snippets_structured_editor.paste_manual": "Paste the copied fields here, then choose Apply.",
+    "snippets_structured_editor.apply": "Apply",
+    "snippets_structured_editor.close": "Close",
+    "snippets_structured_editor.copied_status": "Copied {count} fields ({language}).",
+    "snippets_structured_editor.pasted_status": "Filled {applied} fields, {skipped} skipped. Save to keep the changes.",
+    "snippets_structured_editor.paste_confirm": "Replace {count} fields on this form with the values copied from {from}?",
+    "snippets_structured_editor.paste_invalid": "That text is not a copied set of page fields.",
+    "snippets_structured_editor.nothing_to_copy": "There are no fields to copy."
   }
 }

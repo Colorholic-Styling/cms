@@ -668,6 +668,19 @@
     "snippets_structured_editor.block_type": "區塊類型",
     "snippets_structured_editor.add_block": "新增區塊",
     "snippets_structured_editor.delete_block": "刪除區塊",
-    "snippets_structured_editor.no_blocks_yet": "暫無區塊。"
+    "snippets_structured_editor.no_blocks_yet": "暫無區塊。",
+    "snippets_structured_editor.copy_fields": "複製欄位",
+    "snippets_structured_editor.copy_fields_hint": "複製目前語言下本表單的所有欄位值（設定、內容、區塊）",
+    "snippets_structured_editor.paste_fields": "貼上欄位",
+    "snippets_structured_editor.paste_fields_hint": "用在其他頁面或語言複製的欄位值填入本表單",
+    "snippets_structured_editor.copy_manual": "複製這段文字，然後在另一個頁面或語言中貼上。",
+    "snippets_structured_editor.paste_manual": "把複製的欄位貼到這裡，然後點選套用。",
+    "snippets_structured_editor.apply": "套用",
+    "snippets_structured_editor.close": "關閉",
+    "snippets_structured_editor.copied_status": "已複製 {count} 個欄位（{language}）。",
+    "snippets_structured_editor.pasted_status": "已填入 {applied} 個欄位，略過 {skipped} 個。請儲存以保留變更。",
+    "snippets_structured_editor.paste_confirm": "用從 {from} 複製的值取代本表單的 {count} 個欄位？",
+    "snippets_structured_editor.paste_invalid": "這段文字不是複製的頁面欄位。",
+    "snippets_structured_editor.nothing_to_copy": "沒有可複製的欄位。"
   }
 }
