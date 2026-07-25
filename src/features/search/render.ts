@@ -5,7 +5,7 @@
 // and the projection code that only this one screen needs.
 
 import type { AppContext } from '../../utils/context';
-import { advancedSearchPage } from '../../templates/advanced-search';
+import { advancedSearchPage } from './template';
 import { num } from '../../utils/forms';
 import {
   advancedSearchFormCriteria,

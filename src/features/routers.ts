@@ -15,6 +15,7 @@ import type { Hono } from 'hono';
 import type { Env, Variables } from '../types';
 import { trashRoutes } from './trash/routes';
 import { blockTypesRoutes, pageTypesRoutes } from './db-types/routes';
+import { searchRoutes } from './search/routes';
 
 export type FeatureRouter = Hono<{ Bindings: Env; Variables: Variables }>;
 
@@ -28,4 +29,5 @@ export const featureRouters: readonly FeatureRouterEntry[] = [
   { id: 'trash', router: trashRoutes },
   { id: 'db-types', router: pageTypesRoutes },
   { id: 'db-types', router: blockTypesRoutes },
+  { id: 'search', router: searchRoutes },
 ];

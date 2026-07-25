@@ -2,7 +2,6 @@
 // Admin routes (all protected by authMiddleware + editorGuard)
 //
 // Composed from feature sub-routers, all mounted under /admin:
-//   search  – /advanced-search* (CSV import/export moved to the import-export plugin)
 //   pages   – dashboard, /pages/* CRUD, list, publish, trash-on-delete
 //   tags    – /tags* and /taxonomies*
 //   api     – /api/* JSON endpoints and /upload
@@ -11,15 +10,14 @@
 // `pages` and `tags` — where their explicit mounts used to sit. /trash* is
 // one of those now.
 //
-// NOTE on ordering: Hono matches in registration order, so `search` is
-// mounted before `pages` to ensure its static `/advanced-search...` routes
-// win over the `/pages/:id` catch-all.
+// NOTE on ordering: Hono matches in registration order. The page routes are
+// all rooted at /pages or /, so a feature mounted after them cannot be
+// shadowed; the orderings that do matter are internal to each router.
 // ============================================================
 
 import { Hono } from 'hono';
 import { authMiddleware, editorGuard } from '../../middleware/auth';
 import type { Env, Variables } from '../../types';
-import { searchRoutes } from './search';
 import { pagesRoutes } from './pages';
 import { tagsRoutes } from './tags';
 import { usersRoutes } from './users';
@@ -56,7 +54,6 @@ adminRoutes.get('/views/*', async (c) => {
 });
 
 // Mount feature sub-routers. Order matters — see the note above.
-adminRoutes.route('/', searchRoutes);
 adminRoutes.route('/', pluginAdminRoutes);
 adminRoutes.route('/', profileRoutes);
 adminRoutes.route('/', pagesRoutes);

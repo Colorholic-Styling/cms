@@ -15,11 +15,13 @@
 import { assertFeatureRegistry, type CmsFeature } from '../core/feature';
 import { trashFeature } from './trash/feature';
 import { dbTypesFeature } from './db-types/feature';
+import { searchFeature } from './search/feature';
 import { creditsFeature } from './credits/feature';
 
 export const features: readonly CmsFeature[] = [
   trashFeature,
   dbTypesFeature,
+  searchFeature,
   creditsFeature,
 ];
 
