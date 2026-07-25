@@ -66,7 +66,7 @@ function fragmentPath(id) {
  * Feature-level dependencies, declared in the fragment header as
  * `-- requires: a, b`. "core" is implicit and ignored.
  */
-function requiredFeatures(id) {
+export function requiredFeatures(id) {
   const match = /^--\s*requires:\s*(.+)$/m.exec(readFileSync(fragmentPath(id), 'utf8'));
   if (!match) return [];
   return match[1]
