@@ -1,6 +1,6 @@
-import { adminLayout, type BaseTemplateProps } from '../../core/render/layout';
-import { renderView } from '../../core/render/liquid';
-import type { UserCreditLedgerRow } from '../../templates/credit-ledger';
+import { adminLayout, type BaseTemplateProps } from '../../../core/render/layout';
+import { renderView } from '../../../core/render/liquid';
+import type { UserCreditLedgerRow } from '../../../templates/credit-ledger';
 
 export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
   users: Array<{

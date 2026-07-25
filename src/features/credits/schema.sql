@@ -1,4 +1,5 @@
 -- Feature: credits — metered billing for chargeable actions.
+-- feature: credits
 -- Per-user and site-wide balances, append-only ledgers, and the recurring
 -- subscriptions billed by the cron sweep.
 --

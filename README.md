@@ -72,8 +72,8 @@ background admin actions such as long plugin duplicate/delete requests. The
 `cms-published` migrations create only the published `live_*` content tables.
 They do not automatically import rows from other D1 databases.
 
-The baseline migrations are generated from the feature fragments under
-`schema/` — edit those, not `migrations/*.sql`, and run
+The baseline migrations are generated from the `schema.sql` fragments beside
+the code they belong to — edit those, not `migrations/*.sql`, and run
 `npm run build:migrations`. See [Feature profiles](#feature-profiles) for
 choosing which features a deployment installs.
 
@@ -570,13 +570,14 @@ current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
 
 ### Feature profiles
 
-The baseline migrations are **generated**. Features own SQL fragments under
-`schema/`, and `scripts/build-migrations.mjs` concatenates the enabled ones
+The baseline migrations are **generated**. Each feature keeps its SQL fragment
+next to its code — `src/features/trash/schema.sql`, `src/plugins/schema.sql`,
+and so on — and `scripts/build-migrations.mjs` concatenates the enabled ones
 into the flat files Wrangler applies:
 
 ```
-schema/cms/core.sql + schema/cms/features/<id>.sql  →  migrations/0001_initial_schema.sql
-schema/published/core.sql                           →  migrations/published/0001_published_schema.sql
+src/core/schema.sql + every enabled fragment  →  migrations/0001_initial_schema.sql
+src/publish/schema.sql                        →  migrations/published/0001_published_schema.sql
 ```
 
 This exists because Wrangler allows exactly one `migrations_dir` per D1
@@ -603,7 +604,9 @@ After editing `cms.features.json`:
 npm run build:migrations
 ```
 
-A feature declares its dependencies in its fragment header as
+A fragment is any `src/**/schema.sql` (or `*.schema.sql`) declaring
+`-- feature: <id>` in its header — the id, not the path, is what
+`cms.features.json` switches on. A fragment also declares its dependencies as
 `-- requires: <ids>`; the assembler orders fragments accordingly and refuses a
 profile that enables a feature whose dependency is off.
 

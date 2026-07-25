@@ -1,4 +1,5 @@
 -- Feature: plugin-pointer-indexes — expression indexes for the JSON pointer
+-- feature: plugin-pointer-indexes
 -- lookups issued by specific plugins (events, EDM, contacts).
 -- requires: plugins
 --

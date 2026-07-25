@@ -3,12 +3,17 @@
 //
 // Wrangler allows exactly one `migrations_dir` per D1 database and has no
 // CLI override, so features cannot each own a migrations folder that wrangler
-// walks. Instead features own SQL *fragments* under schema/, and this script
-// concatenates the enabled ones into the flat baseline files wrangler already
-// points at:
+// walks. Instead each feature keeps its SQL *fragment* next to its code, and
+// this script concatenates the enabled ones into the flat baseline files
+// wrangler already points at:
 //
-//   schema/cms/core.sql + schema/cms/features/<id>.sql   ->  migrations/0001_initial_schema.sql
-//   schema/published/core.sql                            ->  migrations/published/0001_published_schema.sql
+//   src/core/schema.sql + every enabled fragment -> migrations/0001_initial_schema.sql
+//   src/publish/schema.sql                       -> migrations/published/0001_published_schema.sql
+//
+// A fragment is any src/**/schema.sql or src/**/*.schema.sql that declares
+// `-- feature: <id>` in its header; the id, not the path, is what
+// cms.features.json switches on. src/core/schema.sql and src/publish/schema.sql
+// declare no id and are always included.
 //
 // The baseline filenames never change. D1 tracks applied migrations by name
 // only (see wrangler's getUnappliedMigrationNames), so regenerating a baseline
@@ -32,7 +37,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
-const schemaDir = path.join(rootDir, 'schema');
+const srcDir = path.join(rootDir, 'src');
+const CORE_SCHEMA = path.join(srcDir, 'core', 'schema.sql');
+const PUBLISHED_SCHEMA = path.join(srcDir, 'publish', 'schema.sql');
 const manifestPath = path.join(rootDir, 'cms.features.json');
 
 const CMS_BASELINE = path.join(rootDir, 'migrations', '0001_initial_schema.sql');
@@ -48,18 +55,41 @@ export function readManifest() {
   return features;
 }
 
+/** Every fragment on disk, as { id -> absolute path }, discovered by header. */
+function discoverFragments() {
+  const found = new Map();
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full); continue; }
+      if (!entry.name.endsWith('schema.sql')) continue;
+      if (full === CORE_SCHEMA || full === PUBLISHED_SCHEMA) continue;
+      const match = /^--\s*feature:\s*([\w-]+)\s*$/m.exec(readFileSync(full, 'utf8'));
+      if (!match) {
+        throw new Error(`${path.relative(rootDir, full)} has no "-- feature: <id>" header`);
+      }
+      const id = match[1];
+      if (found.has(id)) {
+        throw new Error(`two fragments both declare feature "${id}": ${path.relative(rootDir, found.get(id))} and ${path.relative(rootDir, full)}`);
+      }
+      found.set(id, full);
+    }
+  };
+  walk(srcDir);
+  return found;
+}
+
+const fragments = discoverFragments();
+
 /** Every feature fragment that exists on disk, in stable (sorted) order. */
 export function availableFeatures() {
-  const dir = path.join(schemaDir, 'cms', 'features');
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => name.endsWith('.sql'))
-    .map((name) => name.slice(0, -'.sql'.length))
-    .sort();
+  return [...fragments.keys()].sort();
 }
 
 function fragmentPath(id) {
-  return path.join(schemaDir, 'cms', 'features', `${id}.sql`);
+  const found = fragments.get(id);
+  if (!found) throw new Error(`no schema fragment declares feature "${id}"`);
+  return found;
 }
 
 /**
@@ -87,12 +117,12 @@ function resolveOrder(features) {
 
   for (const id of Object.keys(features)) {
     if (!available.includes(id)) {
-      throw new Error(`cms.features.json lists "${id}", but ${path.relative(rootDir, fragmentPath(id))} does not exist`);
+      throw new Error(`cms.features.json lists "${id}", but no schema fragment declares that feature`);
     }
   }
   for (const id of available) {
     if (!(id in features)) {
-      throw new Error(`schema/cms/features/${id}.sql exists but is not listed in cms.features.json (add it as true or false)`);
+      throw new Error(`${path.relative(rootDir, fragmentPath(id))} declares feature "${id}", which is not listed in cms.features.json (add it as true or false)`);
     }
   }
 
@@ -122,8 +152,8 @@ function generatedHeader(title, parts) {
     '-- ============================================================',
     `-- ${title}`,
     '--',
-    '-- GENERATED FILE — do not edit. Edit the fragments under schema/',
-    '-- and run `npm run build:migrations`.',
+    '-- GENERATED FILE — do not edit. Edit the schema.sql fragments beside',
+    '-- the code they belong to and run `npm run build:migrations`.',
     '--',
     '-- Assembled from:',
     ...parts.map((part) => `--   ${part}`),
@@ -140,8 +170,8 @@ function concat(header, fragmentFiles) {
 
 export function buildCms(features) {
   const order = resolveOrder(features);
-  const files = [path.join(schemaDir, 'cms', 'core.sql'), ...order.map(fragmentPath)];
-  const parts = ['schema/cms/core.sql', ...order.map((id) => `schema/cms/features/${id}.sql`)];
+  const files = [CORE_SCHEMA, ...order.map(fragmentPath)];
+  const parts = [path.relative(rootDir, CORE_SCHEMA), ...order.map((id) => path.relative(rootDir, fragmentPath(id)))];
   const disabled = Object.entries(features).filter(([, on]) => on !== true).map(([id]) => id);
   if (disabled.length) parts.push(`(disabled: ${disabled.join(', ')})`);
   return concat(generatedHeader('Initial CMS schema — applied to the private CMS (admin) database.', parts), files);
@@ -149,8 +179,8 @@ export function buildCms(features) {
 
 export function buildPublished() {
   return concat(
-    generatedHeader('Published content schema — applied to the published-only D1 database.', ['schema/published/core.sql']),
-    [path.join(schemaDir, 'published', 'core.sql')],
+    generatedHeader('Published content schema — applied to the published-only D1 database.', [path.relative(rootDir, PUBLISHED_SCHEMA)]),
+    [PUBLISHED_SCHEMA],
   );
 }
 

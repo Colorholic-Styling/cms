@@ -1,18 +1,18 @@
 -- ============================================================
 -- Initial CMS schema — applied to the private CMS (admin) database.
 --
--- GENERATED FILE — do not edit. Edit the fragments under schema/
--- and run `npm run build:migrations`.
+-- GENERATED FILE — do not edit. Edit the schema.sql fragments beside
+-- the code they belong to and run `npm run build:migrations`.
 --
 -- Assembled from:
---   schema/cms/core.sql
---   schema/cms/features/trash.sql
---   schema/cms/features/db-types.sql
---   schema/cms/features/media.sql
---   schema/cms/features/plugins.sql
---   schema/cms/features/plugin-pointer-indexes.sql
---   schema/cms/features/jobs.sql
---   schema/cms/features/credits.sql
+--   src/core/schema.sql
+--   src/features/trash/schema.sql
+--   src/features/db-types/schema.sql
+--   src/features/media/schema.sql
+--   src/plugins/schema.sql
+--   src/plugins/pointer-indexes.schema.sql
+--   src/core/jobs/schema.sql
+--   src/features/credits/schema.sql
 -- ============================================================
 
 -- ============================================================
@@ -290,6 +290,7 @@ BEGIN
 END;
 
 -- Feature: trash — soft-delete holding area with full version history.
+-- feature: trash
 -- Without it, page deletes must be hard deletes.
 
 -- Trash Pages
@@ -358,6 +359,7 @@ CREATE TRIGGER IF NOT EXISTS trash_page_tags_updated_at AFTER UPDATE ON trash_pa
 END;
 
 -- Feature: db-types — runtime-editable page and block types.
+-- feature: db-types
 -- Without it the CMS still works, using only the compiled cms-config.ts
 -- blueprint plus whatever plugin manifests contribute.
 
@@ -402,6 +404,7 @@ CREATE TRIGGER IF NOT EXISTS block_types_updated_at AFTER UPDATE ON block_types 
 END;
 
 -- Feature: media — R2-backed uploads and the file browser.
+-- feature: media
 -- Without it the editor has no picture/file fields backed by the bucket.
 
 CREATE TABLE IF NOT EXISTS media_files(
@@ -417,6 +420,7 @@ CREATE TABLE IF NOT EXISTS media_files(
 );
 
 -- Feature: plugins — the plugin registry and its admin-approval tables.
+-- feature: plugins
 -- Dropping this removes the whole extensibility platform: plugin admin
 -- proxying, hooks, delegated page types and pinned plugin assets.
 
@@ -471,6 +475,7 @@ CREATE INDEX IF NOT EXISTS idx_plugin_asset_approvals_plugin ON plugin_asset_app
 CREATE INDEX IF NOT EXISTS idx_plugin_page_type_approvals_plugin ON plugin_page_type_approvals(plugin_id);
 
 -- Feature: plugin-pointer-indexes — expression indexes for the JSON pointer
+-- feature: plugin-pointer-indexes
 -- lookups issued by specific plugins (events, EDM, contacts).
 -- requires: plugins
 --
@@ -492,6 +497,7 @@ CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_contact
     ON draft_pages(json_extract(lect, '$._pointers.contact'), page_type, updated_at DESC, id DESC);
 
 -- Feature: jobs — durable admin background jobs backed by the queue binding.
+-- feature: jobs
 -- Without it, long plugin actions and bulk edits run synchronously and risk
 -- the 1000-subrequest per-invocation limit. See utils/admin-job-runner.ts.
 
@@ -519,6 +525,7 @@ CREATE INDEX IF NOT EXISTS idx_admin_jobs_status_updated ON admin_jobs(status, u
 CREATE INDEX IF NOT EXISTS idx_admin_jobs_plugin_created ON admin_jobs(plugin_id, created_at);
 
 -- Feature: credits — metered billing for chargeable actions.
+-- feature: credits
 -- Per-user and site-wide balances, append-only ledgers, and the recurring
 -- subscriptions billed by the cron sweep.
 --

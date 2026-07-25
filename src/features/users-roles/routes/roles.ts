@@ -2,23 +2,23 @@
 // Admin-gated (roles:manage). The 'admin' role is all-powerful and locked.
 
 import { Hono } from 'hono';
-import { roleFormPage, rolesPage } from './roles-template';
-import { PERMISSIONS, PERMISSION_DESCRIPTIONS } from '../../types';
-import type { Env, Variables, Permission } from '../../types';
-import { slugify, str } from '../../core/http/forms';
-import { logAudit } from '../../core/db/audit';
-import { requirePermission } from '../../core/auth/guards';
-import { renderPage } from '../../core/render/chrome';
-import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
-import { allPluginPermissions } from '../../plugins/registry';
+import { roleFormPage, rolesPage } from '../templates/roles';
+import { PERMISSIONS, PERMISSION_DESCRIPTIONS } from '../../../types';
+import type { Env, Variables, Permission } from '../../../types';
+import { slugify, str } from '../../../core/http/forms';
+import { logAudit } from '../../../core/db/audit';
+import { requirePermission } from '../../../core/auth/guards';
+import { renderPage } from '../../../core/render/chrome';
+import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
+import { allPluginPermissions } from '../../../plugins/registry';
 import {
   createCustomRole,
   deleteCustomRole,
   getRoleForEdit,
   listRolesForAdmin,
   saveRolePermissions,
-} from '../../core/auth/role-store';
-import type { AppContext } from '../../core/http/context';
+} from '../../../core/auth/role-store';
+import type { AppContext } from '../../../core/http/context';
 
 export const rolesRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

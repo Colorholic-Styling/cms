@@ -2,16 +2,16 @@
 // (users:manage). Users are created by OAuth login, not here.
 
 import { Hono } from 'hono';
-import { usersPage, userFormPage } from './users-template';
-import type { Env, Variables, User } from '../../types';
-import { logAudit } from '../../core/db/audit';
-import { requirePermission } from '../../core/auth/guards';
-import { renderPage } from '../../core/render/chrome';
-import { allRoleOptions } from '../../core/auth/role-store';
-import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
-import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../core/credits/service';
-import { creditLedgerRowForView } from '../../templates/credit-ledger';
-import type { AppContext } from '../../core/http/context';
+import { usersPage, userFormPage } from '../templates/users';
+import type { Env, Variables, User } from '../../../types';
+import { logAudit } from '../../../core/db/audit';
+import { requirePermission } from '../../../core/auth/guards';
+import { renderPage } from '../../../core/render/chrome';
+import { allRoleOptions } from '../../../core/auth/role-store';
+import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
+import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../../core/credits/service';
+import { creditLedgerRowForView } from '../../../templates/credit-ledger';
+import type { AppContext } from '../../../core/http/context';
 
 export const usersRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

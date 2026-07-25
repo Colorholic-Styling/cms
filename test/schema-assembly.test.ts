@@ -1,6 +1,7 @@
 // Guards the migration assembler (scripts/build-migrations.mjs):
 //
-//   schema/cms/core.sql + schema/cms/features/*.sql -> migrations/0001_initial_schema.sql
+//   src/core/schema.sql + every enabled src/**/schema.sql
+//     -> migrations/0001_initial_schema.sql
 //
 // The assembler itself runs in Node, so vitest.config.mts hands the assembled
 // SQL over as bindings. Note that a fragment missing from cms.features.json
@@ -33,7 +34,10 @@ describe('migration assembly', () => {
 
   it('marks the generated baseline as generated', () => {
     expect(env.TEST_COMMITTED_BASELINE).toContain('GENERATED FILE — do not edit');
-    expect(env.TEST_COMMITTED_BASELINE).toContain('schema/cms/core.sql');
+    // Fragments live beside the code they belong to; the header records which
+    // ones went in, so a generated baseline is traceable to its sources.
+    expect(env.TEST_COMMITTED_BASELINE).toContain('src/core/schema.sql');
+    expect(env.TEST_COMMITTED_BASELINE).toContain('src/features/trash/schema.sql');
   });
 
   it('has a marker for every feature fragment on disk', () => {

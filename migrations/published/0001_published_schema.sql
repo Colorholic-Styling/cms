@@ -1,11 +1,11 @@
 -- ============================================================
 -- Published content schema — applied to the published-only D1 database.
 --
--- GENERATED FILE — do not edit. Edit the fragments under schema/
--- and run `npm run build:migrations`.
+-- GENERATED FILE — do not edit. Edit the schema.sql fragments beside
+-- the code they belong to and run `npm run build:migrations`.
 --
 -- Assembled from:
---   schema/published/core.sql
+--   src/publish/schema.sql
 -- ============================================================
 
 -- ============================================================

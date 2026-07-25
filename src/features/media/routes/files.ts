@@ -4,11 +4,11 @@
 // menu, language and credit settings.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../core/auth/guards';
-import { renderPage } from '../../core/render/chrome';
-import { logAudit } from '../../core/db/audit';
-import { contentListPage, type ContentListMediaItem } from './content-list-template';
+import type { Env, Variables } from '../../../types';
+import { requirePermission } from '../../../core/auth/guards';
+import { renderPage } from '../../../core/render/chrome';
+import { logAudit } from '../../../core/db/audit';
+import { contentListPage, type ContentListMediaItem } from '../template';
 
 export const mediaFilesRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

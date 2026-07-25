@@ -16,13 +16,13 @@ import type { Env, Variables } from '../types';
 import { trashRoutes } from './trash/routes';
 import { blockTypesRoutes, pageTypesRoutes } from './db-types/routes';
 import { searchRoutes } from './search/routes';
-import { usersRoutes } from './users-roles/users-routes';
-import { mediaFilesRoutes } from './media/files-routes';
-import { mediaUploadRoutes } from './media/upload-routes';
-import { mediaPublicRoutes } from './media/public-routes';
+import { usersRoutes } from './users-roles/routes/users';
+import { mediaFilesRoutes } from './media/routes/files';
+import { mediaUploadRoutes } from './media/routes/upload';
+import { mediaPublicRoutes } from './media/routes/public';
 import { i18nRoutes } from './i18n/routes';
-import { creditSettingsRoutes } from './credits/settings-routes';
-import { rolesRoutes } from './users-roles/roles-routes';
+import { creditSettingsRoutes } from './credits/routes';
+import { rolesRoutes } from './users-roles/routes/roles';
 
 export type FeatureRouter = Hono<{ Bindings: Env; Variables: Variables }>;
 

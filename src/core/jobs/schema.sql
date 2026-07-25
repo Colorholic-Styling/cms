@@ -1,4 +1,5 @@
 -- Feature: jobs — durable admin background jobs backed by the queue binding.
+-- feature: jobs
 -- Without it, long plugin actions and bulk edits run synchronously and risk
 -- the 1000-subrequest per-invocation limit. See utils/admin-job-runner.ts.
 

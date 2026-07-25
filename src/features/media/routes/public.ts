@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { applyMediaResponseHeaders, mediaObjectResponse } from './security';
-import type { Env, Variables } from '../../types';
+import { applyMediaResponseHeaders, mediaObjectResponse } from '../security';
+import type { Env, Variables } from '../../../types';
 
 export const mediaPublicRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

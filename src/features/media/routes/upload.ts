@@ -4,12 +4,12 @@
 // that writes to the bucket and the media_files table.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../core/auth/guards';
-import { rateLimitByIP } from '../../core/http/rate-limit';
-import { logAudit } from '../../core/db/audit';
-import { slugify, str } from '../../core/http/forms';
-import { validateUpload } from './security';
+import type { Env, Variables } from '../../../types';
+import { requirePermission } from '../../../core/auth/guards';
+import { rateLimitByIP } from '../../../core/http/rate-limit';
+import { logAudit } from '../../../core/db/audit';
+import { slugify, str } from '../../../core/http/forms';
+import { validateUpload } from '../security';
 
 export const mediaUploadRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

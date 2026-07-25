@@ -1,4 +1,5 @@
 -- Feature: trash — soft-delete holding area with full version history.
+-- feature: trash
 -- Without it, page deletes must be hard deletes.
 
 -- Trash Pages

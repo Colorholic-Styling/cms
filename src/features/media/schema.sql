@@ -1,4 +1,5 @@
 -- Feature: media — R2-backed uploads and the file browser.
+-- feature: media
 -- Without it the editor has no picture/file fields backed by the bucket.
 
 CREATE TABLE IF NOT EXISTS media_files(

@@ -1,4 +1,5 @@
 -- Feature: plugins — the plugin registry and its admin-approval tables.
+-- feature: plugins
 -- Dropping this removes the whole extensibility platform: plugin admin
 -- proxying, hooks, delegated page types and pinned plugin assets.
 

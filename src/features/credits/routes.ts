@@ -12,7 +12,7 @@ import { getPlugins } from '../../plugins/registry';
 import { listPlugins } from '../../plugins/store';
 import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from '../../core/credits/service';
 import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../plugins/limits';
-import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from './summary-template';
+import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from './template';
 
 export const creditSettingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
