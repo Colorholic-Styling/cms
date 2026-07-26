@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { profilePage } from '../../templates/profile';
 import type { Env, Variables, User } from '../../types';
-import { renderPage } from '../../utils/admin-render';
-import { ROLE_LABELS, splitRoles } from '../../utils/roles';
-import { allRoleOptions } from '../../utils/role-store';
-import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../utils/credits';
-import { creditLedgerRowForView } from '../../templates/users';
-import { logAudit } from '../../utils/audit';
-import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../utils/i18n';
-import { appendQuery, safeAdminReturnPath } from '../../utils/forms';
+import { renderPage } from '../../core/render/chrome';
+import { ROLE_LABELS, splitRoles } from '../../core/auth/roles';
+import { allRoleOptions } from '../../core/auth/role-store';
+import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../features/credits/service';
+import { creditLedgerRowForView } from '../../templates/credit-ledger';
+import { logAudit } from '../../core/db/audit';
+import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../core/i18n';
+import { appendQuery, safeAdminReturnPath } from '../../core/http/forms';
 
 const CREDIT_TRANSFER_ACTION = '/admin/profile/credits/transfer';
 const SHARED_DONATE_ACTION = '/admin/profile/credits/shared';

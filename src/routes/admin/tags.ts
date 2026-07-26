@@ -12,7 +12,7 @@ import {
   postToLect,
   safeParseLect,
   stringifyLect,
-} from '../../utils/lect';
+} from '../../core/db/lect';
 import type { Env, Variables, Tag, Taxonomy } from '../../types';
 import {
   languageFromRequest,
@@ -20,17 +20,18 @@ import {
   num,
   slugify,
   str,
-} from '../../utils/forms';
-import type { FormValue } from '../../utils/forms';
-import { ensureDefaultLectName } from '../../utils/page-logic';
-import { logAudit } from '../../utils/audit';
-import { requirePermission } from '../../middleware/auth';
-import { removeTagFromTargets } from '../../publish';
-import { renderPage, userCan } from '../../utils/admin-render';
-import { resolveCmsConfig } from '../../plugins/config';
-import { getPlugins } from '../../plugins/registry';
-import { configOnlyTypes } from '../../utils/type-admin';
-import type { AppContext } from '../../utils/context';
+} from '../../core/http/forms';
+import type { FormValue } from '../../core/http/forms';
+import { ensureDefaultLectName } from '../../core/db/page-logic';
+import { logAudit } from '../../core/db/audit';
+import { requirePermission } from '../../core/auth/guards';
+import { removeTagFromTargets } from '../../core/publish';
+import { renderPage } from '../../core/render/chrome';
+import { userCan } from '../../core/auth/permissions';
+import { resolveCmsConfig } from '../../core/db/content-config';
+import { getPlugins } from '../../features/plugins/registry';
+import { configOnlyTypes } from '../../core/db/type-admin';
+import type { AppContext } from '../../core/http/context';
 
 export const tagsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

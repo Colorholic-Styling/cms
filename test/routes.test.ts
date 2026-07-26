@@ -1,12 +1,12 @@
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cmsConfig } from '../src/cms-config';
-import { hashToken, signJWT } from '../src/security/jwt';
-import { blueprintToLect, stringifyLect } from '../src/utils/lect';
-import { clearConfigCache } from '../src/plugins/config';
-import { __injectPluginFetcher, clearManifestCache } from '../src/plugins/registry';
-import { clearRolePermissionsCache } from '../src/utils/roles';
-import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/utils/admin-jobs';
+import { hashToken, signJWT } from '../src/core/auth/jwt';
+import { blueprintToLect, stringifyLect } from '../src/core/db/lect';
+import { clearConfigCache } from '../src/core/db/content-config';
+import { __injectPluginFetcher, clearManifestCache } from '../src/features/plugins/registry';
+import { clearRolePermissionsCache } from '../src/core/auth/roles';
+import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/core/jobs/queue';
 import type { Env as AppEnv, JWTPayload } from '../src/types';
 
 const IncomingRequest = Request;

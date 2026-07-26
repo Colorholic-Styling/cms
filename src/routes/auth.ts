@@ -9,9 +9,9 @@
 
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { signJWT, verifyJWT } from '../security/jwt';
-import { generateCodeVerifier, generateCodeChallenge, generateState } from '../utils/pkce';
-import { rateLimitByIP } from '../middleware/rate-limit';
+import { signJWT, verifyJWT } from '../core/auth/jwt';
+import { generateCodeVerifier, generateCodeChallenge, generateState } from '../core/auth/pkce';
+import { rateLimitByIP } from '../core/http/rate-limit';
 import {
   accessCookieName,
   clearAuthCookie,
@@ -20,14 +20,14 @@ import {
   readAuthCookie,
   refreshCookieName,
   setAuthCookie,
-} from '../security/cookies';
-import { normalizeRoles } from '../utils/roles';
-import { loadAppBrandingSettings } from '../utils/settings';
-import { viewRevision } from '../utils/view-revision';
-import { buildTranslationCatalog, resolveUiLocale } from '../utils/i18n';
+} from '../core/auth/cookies';
+import { normalizeRoles } from '../core/auth/roles';
+import { loadAppBrandingSettings } from '../core/db/settings';
+import { viewRevision } from '../core/http/view-revision';
+import { buildTranslationCatalog, resolveUiLocale } from '../core/i18n';
 import { loginPage } from '../templates/login';
 import type { Env, Variables, JWTPayload } from '../types';
-import type { AppContext } from '../utils/context';
+import type { AppContext } from '../core/http/context';
 import {
   ACCESS_TOKEN_TTL,
   REFRESH_TOKEN_TTL,
@@ -38,7 +38,7 @@ import {
   revokeRefreshSession,
   rotateAuthSession,
   storeRefreshSession,
-} from '../security/sessions';
+} from '../core/auth/sessions';
 
 // ── OAuth provider config ─────────────────────────────────────────────────────
 

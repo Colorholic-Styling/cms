@@ -454,6 +454,7 @@
             </a>
 
             <p class="text-xs text-gray-400">{% for role in userRoleItems %}{% if role.labelKey %}{{ role.labelKey | t }}{% else %}{{ role.label }}{% endif %}{% unless forloop.last %}, {% endunless %}{% endfor %}</p>
+            {% if showCredits %}
             <p class="mt-1 flex items-center gap-1 text-xs font-medium text-amber-400">
               <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <circle cx="12" cy="12" r="8" stroke-width="2"></circle>
@@ -468,6 +469,7 @@
               </svg>
               <span>{{ sharedCredits }} {{ "shell.shared" | t }}</span>
             </p>
+            {% endif %}
           </div>
         </div>
 

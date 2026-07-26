@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Hono } from 'hono';
-import { rateLimitByIP } from '../src/middleware/rate-limit';
+import { rateLimitByIP } from '../src/core/http/rate-limit';
 import type { Env, RateLimiter, Variables } from '../src/types';
 
 function appWithLimiter(limiter: RateLimiter | undefined) {

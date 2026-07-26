@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2026-07-14"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
+# Minify the bundle before upload. Wrangler ships unminified by default, which
+# was ~732 kB of source here; minified it is ~400 kB (138 kB gzipped, and gzip
+# is what counts against the size limit). Purely a build setting.
+# Export names survive minification, so the Durable Object class_name bindings
+# below still resolve.
+minify = true
+
 [assets]
 directory = "./views"
 binding = "VIEWS"

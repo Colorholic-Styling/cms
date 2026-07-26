@@ -1,9 +1,18 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
+import { availableFeatures, baselinePaths, buildCms, readManifest } from './scripts/build-migrations.mjs';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
+
+// The migration assembler runs in Node, but the assembly tests run inside
+// workerd where there is no filesystem — so the SQL it produces is handed over
+// as bindings. TEST_ASSEMBLED_* let the tests check the committed baseline
+// against a fresh assembly, and check that a lean profile really does drop
+// the disabled features' objects.
+const leanProfile = Object.fromEntries(availableFeatures().map((id) => [id, false]));
 
 export default defineConfig({
   plugins: [
@@ -28,6 +37,10 @@ export default defineConfig({
           SITE_TITLE: '0xCMS',
           TEST_MIGRATIONS: await readD1Migrations(path.join(rootDir, 'migrations')),
           TEST_PUBLISHED_MIGRATIONS: await readD1Migrations(path.join(rootDir, 'migrations/published')),
+          TEST_COMMITTED_BASELINE: readFileSync(baselinePaths.cms, 'utf8'),
+          TEST_ASSEMBLED_BASELINE: buildCms(readManifest()),
+          TEST_ASSEMBLED_LEAN_BASELINE: buildCms(leanProfile),
+          TEST_AVAILABLE_FEATURES: availableFeatures().join(','),
         },
       },
     })),

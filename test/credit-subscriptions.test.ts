@@ -1,16 +1,16 @@
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
-import { declaredCredits, getCreditBalance } from '../src/utils/credits';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
+import { declaredCredits, getCreditBalance } from '../src/features/credits/service';
 import {
   addMonthsUTC,
   blockCost,
   sqliteDate,
   sweepCreditSubscriptions,
   type CreditSubscriptionRow,
-} from '../src/utils/credit-subscriptions';
-import type { PluginManifest } from '../src/types';
+} from '../src/features/credits/subscriptions';
+import type { PluginManifest } from '../src/features/plugins/types';
 
 // Recurring credit billing: plugin-reported usage snapshots
 // (POST /__cms/credits/usage) upsert subscription rows the cron sweep bills

@@ -1,5 +1,18 @@
 -- ============================================================
+-- Published content schema — applied to the published-only D1 database.
+--
+-- GENERATED FILE — do not edit. Edit the schema.sql fragments beside
+-- the code they belong to and run `npm run build:migrations`.
+--
+-- Assembled from:
+--   src/core/publish/schema.sql
+-- ============================================================
+
+-- ============================================================
 -- Published content schema - applied to the published-only DB
+--
+-- This whole database belongs to the "d1" publish target. A deployment that
+-- publishes only to R2, or to a plugin target, never reads it.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS live_pages(

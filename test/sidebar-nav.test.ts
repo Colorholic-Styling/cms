@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { SidebarNavItem } from '../src/templates/layout';
-import { withActiveSidebarItems } from '../src/utils/sidebar';
+import type { SidebarNavItem } from '../src/core/render/layout';
+import { withActiveSidebarItems } from '../src/core/render/sidebar';
 
 const item = (label: string, href: string, extra: Partial<SidebarNavItem> = {}): SidebarNavItem => ({
   label,

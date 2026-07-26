@@ -1,5 +1,5 @@
-import { assetRevisionQuery, layout } from './layout';
-import { renderView } from './liquid';
+import { assetRevisionQuery, layout } from '../core/render/layout';
+import { renderView } from '../core/render/liquid';
 
 function providerLabel(provider: string): string {
   if (provider === 'google') return 'Google';

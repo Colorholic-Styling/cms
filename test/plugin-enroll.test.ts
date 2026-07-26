@@ -1,11 +1,11 @@
 import { env, exports } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers, getPlugins } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
-import { cmsTenantRoutes } from '../src/routes/cms-tenant';
-import { claimEnrollmentTicket, enrollPluginTenant, revokePluginTenant } from '../src/utils/plugin-enroll';
-import { getSetting } from '../src/utils/settings';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers, getPlugins } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
+import { cmsTenantRoutes } from '../src/features/plugins/api/tenant';
+import { claimEnrollmentTicket, enrollPluginTenant, revokePluginTenant } from '../src/features/plugins/enroll';
+import { getSetting } from '../src/core/db/settings';
 import type { Env } from '../src/types';
 
 const CMS_ORIGIN = 'https://cms.example.com';
@@ -202,7 +202,7 @@ describe('plugin tenant enrollment', () => {
 
     // Mint a ticket by hand so it outlives the (failed) handshake.
     const ticket = 'e'.repeat(64);
-    const { saveSetting } = await import('../src/utils/settings');
+    const { saveSetting } = await import('../src/core/db/settings');
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ticket)))]
       .map((byte) => byte.toString(16).padStart(2, '0')).join('');
     await saveSetting(testEnv, 'plugin.enrollment.events', JSON.stringify({

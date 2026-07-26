@@ -1,8 +1,8 @@
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
-import { signJWT } from '../src/security/jwt';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
+import { signJWT } from '../src/core/auth/jwt';
 import {
   adjustCredits,
   adjustSharedCredits,
@@ -16,9 +16,10 @@ import {
   spendCredits,
   transferCredits,
   transferSharedCredits,
-} from '../src/utils/credits';
-import { clearRolePermissionsCache } from '../src/utils/roles';
-import type { JWTPayload, PluginManifest } from '../src/types';
+} from '../src/features/credits/service';
+import { clearRolePermissionsCache } from '../src/core/auth/roles';
+import type { JWTPayload } from '../src/types';
+import type { PluginManifest } from '../src/features/plugins/types';
 
 // Credit system: manifest-declared costs, admin-configured prices, charged by
 // the host on page creates (both doors) and plugin-reported metered usage,

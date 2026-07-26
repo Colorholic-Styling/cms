@@ -1,9 +1,35 @@
 -- ============================================================
 -- Initial CMS schema — applied to the private CMS (admin) database.
--- Consolidated single migration for a clean install.
+--
+-- GENERATED FILE — do not edit. Edit the schema.sql fragments beside
+-- the code they belong to and run `npm run build:migrations`.
+--
+-- Assembled from:
+--   src/core/schema.sql
+--   src/features/credits/schema.sql
+--   src/features/db-types/schema.sql
+--   src/core/jobs/schema.sql
+--   src/features/media/schema.sql
+--   src/features/plugins/schema.sql
+--   src/features/plugins/pointer-indexes.schema.sql
+--   src/features/trash/schema.sql
+-- ============================================================
+
+-- ============================================================
+-- Core CMS schema — always present, in every feature profile.
+--
+-- Holds identity, the content model (pages/tags/versions), roles and
+-- settings: everything the admin shell cannot boot without. Optional
+-- tables live in schema/cms/features/*.sql and are appended by
+-- scripts/build-migrations.mjs.
 -- ============================================================
 
 -- 1. Users – populated on first OAuth login
+--
+-- NOTE: `credits` is owned by the `credits` feature but declared here because
+-- it is a column on a core table. Until it moves to a table owned by that
+-- fragment, disabling the feature still leaves the column behind (unused,
+-- always 0).
 CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     oauth_id TEXT UNIQUE NOT NULL,
@@ -30,7 +56,20 @@ CREATE TABLE IF NOT EXISTS sessions(
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 
--- 3. Taxonomies – groupings that tags belong to (e.g. Categories, Topics)
+-- 3. Multiple OAuth identities linked to one CMS user.
+CREATE TABLE IF NOT EXISTS user_oauth_identities(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    oauth_id TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    UNIQUE(provider, provider_user_id)
+);
+
+-- 4. Taxonomies – groupings that tags belong to (e.g. Categories, Topics)
 CREATE TABLE IF NOT EXISTS taxonomies(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
     uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
@@ -41,7 +80,7 @@ CREATE TABLE IF NOT EXISTS taxonomies(
     slug TEXT NOT NULL UNIQUE
 );
 
--- 4. Tags – terms within a taxonomy. Taxonomies are referenced by stable slug
+-- 5. Tags – terms within a taxonomy. Taxonomies are referenced by stable slug
 --    so a taxonomy rebuild does not invalidate tag relationships.
 CREATE TABLE IF NOT EXISTS tags(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
@@ -57,7 +96,7 @@ CREATE TABLE IF NOT EXISTS tags(
     lect TEXT
 );
 
--- 5. Draft Pages
+-- 6. Draft Pages
 CREATE TABLE IF NOT EXISTS draft_pages(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
     uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
@@ -78,33 +117,6 @@ CREATE TABLE IF NOT EXISTS draft_pages(
     creator INTEGER,
     editors TEXT,
     FOREIGN KEY (page_id) REFERENCES draft_pages (id) ON DELETE CASCADE
-);
-
--- 6. Trash Pages
-CREATE TABLE IF NOT EXISTS trash_pages(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    name TEXT NOT NULL,
-    slug TEXT NOT NULL,
-    weight INTEGER DEFAULT 5,
-    start DATETIME,
-    end DATETIME,
-    -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
-    timezone TEXT,
-    page_type TEXT,
-    -- Current-version pointer preserved while the page sits in trash.
-    current_page_version_id INTEGER,
-    lect TEXT,
-    page_id INTEGER,
-    -- Original draft parent id, retained so a trashed child can be restored
-    -- under a parent that remains live (page_id references another trash row).
-    source_page_id INTEGER,
-    creator INTEGER,
-    editors TEXT,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
 );
 
 -- 7. Page Versions – supports version browsing and snapshots
@@ -133,69 +145,7 @@ CREATE TABLE IF NOT EXISTS draft_page_tags(
     FOREIGN KEY (page_id) REFERENCES draft_pages (id) ON DELETE CASCADE
 );
 
--- 9. Trash Page Tags
-CREATE TABLE IF NOT EXISTS trash_page_tags(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    page_id INTEGER,
-    tag_id INTEGER NOT NULL,
-    weight INTEGER DEFAULT 5,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
-);
-
--- 10. Media Files
-CREATE TABLE IF NOT EXISTS media_files(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    key TEXT NOT NULL UNIQUE,
-    url TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    content_type TEXT,
-    size INTEGER DEFAULT 0
-);
-
--- 11. Page Types – runtime-editable content types, merged on top of
---     cms-config.ts + plugins by resolveCmsConfig(). See page-type-store.ts.
-CREATE TABLE IF NOT EXISTS page_types(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- slug: the page-type key (e.g. 'event'); becomes the blueprint map key
-    slug TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    -- JSON array of BlueprintEntry for this type (required)
-    blueprint TEXT NOT NULL,
-    -- Optional JSON arrays of names: block_lists = block-type slugs available on
-    -- this page type; taxonomy_lists = taxonomy slugs shown in its editor.
-    block_lists TEXT,
-    taxonomy_lists TEXT,
-    weight INTEGER DEFAULT 5
-);
-
--- 12. Block Types – reusable block definitions (a named blueprint) merged into
---     config.blocks by resolveCmsConfig(). See block-type-store.ts.
-CREATE TABLE IF NOT EXISTS block_types(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- slug: the block-type key (e.g. 'logos'); becomes the blocks map key
-    slug TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    -- JSON array of BlueprintEntry for this block's fields (required)
-    blueprint TEXT NOT NULL,
-    weight INTEGER DEFAULT 5
-);
-
--- 13. Audit log for admin mutations (who did what, when)
+-- 9. Audit log for admin mutations (who did what, when)
 CREATE TABLE IF NOT EXISTS audit_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id TEXT NOT NULL,
@@ -207,7 +157,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- 14. Roles – custom roles, plus built-in roles once their permissions are
+-- 10. Roles – custom roles, plus built-in roles once their permissions are
 --     customized. Built-in roles (admin/editor/moderator/viewer) are implicit
 --     in code (USER_ROLES) and only appear here after being edited.
 CREATE TABLE IF NOT EXISTS roles(
@@ -219,16 +169,18 @@ CREATE TABLE IF NOT EXISTS roles(
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 15. Role permissions – grants for any role listed in `roles`. A built-in role
+-- 11. Role permissions – grants for any role listed in `roles`. A built-in role
 --     with no override here falls back to its code default; the 'admin' role is
 --     always granted every permission in code and is not stored.
+--     Core, not part of the users/roles admin feature: every authenticated
+--     request resolves permissions through this table.
 CREATE TABLE IF NOT EXISTS role_permissions(
     role TEXT NOT NULL,
     permission TEXT NOT NULL,
     PRIMARY KEY (role, permission)
 );
 
--- 16. Admin settings – small key/value store for runtime CMS preferences.
+-- 12. Admin settings – small key/value store for runtime CMS preferences.
 CREATE TABLE IF NOT EXISTS settings(
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL,
@@ -236,160 +188,60 @@ CREATE TABLE IF NOT EXISTS settings(
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
--- 17. Trash Page Versions – mirrors page_versions for trashed pages so deleting
---     a page no longer loses its history and a restore brings every version back.
-CREATE TABLE IF NOT EXISTS trash_page_versions(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    page_id INTEGER NOT NULL,
-    lect TEXT,
-    action TEXT,
-    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
-);
+-- ── Indexes ──────────────────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_name ON draft_pages(page_type, name);
+CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_slug ON draft_pages(page_type, slug);
+CREATE INDEX IF NOT EXISTS idx_draft_pages_slug ON draft_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_page_versions_page_id_created_at ON page_versions(page_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_tags_taxonomy_slug_weight_name ON tags(taxonomy_slug, weight, name);
+CREATE INDEX IF NOT EXISTS idx_tags_parent_tag ON tags(parent_tag);
+CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_user_oauth_identities_user_id ON user_oauth_identities(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_previous_refresh ON sessions(previous_refresh_token_hash);
 
--- 18. Plugins – database-driven plugin registry (URL transport). Each row is a
---     plugin reached over HTTPS at `{url}/__plugin/...`. The CMS forwards the
---     plugin's own `secret` (falling back to env PLUGIN_SECRET when NULL).
-CREATE TABLE IF NOT EXISTS plugins(
-    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
-    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
-    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    -- Admin-friendly label for the manage UI (the manifest name is preferred when reachable).
-    label TEXT NOT NULL DEFAULT '',
-    -- Base URL; the CMS calls {url}/__plugin/manifest, /hooks/*, /admin/*, /publish/*.
-    url TEXT NOT NULL UNIQUE,
-    -- 1 = active (manifest resolved + content types merged); 0 = registered but inert.
-    enabled INTEGER NOT NULL DEFAULT 1,
-    -- Optional JSON config (reserved for forwarding plugin settings).
-    config TEXT,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    -- Per-plugin shared secret; NULL falls back to env PLUGIN_SECRET.
-    secret TEXT
-);
+-- ── Triggers for updated_at column automatic updates ─────────
+CREATE TRIGGER IF NOT EXISTS users_updated_at AFTER UPDATE ON users WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
--- 19. Multiple OAuth identities linked to one CMS user.
-CREATE TABLE IF NOT EXISTS user_oauth_identities(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    provider TEXT NOT NULL,
-    provider_user_id TEXT NOT NULL,
-    oauth_id TEXT UNIQUE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-    UNIQUE(provider, provider_user_id)
-);
+CREATE TRIGGER IF NOT EXISTS roles_updated_at AFTER UPDATE ON roles WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE roles SET updated_at = CURRENT_TIMESTAMP WHERE name = old.name;
+END;
 
--- 20. Durable admin jobs for plugin actions and advanced-search bulk actions.
-CREATE TABLE IF NOT EXISTS admin_jobs(
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL CHECK (type IN ('plugin_admin_action', 'advanced_search_bulk_action')),
-    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed')),
-    plugin_id TEXT,
-    method TEXT,
-    path TEXT,
-    content_type TEXT,
-    body TEXT,
-    user_json TEXT,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    result_status INTEGER,
-    result_location TEXT,
-    error TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    started_at TEXT,
-    completed_at TEXT
-);
+CREATE TRIGGER IF NOT EXISTS taxonomies_updated_at AFTER UPDATE ON taxonomies WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE taxonomies SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
--- 21. Admin-approved, integrity-pinned plugin assets.
-CREATE TABLE IF NOT EXISTS plugin_asset_approvals(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    plugin_id TEXT NOT NULL,
-    path TEXT NOT NULL,
-    integrity TEXT NOT NULL,
-    approved_by TEXT NOT NULL,
-    UNIQUE(plugin_id, path)
-);
+CREATE TRIGGER IF NOT EXISTS tags_updated_at AFTER UPDATE ON tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
--- 22. Admin-approved delegated plugin page-type access.
-CREATE TABLE IF NOT EXISTS plugin_page_type_approvals(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    plugin_id TEXT NOT NULL,
-    page_type TEXT NOT NULL,
-    access TEXT NOT NULL CHECK(access IN ('read', 'write')),
-    approved_by TEXT NOT NULL,
-    UNIQUE(plugin_id, page_type, access)
-);
+CREATE TRIGGER IF NOT EXISTS draft_pages_updated_at AFTER UPDATE ON draft_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE draft_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
--- 23. Per-user credit balance audit ledger.
-CREATE TABLE IF NOT EXISTS credit_ledger(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    delta INTEGER NOT NULL,
-    balance_after INTEGER NOT NULL,
-    action TEXT NOT NULL,
-    entity_type TEXT,
-    entity_id TEXT,
-    plugin_id TEXT,
-    note TEXT,
-    created_by TEXT NOT NULL DEFAULT '',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
+CREATE TRIGGER IF NOT EXISTS page_versions_updated_at AFTER UPDATE ON page_versions WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE page_versions SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
--- 24-25. Site-wide shared credit balance and append-only ledger.
-CREATE TABLE IF NOT EXISTS shared_credits(
-    id INTEGER PRIMARY KEY CHECK (id = 1),
-    balance INTEGER NOT NULL DEFAULT 0
-);
+CREATE TRIGGER IF NOT EXISTS draft_page_tags_updated_at AFTER UPDATE ON draft_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE draft_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
-INSERT OR IGNORE INTO shared_credits (id, balance) VALUES (1, 0);
+CREATE TRIGGER IF NOT EXISTS user_oauth_identities_updated_at
+AFTER UPDATE ON user_oauth_identities
+WHEN old.updated_at < CURRENT_TIMESTAMP
+BEGIN
+    UPDATE user_oauth_identities SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
 
-CREATE TABLE IF NOT EXISTS shared_credit_ledger(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    delta INTEGER NOT NULL,
-    balance_after INTEGER NOT NULL,
-    action TEXT NOT NULL,
-    user_id INTEGER,
-    entity_type TEXT,
-    entity_id TEXT,
-    plugin_id TEXT,
-    note TEXT,
-    created_by TEXT NOT NULL DEFAULT '',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
-);
+-- ── Locales ──────────────────────────────────────────────────
+-- Core, not part of the i18n feature: the admin chrome resolves the viewer's
+-- locale on every render (utils/i18n localeRegistry + resolveUiLocale), so the
+-- CMS cannot serve a page without these tables. The i18n FEATURE is the admin
+-- UI for editing them, which is optional; the data is not.
 
--- 26. Recurring credit subscriptions: one row per (user, plugin, cost),
--- created/updated by plugin usage reports (POST /__cms/credits/usage) and
--- billed monthly by the cron sweep. See utils/credit-subscriptions.ts.
-CREATE TABLE IF NOT EXISTS credit_subscriptions(
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    plugin_id TEXT NOT NULL,
-    credit_key TEXT NOT NULL,
-    quantity INTEGER NOT NULL DEFAULT 0,
-    peak_quantity INTEGER NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
-    next_charge_at TEXT NOT NULL,
-    last_charged_at TEXT,
-    last_mode TEXT CHECK (last_mode IN ('advance', 'arrears')),
-    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, plugin_id, credit_key),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-);
-
--- 27-28. Configurable content and admin-interface locales.
 CREATE TABLE IF NOT EXISTS locales(
     code TEXT PRIMARY KEY,
     label TEXT NOT NULL,
@@ -419,93 +271,9 @@ CREATE TABLE IF NOT EXISTS locale_messages(
     PRIMARY KEY (locale_code, message_key)
 );
 
--- ============================================================
--- Indexes
--- ============================================================
-CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_name ON draft_pages(page_type, name);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_slug ON draft_pages(page_type, slug);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_slug ON draft_pages(slug);
-CREATE INDEX IF NOT EXISTS idx_page_versions_page_id_created_at ON page_versions(page_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_tags_taxonomy_slug_weight_name ON tags(taxonomy_slug, weight, name);
-CREATE INDEX IF NOT EXISTS idx_tags_parent_tag ON tags(parent_tag);
-CREATE INDEX IF NOT EXISTS idx_audit_log_created ON audit_log (created_at);
-CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log (entity_type, entity_id);
-CREATE INDEX IF NOT EXISTS idx_trash_page_versions_page_id ON trash_page_versions(page_id);
-CREATE INDEX IF NOT EXISTS idx_trash_pages_source_page_id ON trash_pages(source_page_id);
-CREATE INDEX IF NOT EXISTS idx_plugins_enabled ON plugins(enabled, sort_order);
-CREATE INDEX IF NOT EXISTS idx_user_oauth_identities_user_id ON user_oauth_identities(user_id);
-CREATE INDEX IF NOT EXISTS idx_admin_jobs_status_updated ON admin_jobs(status, updated_at);
-CREATE INDEX IF NOT EXISTS idx_admin_jobs_plugin_created ON admin_jobs(plugin_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_plugin_asset_approvals_plugin ON plugin_asset_approvals(plugin_id);
-CREATE INDEX IF NOT EXISTS idx_plugin_page_type_approvals_plugin ON plugin_page_type_approvals(plugin_id);
-CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(user_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_shared_credit_ledger_user ON shared_credit_ledger(user_id, id DESC);
-CREATE INDEX IF NOT EXISTS idx_credit_subscriptions_due ON credit_subscriptions(status, next_charge_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_previous_refresh ON sessions(previous_refresh_token_hash);
 CREATE INDEX IF NOT EXISTS idx_locales_content ON locales(content_enabled, weight, code);
 CREATE INDEX IF NOT EXISTS idx_locales_ui ON locales(ui_enabled, weight, code);
 CREATE INDEX IF NOT EXISTS idx_locale_messages_locale ON locale_messages(locale_code, message_key);
-
--- JSON pointer lookups used by the plugin API. SQLite only uses these
--- expression indexes when queries spell the expressions identically.
-CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_mail_list
-    ON draft_pages(json_extract(lect, '$._pointers.mail_list'), page_type, updated_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_event
-    ON draft_pages(json_extract(lect, '$._pointers.event'), page_type, updated_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_edm
-    ON draft_pages(json_extract(lect, '$._pointers.edm'), page_type, updated_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_contact
-    ON draft_pages(json_extract(lect, '$._pointers.contact'), page_type, updated_at DESC, id DESC);
-
--- ============================================================
--- Triggers for updated_at column automatic updates
--- ============================================================
-CREATE TRIGGER IF NOT EXISTS users_updated_at AFTER UPDATE ON users WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS roles_updated_at AFTER UPDATE ON roles WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE roles SET updated_at = CURRENT_TIMESTAMP WHERE name = old.name;
-END;
-
-CREATE TRIGGER IF NOT EXISTS taxonomies_updated_at AFTER UPDATE ON taxonomies WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE taxonomies SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS tags_updated_at AFTER UPDATE ON tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS block_types_updated_at AFTER UPDATE ON block_types WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE block_types SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS draft_pages_updated_at AFTER UPDATE ON draft_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE draft_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trash_pages_updated_at AFTER UPDATE ON trash_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE trash_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS page_versions_updated_at AFTER UPDATE ON page_versions WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE page_versions SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS draft_page_tags_updated_at AFTER UPDATE ON draft_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE draft_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trash_page_tags_updated_at AFTER UPDATE ON trash_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE trash_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS user_oauth_identities_updated_at
-AFTER UPDATE ON user_oauth_identities
-WHEN old.updated_at < CURRENT_TIMESTAMP
-BEGIN
-    UPDATE user_oauth_identities SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
-END;
 
 CREATE TRIGGER IF NOT EXISTS locales_updated_at
 AFTER UPDATE ON locales
@@ -519,4 +287,314 @@ BEGIN
     UPDATE locale_messages
     SET updated_at = CURRENT_TIMESTAMP
     WHERE locale_code = NEW.locale_code AND message_key = NEW.message_key;
+END;
+
+-- Feature: credits — metered billing for chargeable actions.
+-- feature: credits
+-- Per-user and site-wide balances, append-only ledgers, and the recurring
+-- subscriptions billed by the cron sweep.
+--
+-- requires: core
+--
+-- KNOWN COUPLING: the per-user balance itself is still `users.credits`, a
+-- column on a core table, so disabling this feature leaves that column in
+-- place. Moving it to a table owned by this fragment is what makes the
+-- feature fully separable.
+
+-- Per-user credit balance audit ledger.
+CREATE TABLE IF NOT EXISTS credit_ledger(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    plugin_id TEXT,
+    note TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+-- Site-wide shared credit balance and append-only ledger.
+CREATE TABLE IF NOT EXISTS shared_credits(
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    balance INTEGER NOT NULL DEFAULT 0
+);
+
+INSERT OR IGNORE INTO shared_credits (id, balance) VALUES (1, 0);
+
+CREATE TABLE IF NOT EXISTS shared_credit_ledger(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    delta INTEGER NOT NULL,
+    balance_after INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    user_id INTEGER,
+    entity_type TEXT,
+    entity_id TEXT,
+    plugin_id TEXT,
+    note TEXT,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+);
+
+-- Recurring credit subscriptions: one row per (user, plugin, cost),
+-- created/updated by plugin usage reports (POST /__cms/credits/usage) and
+-- billed monthly by the cron sweep. See utils/credit-subscriptions.ts.
+CREATE TABLE IF NOT EXISTS credit_subscriptions(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    plugin_id TEXT NOT NULL,
+    credit_key TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 0,
+    peak_quantity INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'past_due', 'canceled')),
+    next_charge_at TEXT NOT NULL,
+    last_charged_at TEXT,
+    last_mode TEXT CHECK (last_mode IN ('advance', 'arrears')),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, plugin_id, credit_key),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_shared_credit_ledger_user ON shared_credit_ledger(user_id, id DESC);
+CREATE INDEX IF NOT EXISTS idx_credit_subscriptions_due ON credit_subscriptions(status, next_charge_at);
+
+-- Feature: db-types — runtime-editable page and block types.
+-- feature: db-types
+-- Without it the CMS still works, using only the compiled cms-config.ts
+-- blueprint plus whatever plugin manifests contribute.
+
+-- Page Types – runtime-editable content types, merged on top of
+-- cms-config.ts + plugins by resolveCmsConfig(). See page-type-store.ts.
+CREATE TABLE IF NOT EXISTS page_types(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    -- slug: the page-type key (e.g. 'event'); becomes the blueprint map key
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    -- JSON array of BlueprintEntry for this type (required)
+    blueprint TEXT NOT NULL,
+    -- Optional JSON arrays of names: block_lists = block-type slugs available on
+    -- this page type; taxonomy_lists = taxonomy slugs shown in its editor.
+    block_lists TEXT,
+    taxonomy_lists TEXT,
+    weight INTEGER DEFAULT 5
+);
+
+-- Block Types – reusable block definitions (a named blueprint) merged into
+-- config.blocks by resolveCmsConfig(). See block-type-store.ts.
+CREATE TABLE IF NOT EXISTS block_types(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    -- slug: the block-type key (e.g. 'logos'); becomes the blocks map key
+    slug TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    -- JSON array of BlueprintEntry for this block's fields (required)
+    blueprint TEXT NOT NULL,
+    weight INTEGER DEFAULT 5
+);
+
+CREATE TRIGGER IF NOT EXISTS block_types_updated_at AFTER UPDATE ON block_types WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE block_types SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
+
+-- Feature: jobs — durable admin background jobs backed by the queue binding.
+-- feature: jobs
+-- Without it, long plugin actions and bulk edits run synchronously and risk
+-- the 1000-subrequest per-invocation limit. See utils/admin-job-runner.ts.
+
+CREATE TABLE IF NOT EXISTS admin_jobs(
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK (type IN ('plugin_admin_action', 'advanced_search_bulk_action')),
+    status TEXT NOT NULL CHECK (status IN ('queued', 'running', 'done', 'failed')),
+    plugin_id TEXT,
+    method TEXT,
+    path TEXT,
+    content_type TEXT,
+    body TEXT,
+    user_json TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    result_status INTEGER,
+    result_location TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    started_at TEXT,
+    completed_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_admin_jobs_status_updated ON admin_jobs(status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_admin_jobs_plugin_created ON admin_jobs(plugin_id, created_at);
+
+-- Feature: media — R2-backed uploads and the file browser.
+-- feature: media
+-- Without it the editor has no picture/file fields backed by the bucket.
+
+CREATE TABLE IF NOT EXISTS media_files(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    key TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    content_type TEXT,
+    size INTEGER DEFAULT 0
+);
+
+-- Feature: plugins — the plugin registry and its admin-approval tables.
+-- feature: plugins
+-- Dropping this removes the whole extensibility platform: plugin admin
+-- proxying, hooks, delegated page types and pinned plugin assets.
+
+-- Plugins – database-driven plugin registry (URL transport). Each row is a
+-- plugin reached over HTTPS at `{url}/__plugin/...`. The CMS forwards the
+-- plugin's own `secret` (falling back to env PLUGIN_SECRET when NULL).
+CREATE TABLE IF NOT EXISTS plugins(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    -- Admin-friendly label for the manage UI (the manifest name is preferred when reachable).
+    label TEXT NOT NULL DEFAULT '',
+    -- Base URL; the CMS calls {url}/__plugin/manifest, /hooks/*, /admin/*, /publish/*.
+    url TEXT NOT NULL UNIQUE,
+    -- 1 = active (manifest resolved + content types merged); 0 = registered but inert.
+    enabled INTEGER NOT NULL DEFAULT 1,
+    -- Optional JSON config (reserved for forwarding plugin settings).
+    config TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    -- Per-plugin shared secret; NULL falls back to env PLUGIN_SECRET.
+    secret TEXT
+);
+
+-- Admin-approved, integrity-pinned plugin assets.
+CREATE TABLE IF NOT EXISTS plugin_asset_approvals(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    plugin_id TEXT NOT NULL,
+    path TEXT NOT NULL,
+    integrity TEXT NOT NULL,
+    approved_by TEXT NOT NULL,
+    UNIQUE(plugin_id, path)
+);
+
+-- Admin-approved delegated plugin page-type access.
+CREATE TABLE IF NOT EXISTS plugin_page_type_approvals(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    plugin_id TEXT NOT NULL,
+    page_type TEXT NOT NULL,
+    access TEXT NOT NULL CHECK(access IN ('read', 'write')),
+    approved_by TEXT NOT NULL,
+    UNIQUE(plugin_id, page_type, access)
+);
+
+CREATE INDEX IF NOT EXISTS idx_plugins_enabled ON plugins(enabled, sort_order);
+CREATE INDEX IF NOT EXISTS idx_plugin_asset_approvals_plugin ON plugin_asset_approvals(plugin_id);
+CREATE INDEX IF NOT EXISTS idx_plugin_page_type_approvals_plugin ON plugin_page_type_approvals(plugin_id);
+
+-- Feature: plugin-pointer-indexes — expression indexes for the JSON pointer
+-- feature: plugin-pointer-indexes
+-- lookups issued by specific plugins (events, EDM, contacts).
+-- requires: plugins
+--
+-- These are pure query accelerators on the core draft_pages table: dropping
+-- them loses no data and no functionality, only speed, and only for the
+-- plugins that use those pointers. Install alongside the matching plugin.
+--
+-- SQLite only uses an expression index when the query spells the expression
+-- identically, so these must stay byte-for-byte in sync with the SQL in
+-- src/routes/cms-api.ts.
+
+CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_mail_list
+    ON draft_pages(json_extract(lect, '$._pointers.mail_list'), page_type, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_event
+    ON draft_pages(json_extract(lect, '$._pointers.event'), page_type, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_edm
+    ON draft_pages(json_extract(lect, '$._pointers.edm'), page_type, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_draft_pages_pointer_contact
+    ON draft_pages(json_extract(lect, '$._pointers.contact'), page_type, updated_at DESC, id DESC);
+
+-- Feature: trash — soft-delete holding area with full version history.
+-- feature: trash
+-- Without it, page deletes must be hard deletes.
+
+-- Trash Pages
+CREATE TABLE IF NOT EXISTS trash_pages(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    weight INTEGER DEFAULT 5,
+    start DATETIME,
+    end DATETIME,
+    -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
+    timezone TEXT,
+    page_type TEXT,
+    -- Current-version pointer preserved while the page sits in trash.
+    current_page_version_id INTEGER,
+    lect TEXT,
+    page_id INTEGER,
+    -- Original draft parent id, retained so a trashed child can be restored
+    -- under a parent that remains live (page_id references another trash row).
+    source_page_id INTEGER,
+    creator INTEGER,
+    editors TEXT,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+);
+
+-- Trash Page Tags
+CREATE TABLE IF NOT EXISTS trash_page_tags(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    page_id INTEGER,
+    tag_id INTEGER NOT NULL,
+    weight INTEGER DEFAULT 5,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+);
+
+-- Trash Page Versions – mirrors page_versions for trashed pages so deleting
+-- a page no longer loses its history and a restore brings every version back.
+CREATE TABLE IF NOT EXISTS trash_page_versions(
+    id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
+    uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
+    || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    page_id INTEGER NOT NULL,
+    lect TEXT,
+    action TEXT,
+    FOREIGN KEY (page_id) REFERENCES trash_pages (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_trash_page_versions_page_id ON trash_page_versions(page_id);
+CREATE INDEX IF NOT EXISTS idx_trash_pages_source_page_id ON trash_pages(source_page_id);
+
+CREATE TRIGGER IF NOT EXISTS trash_pages_updated_at AFTER UPDATE ON trash_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE trash_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS trash_page_tags_updated_at AFTER UPDATE ON trash_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE trash_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;

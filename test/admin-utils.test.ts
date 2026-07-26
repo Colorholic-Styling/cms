@@ -11,8 +11,8 @@ import {
   slugify,
   str,
   strParam,
-} from '../src/utils/forms';
-import { validatePageBasics } from '../src/utils/validation';
+} from '../src/core/http/forms';
+import { validatePageBasics } from '../src/core/db/validation';
 import {
   advancedSearchCondition,
   advancedSearchOperator,
@@ -21,8 +21,8 @@ import {
   getPathValue,
   parseAdvancedSearchCriteria,
   sqliteJsonPath,
-} from '../src/utils/search';
-import { chineseSearchVariants, toSimplified, toTraditional } from '../src/utils/chinese';
+} from '../src/core/db/search';
+import { chineseSearchVariants, toSimplified, toTraditional } from '../src/core/db/chinese';
 
 describe('forms helpers', () => {
   it('coerces form values to trimmed strings', () => {

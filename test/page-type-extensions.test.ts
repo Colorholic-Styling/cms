@@ -1,16 +1,16 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Env } from '../src/types';
-import { clearConfigCache, resolveCmsConfig } from '../src/plugins/config';
+import { clearConfigCache, resolveCmsConfig } from '../src/core/db/content-config';
 import {
   PAGE_TYPE_EXTENSIONS_SETTING_KEY,
   applyPageTypeExtensions,
   loadPageTypeExtensions,
   savePageTypeExtension,
-} from '../src/utils/page-type-store';
+} from '../src/core/db/page-type-store';
 import { cmsConfig } from '../src/cms-config';
 import type { CmsConfig } from '../src/cms-config';
-import { saveSetting } from '../src/utils/settings';
+import { saveSetting } from '../src/core/db/settings';
 
 const cmsEnv = env as unknown as Env;
 

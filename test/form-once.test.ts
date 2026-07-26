@@ -6,7 +6,7 @@ import {
   extractFormOnceToken,
   mintFormOnceToken,
   releaseFormOnceToken,
-} from '../src/utils/form-once';
+} from '../src/core/auth/form-once';
 
 const SECRET = 'form-once-test-secret';
 

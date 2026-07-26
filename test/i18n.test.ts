@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Env } from '../src/types';
-import { clearConfigCache, resolveCmsConfig } from '../src/plugins/config';
+import { clearConfigCache, resolveCmsConfig } from '../src/core/db/content-config';
 import {
   buildTranslationCatalog,
   deleteLocale,
@@ -9,8 +9,8 @@ import {
   listLocales,
   saveLocale,
   saveLocaleMessage,
-} from '../src/utils/i18n';
-import { APP_ICON_OPTIONS, SIDEBAR_MENU_ITEMS } from '../src/utils/settings';
+} from '../src/core/i18n';
+import { APP_ICON_OPTIONS, SIDEBAR_MENU_ITEMS } from '../src/core/db/settings';
 import { USER_ROLES } from '../src/types';
 
 const cmsEnv = env as unknown as Env;

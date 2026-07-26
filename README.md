@@ -72,6 +72,11 @@ background admin actions such as long plugin duplicate/delete requests. The
 `cms-published` migrations create only the published `live_*` content tables.
 They do not automatically import rows from other D1 databases.
 
+The baseline migrations are generated from the `schema.sql` fragments beside
+the code they belong to — edit those, not `migrations/*.sql`, and run
+`npm run build:migrations`. See [Feature profiles](#feature-profiles) for
+choosing which features a deployment installs.
+
 ### 4. Create and bind the private R2 media bucket
 
 Picture fields upload files to the `MEDIA_BUCKET` R2 binding. R2 buckets are not public by default; this CMS keeps the bucket private and serves objects through the Worker at `/media/<key>`.
@@ -563,6 +568,80 @@ database has previously recorded.
 An upgraded deployment may show additional legacy `live_*` tables in `DB`;
 current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
 
+### Feature profiles
+
+The baseline migrations are **generated**. Each feature keeps its SQL fragment
+next to its code — `src/features/trash/schema.sql`, `src/plugins/schema.sql`,
+and so on — and `scripts/build-migrations.mjs` concatenates the enabled ones
+into the flat files Wrangler applies:
+
+```
+src/core/schema.sql + every enabled fragment  →  migrations/0001_initial_schema.sql
+src/core/publish/schema.sql                   →  migrations/published/0001_published_schema.sql
+```
+
+This exists because Wrangler allows exactly one `migrations_dir` per D1
+database and has no CLI override — features cannot each own a folder that
+Wrangler walks. It does **not** need extra databases: every feature shares the
+same two, owning tables rather than databases.
+
+`cms.features.json` selects the profile. Of the 37 objects in a core install
+and 31 optional ones, these seven features are independently removable:
+
+| Feature | Owns |
+|---|---|
+| `trash` | `trash_pages`, `trash_page_tags`, `trash_page_versions` (+2 indexes, 2 triggers) |
+| `db-types` | `page_types`, `block_types` (+1 trigger) |
+| `media` | `media_files` |
+| `plugins` | `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals` (+3 indexes) |
+| `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) |
+| `jobs` | `admin_jobs` (+2 indexes) |
+| `credits` | `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+3 indexes) |
+
+After editing `cms.features.json`:
+
+```bash
+npm run build:migrations
+```
+
+A fragment is any `src/**/schema.sql` (or `*.schema.sql`) declaring
+`-- feature: <id>` in its header — the id, not the path, is what
+`cms.features.json` switches on. A fragment also declares its dependencies as
+`-- requires: <ids>`; the assembler orders fragments accordingly and refuses a
+profile that enables a feature whose dependency is off.
+
+**Turning a feature off never drops tables.** It only stops creating them on
+fresh installs, so existing data is never at risk. Conversely, a database that
+already applied the baseline will not pick up a newly enabled feature from a
+regenerated baseline — D1 tracks migrations by filename, so a rewritten `0001`
+is skipped. Emit an additive migration instead:
+
+```bash
+npm run build:migrations -- --enable credits
+```
+
+That writes `migrations/000N_enable_credits.sql` from the same fragment. The
+fragments are idempotent (`CREATE ... IF NOT EXISTS`, `INSERT OR IGNORE`), so
+applying it to a database that already has the tables is a no-op.
+
+Because all features share one `d1_migrations` table, **migration filenames
+must be globally unique** — a second `0002_add_index.sql` from a different
+feature would be silently treated as already applied. Prefix migration files
+with the feature id.
+
+`npm run check:profiles` executes every profile against an in-memory SQLite and
+verifies each feature is removable without breaking the rest; it runs as part
+of `npm test`.
+
+`locales` and `locale_messages` are **core**, not a fragment: the admin chrome
+resolves the viewer's locale on every render, so the CMS cannot serve a page
+without them. The optional part is the `i18n` *code* feature — the screens for
+editing locales and translations. Serving the UI's own catalog
+(`GET /admin/i18n/catalog/:locale`) stays core too.
+
+One known coupling remains: the per-user balance is `users.credits`, a column
+on a core table, so disabling `credits` leaves that column in place.
+
 ### CMS database (`DB`) — 28 tables
 
 The private schema is divided into five feature categories:
@@ -626,7 +705,7 @@ The default `d1` target upserts the snapshot into `PUBLISHED_DB.live_pages` by
 
 ## Publish targets
 
-Publishing is adapter-based (`src/publish/`). Built-in targets are selected with
+Publishing is adapter-based (`src/core/publish/`). Built-in targets are selected with
 the `PUBLISH_TARGETS` var (comma-separated, defaults to `"d1"`):
 
 | Target | Requires | What it does |

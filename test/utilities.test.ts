@@ -5,8 +5,8 @@ import {
   rejectCrossSiteRequest,
   withSensitiveCacheHeaders,
   withSecurityHeaders,
-} from '../src/security/http';
-import { hasPermission, permissionsFor } from '../src/utils/roles';
+} from '../src/core/http/headers';
+import { hasPermission, permissionsFor } from '../src/core/auth/roles';
 import {
   blueprintToLect,
   getLectBlocks,
@@ -18,8 +18,8 @@ import {
   mergeLects,
   postToLect,
   safeParseLect,
-} from '../src/utils/lect';
-import { lectFromForm } from '../src/utils/page-logic';
+} from '../src/core/db/lect';
+import { lectFromForm } from '../src/core/db/page-logic';
 import type { CmsConfig } from '../src/cms-config';
 
 describe('lect utilities', () => {
