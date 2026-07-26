@@ -5,8 +5,11 @@
 // into the two code registries, so enabling or dropping a feature is one JSON
 // edit instead of three files kept in step by hand:
 //
-//   src/features/generated/manifests.ts   the CmsFeature list (read by the chrome)
-//   src/features/generated/routers.ts     the routers (read by the route tables)
+//   src/generated/manifests.ts   the CmsFeature list (read by the chrome)
+//   src/generated/routers.ts     the routers (read by the route tables)
+//
+// They live outside src/features because they are build output, not a feature:
+// a directory there is a slice that cms.features.json can switch off.
 //
 // They stay two files on purpose. A router imports its templates and queries
 // and reaches back into the chrome via renderPage, so a single registry would
@@ -33,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const featuresDir = path.join(rootDir, 'src', 'features');
-const outDir = path.join(featuresDir, 'generated');
+const outDir = path.join(rootDir, 'src', 'generated');
 const MANIFESTS = path.join(outDir, 'manifests.ts');
 const ROUTERS = path.join(outDir, 'routers.ts');
 
@@ -60,12 +63,12 @@ function routerExports(id) {
   const dir = path.join(featuresDir, id);
   const candidates = [];
   const single = path.join(dir, 'routes.ts');
-  if (existsSync(single)) candidates.push([`../${id}/routes`, single, false]);
+  if (existsSync(single)) candidates.push([`../features/${id}/routes`, single, false]);
   const routesDir = path.join(dir, 'routes');
   if (existsSync(routesDir)) {
     for (const name of readdirSync(routesDir).filter((n) => n.endsWith('.ts')).sort()) {
       const base = name.slice(0, -3);
-      candidates.push([`../${id}/routes/${base}`, path.join(routesDir, name), base === 'public']);
+      candidates.push([`../features/${id}/routes/${base}`, path.join(routesDir, name), base === 'public']);
     }
   }
   const out = [];
@@ -83,16 +86,16 @@ function routerExports(id) {
 const BANNER = [
   '// GENERATED FILE — do not edit.',
   '//',
-  '// Written by scripts/build-features.mjs from cms.features.json.',
+  '// Written by tools/build-features.mjs from cms.features.json.',
   '// To add or drop a feature, edit that file and run `npm run build:features`.',
   '',
 ].join('\n');
 
 function buildManifests(ids) {
   const entries = ids.map((id) => [id, manifestExport(id)]).filter(([, name]) => name);
-  const imports = entries.map(([id, name]) => `import { ${name} } from '../${id}/feature';`);
+  const imports = entries.map(([id, name]) => `import { ${name} } from '../features/${id}/feature';`);
   return `${BANNER}
-import type { CmsFeature } from '../../core/feature';
+import type { CmsFeature } from '../core/feature';
 ${imports.join('\n')}
 
 /** Installed features, in cms.features.json order. */
@@ -116,7 +119,7 @@ function buildRouters(ids) {
     }
   }
   return `${BANNER}
-import type { FeatureRouterEntry } from '../routers';
+import type { FeatureRouterEntry } from '../features/routers';
 ${imports.join('\n')}
 
 /** Mounted under /admin, in registry order. */

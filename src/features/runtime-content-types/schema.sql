@@ -1,5 +1,5 @@
--- Feature: db-types — runtime-editable page and block types.
--- feature: db-types
+-- Feature: runtime-content-types — runtime-editable page and block types.
+-- feature: runtime-content-types
 -- Without it the CMS still works, using only the compiled cms-config.ts
 -- blueprint plus whatever plugin manifests contribute.
 

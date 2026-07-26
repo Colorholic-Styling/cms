@@ -574,7 +574,7 @@ current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
 `npm run build` regenerates two things: the code registries a feature is
 mounted through, and the schema its tables come from.
 
-**Code.** `tools/build-features.mjs` writes `src/features/generated/` from
+**Code.** `tools/build-features.mjs` writes `src/generated/` from
 the profile, discovering each slice by convention (`feature.ts` exports one
 `CmsFeature`; `routes.ts` / `routes/*.ts` export `*Routes`). Because those
 generated files are the only thing importing a slice, dropping a feature takes
@@ -605,7 +605,7 @@ A feature may own code, tables, or both. Ten are switchable:
 | `users-roles` | The user and role admin screens (code only; the tables and permission resolver are core) |
 | `i18n` | The languages and translations screens (code only; see the note below) |
 | `trash` | `trash_pages`, `trash_page_tags`, `trash_page_versions` (+2 indexes, 2 triggers) |
-| `db-types` | `page_types`, `block_types` (+1 trigger) |
+| `runtime-content-types` | `page_types`, `block_types` (+1 trigger) |
 | `media` | R2 uploads, `/media` delivery, the Files browser — plus `media_files` |
 | `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) |
 | `jobs` | `admin_jobs` (+2 indexes) — the durable admin job queue |
@@ -791,7 +791,7 @@ switch that turns features on and off.
 │   ├── 0001_initial_schema.sql
 │   └── published/0001_published_schema.sql
 ├── tools/                 # Node-side generators and guards; never shipped
-│   ├── build-features.mjs     # cms.features.json -> src/features/generated/*
+│   ├── build-features.mjs     # cms.features.json -> src/generated/*
 │   ├── build-migrations.mjs   # schema.sql fragments -> migrations/*
 │   ├── check-boundaries.mjs   # import-layering rules
 │   ├── check-profiles.mjs     # every feature profile executes and is removable
@@ -811,15 +811,15 @@ switch that turns features on and off.
 │   │   ├── jobs/          # Durable admin job queue and runner
 │   │   ├── publish/       # Draft -> live pipeline and the d1/r2 adapters
 │   │   └── durable-objects/  # PageSyncDO (live editing), FormOnceDO (form tokens)
+│   ├── generated/         # GENERATED feature registries; do not edit
 │   ├── features/          # Optional; each directory is one switchable feature
-│   │   ├── generated/     # GENERATED registries; do not edit
 │   │   ├── plugins/       # The plugin platform: registry, hooks, proxy,
 │   │   │                  #   manage UI, and the /__cms write-back API
 │   │   ├── credits/       # Metered billing and the credit summary screen
 │   │   ├── search/        # Advanced search screen and bulk actions
 │   │   ├── media/         # R2 uploads, /media delivery, the Files browser
 │   │   ├── trash/         # Soft-delete holding area
-│   │   ├── db-types/      # Runtime-editable page and block types
+│   │   ├── runtime-content-types/  # Admin for DB-defined page/block types
 │   │   ├── i18n/          # Languages and translations admin
 │   │   └── users-roles/   # User and role administration
 │   ├── routes/
@@ -865,6 +865,6 @@ validated at startup and enforced by the boundary guard. Today:
 | Feature | Requires |
 |---|---|
 | `users-roles` | `plugins`, `credits` |
-| `db-types`, `search`, `credits` | `plugins` |
+| `runtime-content-types`, `search`, `credits` | `plugins` |
 | `plugins` | `credits` — the mutual dependency noted under [Feature profiles](#feature-profiles) |
 | `trash`, `media`, `i18n` | — |

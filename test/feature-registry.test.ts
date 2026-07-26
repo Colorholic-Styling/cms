@@ -17,10 +17,10 @@ describe('feature registry', () => {
     // should show up as a change here rather than passing silently.
     expect(features.map((feature) => feature.id).sort()).toEqual([
       'credits',
-      'db-types',
       'i18n',
       'media',
       'plugins',
+      'runtime-content-types',
       'search',
       'trash',
       'users-roles',

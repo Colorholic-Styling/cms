@@ -11,7 +11,7 @@
 // scripts/check-boundaries.mjs).
 
 import { assertFeatureRegistry, type CmsFeature } from '../core/feature';
-import { featureManifests } from './generated/manifests';
+import { featureManifests } from '../generated/manifests';
 
 export const features: readonly CmsFeature[] = featureManifests;
 

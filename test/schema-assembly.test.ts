@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 /** One object per feature that must appear only when that feature is enabled. */
 const FEATURE_MARKERS: Record<string, string[]> = {
   'trash': ['CREATE TABLE IF NOT EXISTS trash_pages(', 'CREATE TABLE IF NOT EXISTS trash_page_versions('],
-  'db-types': ['CREATE TABLE IF NOT EXISTS page_types(', 'CREATE TABLE IF NOT EXISTS block_types('],
+  'runtime-content-types': ['CREATE TABLE IF NOT EXISTS page_types(', 'CREATE TABLE IF NOT EXISTS block_types('],
   'media': ['CREATE TABLE IF NOT EXISTS media_files('],
   'plugins': ['CREATE TABLE IF NOT EXISTS plugins(', 'CREATE TABLE IF NOT EXISTS plugin_asset_approvals('],
   'plugin-pointer-indexes': ['idx_draft_pages_pointer_event'],

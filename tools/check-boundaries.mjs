@@ -132,12 +132,7 @@ const declaredRequires = (feature) => {
   const block = /requires:\s*\[([^\]]*)\]/.exec(readFileSync(file, 'utf8'));
   return block ? [...block[1].matchAll(/'([\w-]+)'/g)].map((m) => m[1]) : [];
 };
-// `generated/` is the registry, not a slice: it aggregates every feature by
-// design, which is exactly what this rule forbids everywhere else.
-const featureOf = (file) => {
-  const owner = (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
-  return owner === 'generated' ? undefined : owner;
-};
+const featureOf = (file) => (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
 for (const file of files) {
   const owner = featureOf(file);
   if (!owner) continue;
@@ -154,14 +149,14 @@ for (const file of files) {
 //    imports and a little validation — heavier logic there would not survive
 //    being generated from cms.features.json.
 for (const target of graph.get(REGISTRY) ?? []) {
-  if (!target.startsWith('src/features/') && !target.startsWith('src/core/')) {
-    failures.push(`${REGISTRY} imports ${target}; it should only list feature contributors`);
+  if (!target.startsWith('src/features/') && !target.startsWith('src/core/') && !target.startsWith('src/generated/')) {
+    failures.push(`${REGISTRY} imports ${target}; it should only re-export the generated manifest list`);
   }
 }
 
 // 5b. The generated manifest list must not reach a router, or generation would
 //     reintroduce the cycle the two-file split exists to prevent.
-const GENERATED_MANIFESTS = 'src/features/generated/manifests.ts';
+const GENERATED_MANIFESTS = 'src/generated/manifests.ts';
 for (const file of closure(GENERATED_MANIFESTS)) {
   if (/^src\/features\/[^/]+\/routes(\.ts|\/)/.test(file)) {
     failures.push(`${GENERATED_MANIFESTS} reaches ${file}; manifests must not pull in routers`);

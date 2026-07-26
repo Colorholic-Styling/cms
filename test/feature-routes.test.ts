@@ -48,8 +48,8 @@ describe('feature router mounting', () => {
   // One entry point per feature that owns admin routes.
   const entryPoints: Array<[string, string]> = [
     ['trash', '/admin/trash'],
-    ['db-types', '/admin/page_types'],
-    ['db-types', '/admin/block_types'],
+    ['runtime-content-types', '/admin/page_types'],
+    ['runtime-content-types', '/admin/block_types'],
     ['search', '/admin/advanced-search'],
     ['search', '/admin/advanced-search/default'],
     ['users-roles', '/admin/users'],

@@ -12,7 +12,7 @@
 
 import type { Hono } from 'hono';
 import type { Env, Variables } from '../types';
-import { adminRouterEntries, publicRouterEntries } from './generated/routers';
+import { adminRouterEntries, publicRouterEntries } from '../generated/routers';
 
 export type FeatureRouter = Hono<{ Bindings: Env; Variables: Variables }>;
 
