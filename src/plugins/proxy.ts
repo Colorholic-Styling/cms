@@ -1,3 +1,5 @@
+import { timingSafeEqualStr } from '../core/http/crypto';
+export { timingSafeEqualStr };
 import type { JWTPayload } from '../types';
 import { sanitizePluginHtmlResponse } from './sanitize';
 
@@ -34,16 +36,6 @@ export function setPluginAuthHeaders(headers: Headers, pluginSecret: string, ten
 }
 
 /** Constant-time string equality for secret comparison. */
-export function timingSafeEqualStr(a: string, b: string): boolean {
-  const encoder = new TextEncoder();
-  const aBytes = encoder.encode(a);
-  const bBytes = encoder.encode(b);
-  if (aBytes.length !== bBytes.length) return false;
-  let diff = 0;
-  for (let i = 0; i < aBytes.length; i++) diff |= aBytes[i] ^ bBytes[i];
-  return diff === 0;
-}
-
 export function buildPluginProxyHeaders(source: Headers, user: JWTPayload, pluginSecret: string, tenantId = ''): Headers {
   const headers = new Headers();
   for (const name of FORWARD_HEADERS) {

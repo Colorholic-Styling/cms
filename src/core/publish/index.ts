@@ -17,10 +17,8 @@
 import type { Env, Page } from '../../types';
 import type { LivePageSnapshot, PublishAdapter, PublishSnapshot, PublishSnapshotTag } from './adapter';
 import { d1Adapter } from './d1';
+import { coreExtensions } from '../extensions';
 import { r2Adapter } from './r2';
-import { pluginAdapter } from './plugin';
-import { getPlugins } from '../../plugins/registry';
-import { pluginTenantId } from '../../plugins/proxy';
 import { isSubmissionMirror } from '../db/submission-ingest';
 import { projectLect, publishLectRules } from './projection';
 
@@ -61,14 +59,10 @@ export async function getPublishAdapters(env: Env): Promise<PublishAdapter[]> {
     }
   }
 
-  const plugins = await getPlugins(env);
-  for (const plugin of plugins.filter((candidate) => candidate.manifest.publishTarget)) {
-    if (!plugin.secret) {
-      console.error(`Plugin ${plugin.manifest.id} declares publishTarget but has no secret configured`);
-      continue;
-    }
-    adapters.push(pluginAdapter(plugin, plugin.secret, pluginTenantId(env)));
-  }
+  // Plugin publish targets, when the plugin platform is installed. Without it
+  // this contributes nothing and publishing falls back to the built-ins.
+  const contributed = await coreExtensions().publishAdapters?.(env);
+  if (contributed) adapters.push(...contributed);
 
   return adapters;
 }

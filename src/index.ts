@@ -13,6 +13,7 @@ import { adminRoutes } from './routes/admin';
 import { cmsApiRoutes } from './routes/cms-api';
 import { cmsTenantRoutes } from './routes/cms-tenant';
 import { publicRouters } from './features/routers';
+import './plugins/extensions';
 import { errorPage } from './core/render/errors';
 import {
   canonicalHostResponse,

@@ -13,9 +13,9 @@
 // awaited and a non-2xx response counts as a target failure.
 // ============================================================
 
-import type { ResolvedPlugin } from '../../plugins/types';
-import type { PublishAdapter, PublishSnapshot } from './adapter';
-import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from '../../plugins/registry';
+import type { ResolvedPlugin } from './types';
+import type { PublishAdapter, PublishSnapshot } from '../core/publish/adapter';
+import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 
 async function post(plugin: ResolvedPlugin, secret: string, tenantId: string, path: string, body: unknown, optional = false): Promise<void> {
   const response = await plugin.fetcher.fetch(`${PLUGIN_ORIGIN}${PLUGIN_PREFIX}/publish/${path}`, {

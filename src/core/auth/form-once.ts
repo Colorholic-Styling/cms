@@ -18,7 +18,7 @@
 // the admin session already does that.
 // ============================================================
 
-import { timingSafeEqualStr } from '../../plugins/proxy';
+import { timingSafeEqualStr } from '../http/crypto';
 
 export const FORM_ONCE_FIELD = '_cms_once';
 

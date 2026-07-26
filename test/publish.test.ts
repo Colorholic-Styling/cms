@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { d1Adapter } from '../src/core/publish/d1';
 import { r2Adapter } from '../src/core/publish/r2';
-import { pluginAdapter } from '../src/core/publish/plugin';
+import { pluginAdapter } from '../src/plugins/publish-adapter';
 import {
   getPublishAdapters,
   liveMapForDraftPages,
