@@ -191,5 +191,5 @@ export default {
     if (sweep.processed) console.log('credit subscription sweep:', JSON.stringify(sweep));
   },
 };
-export { PageSyncDO } from './durable-objects/page-sync';
-export { FormOnceDO } from './durable-objects/form-once';
+export { PageSyncDO } from './core/durable-objects/page-sync';
+export { FormOnceDO } from './core/durable-objects/form-once';

@@ -20,7 +20,7 @@
 //
 // HLC format: "<Date.now()>.<counter>.<userId>" – lexicographic ordering is sufficient.
 
-import type { Env } from '../types';
+import type { Env } from '../../types';
 
 function strField(msg: Record<string, unknown>, key: string): string {
   return String(msg[key] ?? '');
