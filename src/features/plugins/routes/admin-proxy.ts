@@ -12,6 +12,7 @@ import { Hono } from 'hono';
 import type { Env, Permission, Variables } from '../../../types';
 import { pluginById, PLUGIN_ORIGIN, PLUGIN_PREFIX } from '../registry';
 import type { AppContext } from '../../../core/http/context';
+import { coreExtensions } from '../../../core/extensions';
 import { effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
 import { appendQuery } from '../../../core/http/forms';
 import { jsonError, wantsJsonResponse } from '../../../core/auth/guards';
@@ -31,7 +32,6 @@ import {
 import { sanitizePluginHtmlFragment } from '../sanitize';
 import { buildContentSecurityPolicy } from '../../../core/http/headers';
 import { currentCspNonce } from '../../../core/http/request-context';
-import { cmsAdminJobMessage, createPluginAdminActionJob } from '../../../core/jobs/queue';
 import { computeIntegrity, getAssetApproval, listApprovals } from '../assets';
 import {
   claimFormOnceToken,
@@ -251,23 +251,25 @@ async function proxyToPlugin(c: AppContext): Promise<Response> {
     if (claim === 'claimed') claimedOnceToken = submitted;
   }
 
-  if (shouldQueuePluginAdminAction(c, pluginId, rest) && c.env.ADMIN_JOBS_QUEUE) {
+  // Long actions go to a durable runner when one is installed. It answers
+  // false when it cannot take the work (no queue binding), and is absent
+  // entirely without the jobs feature — either way we forward synchronously
+  // below, which is the pre-queue behaviour.
+  if (shouldQueuePluginAdminAction(c, pluginId, rest)) {
+    let queued = false;
     try {
-      const bodyText = body ? new TextDecoder().decode(body) : '';
-      const job = await createPluginAdminActionJob(c.env.DB, {
-        pluginId,
+      queued = await coreExtensions().enqueueAdminAction?.(c, {
+        contributorId: pluginId,
         method: c.req.method,
         path: pluginAdminPath,
         contentType: c.req.raw.headers.get('content-type'),
-        body: bodyText,
-        user: c.get('user'),
-      });
-      await c.env.ADMIN_JOBS_QUEUE.send(cmsAdminJobMessage(job.id));
+        body: body ? new TextDecoder().decode(body) : '',
+      }) ?? false;
     } catch (error) {
       if (claimedOnceToken) await releaseFormOnceToken(c.env, claimedOnceToken);
       throw error;
     }
-    return c.redirect(queueRedirect(pluginId, rest));
+    if (queued) return c.redirect(queueRedirect(pluginId, rest));
   }
 
   let upstreamResponse: Response;

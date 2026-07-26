@@ -6,7 +6,8 @@ import { blueprintToLect, stringifyLect } from '../src/core/db/lect';
 import { clearConfigCache } from '../src/core/db/content-config';
 import { __injectPluginFetcher, clearManifestCache } from '../src/features/plugins/registry';
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
-import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/core/jobs/queue';
+import { CMS_ADMIN_JOB_KIND } from '../src/features/jobs/queue';
+import { coreExtensions, registerCoreExtensions, type CmsAdminJobMessage } from '../src/core/extensions';
 import type { Env as AppEnv, JWTPayload } from '../src/types';
 
 const IncomingRequest = Request;
@@ -1483,6 +1484,62 @@ describe('admin routes', () => {
     expect(await env.DB.prepare(
       "SELECT COUNT(*) AS total FROM audit_log WHERE action = 'page.delete' AND entity_id IN ('103', '104')",
     ).first<{ total: number }>()).toEqual({ total: 2 });
+  });
+
+  // The jobs feature is what registers enqueueBulkAction. Dropping it leaves
+  // the extension unregistered, and the screen has to apply the action itself
+  // rather than silently doing nothing.
+  it('applies a bulk action inline when no durable job runner is installed', async () => {
+    const original = coreExtensions().enqueueBulkAction;
+    registerCoreExtensions({ enqueueBulkAction: undefined });
+    try {
+      for (const [id, uuid, name, slug] of [
+        [601, 'inline-bulk-601', 'Inline Bulk One', 'inline-bulk-one'],
+        [602, 'inline-bulk-602', 'Inline Bulk Two', 'inline-bulk-two'],
+      ] as Array<[number, string, string, string]>) {
+        const lect = blueprintToLect('default', cmsConfig.blueprint, cmsConfig.defaultLanguage);
+        lect.name = localizedFixture(name);
+        await env.DB.prepare(
+          `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(id, uuid, name, slug, 5, 'default', stringifyLect(lect), 1, '1').run();
+      }
+
+      const jobsBefore = await env.DB.prepare('SELECT COUNT(*) AS total FROM admin_jobs')
+        .first<{ total: number }>();
+
+      // Two page_ids, so the form helper's single-value map will not do.
+      const body = new URLSearchParams({
+        bulk_action: 'delete',
+        scope: 'selected',
+        return_to: '/admin/advanced-search/default',
+      });
+      body.append('page_ids', '601');
+      body.append('page_ids', '602');
+
+      const response = await fetchWorker('/admin/advanced-search/default/bulk', {
+        method: 'POST',
+        body,
+        headers: { Cookie: await authCookie() },
+      });
+
+      expect(response.status).toBe(302);
+      // The flash reports what was actually done, not that it was queued.
+      expect(response.headers.get('Location'))
+        .toBe('/admin/advanced-search/default?flash=2%20pages%20moved%20to%20trash');
+
+      expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id IN (?, ?)')
+        .bind(601, 602)
+        .first<{ total: number }>()).toEqual({ total: 0 });
+      expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM trash_pages WHERE id IN (?, ?)')
+        .bind(601, 602)
+        .first<{ total: number }>()).toEqual({ total: 2 });
+      // Nothing durable was recorded — there was nowhere to record it.
+      expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM admin_jobs')
+        .first<{ total: number }>()).toEqual(jobsBefore);
+    } finally {
+      registerCoreExtensions({ enqueueBulkAction: original });
+    }
   });
 
   it('continues advanced-search bulk jobs across queue invocations', async () => {

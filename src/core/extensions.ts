@@ -18,6 +18,8 @@ import type { JWTPayload } from '../types';
 import type { AppContext } from './http/context';
 import type { PublishAdapter } from './publish/adapter';
 import type { PublishLectRule } from './publish/projection';
+import type { BulkPageAction } from './pages/bulk-action';
+import type { AdvancedSearchCriterion, AdvancedSearchOperator } from './db/search';
 
 /** A sidebar entry contributed at runtime rather than declared in code. */
 export interface ContributedNavItem {
@@ -248,6 +250,40 @@ export interface CreditPricingRow {
   configured: boolean;
 }
 
+/**
+ * The queue message body a durable background job is announced with. Core
+ * declares the wire shape because the Worker's `queue()` handler and the
+ * ADMIN_JOBS_QUEUE binding type are part of the entrypoint, which cannot be
+ * contributed by a feature — only the handling of the message can.
+ */
+export interface CmsAdminJobMessage {
+  kind: 'cms_admin_job';
+  jobId: string;
+}
+
+/** A recorded admin request to replay in the background. */
+export interface QueuedAdminAction {
+  contributorId: string;
+  method: string;
+  path: string;
+  contentType: string | null;
+  body: string;
+}
+
+/** A bulk page action to run in the background. */
+export interface QueuedBulkAction {
+  action: BulkPageAction;
+  /** 'all' resolves the target ids from the criteria when the job first runs. */
+  scope: 'selected' | 'all';
+  ids: number[];
+  pageTypes: string[];
+  criteria: AdvancedSearchCriterion[];
+  operator: AdvancedSearchOperator;
+  status?: 'draft' | 'live';
+  /** Where the finished job sends the browser back to. */
+  returnTo: string;
+}
+
 /** An authenticated inbound API caller (today, a plugin Worker). */
 export interface ApiCallerIdentity {
   /** The contributor id this request is authenticated as. */
@@ -380,6 +416,23 @@ export interface CoreExtensions {
   authenticateApiCaller?(c: AppContext): Promise<ApiCallerIdentity | Response>;
   /** The user a contributor is acting on behalf of, from the request headers. */
   actingUserId?(c: AppContext): number | null;
+  /**
+   * Handle one queue message. Returns true when it was recognised and run,
+   * false when it belongs to something else. Unregistered means this Worker
+   * has no durable job runner, so a stray message is simply acknowledged.
+   */
+  handleQueueMessage?(env: Env, body: unknown): Promise<boolean>;
+  /**
+   * Record and queue an admin request to replay in the background, returning
+   * true when it was accepted. False (or unregistered) means the caller must
+   * do the work inline — no durable runner, or no queue binding.
+   */
+  enqueueAdminAction?(c: AppContext, input: QueuedAdminAction): Promise<boolean>;
+  /**
+   * Record and queue a bulk page action, returning true when it was accepted.
+   * False (or unregistered) means the caller must run it inline.
+   */
+  enqueueBulkAction?(c: AppContext, input: QueuedBulkAction): Promise<boolean>;
 }
 
 /** The recorded request a `plugin_admin_action` job replays. */

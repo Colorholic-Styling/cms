@@ -21,8 +21,6 @@ import {
 import { generateCspNonce, requestContext } from './core/http/request-context';
 import { viewRevision } from './core/http/view-revision';
 import type { Env, Variables, WorkerEnv } from './types';
-import { isCmsAdminJobMessage } from './core/jobs/queue';
-import { runCmsAdminJob } from './core/jobs/runner';
 import { ingestSubmissions } from './core/db/submission-ingest';
 import { coreExtensions } from './core/extensions';
 import { withD1Sessions } from './core/http/d1-sessions';
@@ -171,11 +169,16 @@ export default {
     return app.fetch(request, withD1Sessions(env), ctx);
   },
 
+  // Queue consumer. The handler itself is part of the entrypoint and cannot be
+  // contributed by a feature, so it dispatches to whoever handles the message —
+  // today the jobs feature. With no handler registered a message is simply
+  // acknowledged, which is what a build without a durable runner should do.
   async queue(batch: MessageBatch<unknown>, env: WorkerEnv): Promise<void> {
+    const handle = coreExtensions().handleQueueMessage;
+    if (!handle) return;
+    const sessionEnv = withD1Sessions(env);
     for (const message of batch.messages) {
-      if (isCmsAdminJobMessage(message.body)) {
-        await runCmsAdminJob(withD1Sessions(env), message.body.jobId);
-      }
+      await handle(sessionEnv, message.body);
     }
   },
 

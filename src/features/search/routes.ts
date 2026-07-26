@@ -5,12 +5,14 @@ import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
 import { resolveCmsConfig } from '../../core/db/content-config';
 import type { Env, Permission, Variables } from '../../types';
+import { coreExtensions } from '../../core/extensions';
 import {
-  cmsAdminJobMessage,
-  createAdvancedSearchBulkActionJob,
-  type AdvancedSearchBulkAction,
-} from '../../core/jobs/queue';
-import { runCmsAdminJob } from '../../core/jobs/runner';
+  applyBulkPageAction,
+  bulkActionFlash,
+  resolveBulkTargetIds,
+  BULK_ACTION_PAGE_LIMIT,
+  type BulkPageAction,
+} from '../../core/pages/bulk-action';
 import { renderAdvancedSearch } from './render';
 import { userCan } from '../../core/auth/permissions';
 import type { AppContext } from '../../core/http/context';
@@ -40,13 +42,13 @@ searchRoutes.post('/advanced-search/:pageType/bulk', (c) => {
 
 type FormDataEntryValue = string | File;
 
-const BULK_ACTIONS: Record<AdvancedSearchBulkAction, { permission: Permission; queued: string }> = {
+const BULK_ACTIONS: Record<BulkPageAction, { permission: Permission; queued: string }> = {
   publish: { permission: 'content:publish', queued: 'Bulk publish queued. It may take a moment to finish.' },
   unpublish: { permission: 'content:publish', queued: 'Bulk unpublish queued. It may take a moment to finish.' },
   delete: { permission: 'content:delete', queued: 'Bulk deletion queued. It may take a moment to finish.' },
 };
 
-function bulkAction(value: FormDataEntryValue | null): AdvancedSearchBulkAction | null {
+function bulkAction(value: FormDataEntryValue | null): BulkPageAction | null {
   const action = str(value);
   return action === 'publish' || action === 'unpublish' || action === 'delete'
     ? action
@@ -110,7 +112,9 @@ async function bulkAdvancedSearch(
     return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent('No matching pages')}`));
   }
 
-  const job = await createAdvancedSearchBulkActionJob(c.env.DB, {
+  // Hand the whole set to a durable runner when one is installed: it walks the
+  // ids in bounded slices, surviving the invocation that started it.
+  const queued = await coreExtensions().enqueueBulkAction?.(c, {
     action,
     scope,
     ids: scope === 'all' ? [] : ids,
@@ -119,14 +123,52 @@ async function bulkAdvancedSearch(
     operator,
     status,
     returnTo,
-    user: c.get('user'),
-  });
-
-  if (c.env.ADMIN_JOBS_QUEUE) {
-    await c.env.ADMIN_JOBS_QUEUE.send(cmsAdminJobMessage(job.id));
-  } else {
-    c.executionCtx.waitUntil(runCmsAdminJob(c.env, job.id));
+  }) ?? false;
+  if (queued) {
+    return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent(BULK_ACTIONS[action].queued)}`));
   }
 
-  return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent(BULK_ACTIONS[action].queued)}`));
+  return bulkAdvancedSearchInline(c, { action, scope, ids, pageTypes, criteria, operator, status, returnTo });
+}
+
+/**
+ * The no-durable-runner path: apply one bounded slice now and report exactly
+ * what was done. Without somewhere to keep a cursor there is nothing to resume
+ * from, so a larger set is deliberately left partly done rather than run
+ * unbounded into the subrequest limit — the flash says so, and submitting again
+ * takes the next slice.
+ */
+async function bulkAdvancedSearchInline(
+  c: AppContext,
+  input: {
+    action: BulkPageAction;
+    scope: 'selected' | 'all';
+    ids: number[];
+    pageTypes: string[];
+    criteria: ReturnType<typeof parseAdvancedSearchCriteria>;
+    operator: ReturnType<typeof advancedSearchOperator>;
+    status?: 'draft' | 'live';
+    returnTo: string;
+  },
+): Promise<Response> {
+  const targetIds = input.scope === 'all'
+    ? await resolveBulkTargetIds(c.env, {
+      pageTypes: input.pageTypes,
+      criteria: input.criteria,
+      operator: input.operator,
+      status: input.status,
+    })
+    : input.ids;
+
+  const slice = targetIds.slice(0, BULK_ACTION_PAGE_LIMIT);
+  const outcome = await applyBulkPageAction(c.env, c.get('user'), input.action, slice);
+  const remaining = targetIds.length - slice.length;
+  const flash = bulkActionFlash(
+    input.action,
+    outcome.updated,
+    outcome.refused,
+    [...outcome.failedTargets],
+  );
+  const note = remaining > 0 ? `${flash}; ${remaining} left — run it again to continue` : flash;
+  return c.redirect(appendQuery(input.returnTo, `flash=${encodeURIComponent(note)}`));
 }

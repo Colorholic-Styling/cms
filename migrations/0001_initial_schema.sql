@@ -7,7 +7,7 @@
 -- Assembled from:
 --   src/core/schema.sql
 --   src/features/credits/schema.sql
---   src/core/jobs/schema.sql
+--   src/features/jobs/schema.sql
 --   src/features/media/schema.sql
 --   src/features/plugins/schema.sql
 --   src/features/plugin-pointer-indexes/schema.sql

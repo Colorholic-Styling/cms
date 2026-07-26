@@ -1,0 +1,185 @@
+// Applying one action to many pages: publish, unpublish, or move to trash.
+//
+// Core, not a feature, for the same reason the advanced-search query builder
+// is: two callers need it and neither may depend on the other. The search
+// screen runs it inline when there is nothing durable to run it on, and the
+// jobs feature runs it one bounded slice at a time from a queue. All it
+// touches is core — draft_pages, the publish targets, the trash, the audit
+// log — so it carries no job or screen concepts of its own.
+
+import { coreExtensions, type PageEvent, type PageEventPage } from '../extensions';
+import {
+  listLiveByTypes,
+  publishPageToTargets,
+  unpublishPageFromTargets,
+  unpublishPagesFromTargets,
+} from '../publish';
+import type { Env, JWTPayload, Page } from '../../types';
+import { trashDraftPages, type TrashedPageRef } from '../db/admin-queries';
+import { advancedSearchMatchingPageIds, type AdvancedSearchCriterion, type AdvancedSearchOperator } from '../db/search';
+import { isSubmissionMirror } from '../db/submission-ingest';
+
+/** The bulk actions a page listing offers. */
+export type BulkPageAction = 'publish' | 'unpublish' | 'delete';
+
+/**
+ * Pages per slice. A slice is sized to fit one Worker invocation's subrequest
+ * budget: publishing fans out to every configured target per page, so a larger
+ * slice is what makes a bulk action fail at the 1000-subrequest limit.
+ */
+export const BULK_ACTION_PAGE_LIMIT = 100;
+
+/** What one slice of a bulk action achieved. */
+export interface BulkPageActionOutcome {
+  updated: number;
+  /** Pages the publish targets declined (submission mirrors). */
+  refused: number;
+  /** Targets that errored, by name. */
+  failedTargets: Set<string>;
+}
+
+/** The criteria half of a bulk action over a whole result set. */
+export interface BulkTargetQuery {
+  pageTypes: string[];
+  criteria: AdvancedSearchCriterion[];
+  operator: AdvancedSearchOperator;
+  /** Narrows to pages that are live, or to those that are not. */
+  status?: 'draft' | 'live';
+}
+
+/**
+ * Every page id a `scope: 'all'` bulk action covers. Resolved once, up front:
+ * the criteria are evaluated against the draft table now, so a page edited
+ * while the action runs cannot slip in or out of the set half way through.
+ */
+export async function resolveBulkTargetIds(env: Env, query: BulkTargetQuery): Promise<number[]> {
+  const ids = await advancedSearchMatchingPageIds(env.DB, query.pageTypes, query.criteria, query.operator);
+  if (!query.status) return ids;
+
+  const liveUuids = new Set((await listLiveByTypes(env, query.pageTypes)).map((page) => page.uuid));
+  const pages = await draftPagesByIds(env.DB, ids);
+  return pages
+    .filter((page) => (query.status === 'live' ? liveUuids.has(page.uuid) : !liveUuids.has(page.uuid)))
+    .map((page) => page.id);
+}
+
+/**
+ * Applies `action` to `ids`. Caller-bounded: pass at most
+ * BULK_ACTION_PAGE_LIMIT ids per call, and drive the slices yourself.
+ */
+export async function applyBulkPageAction(
+  env: Env,
+  user: JWTPayload,
+  action: BulkPageAction,
+  ids: number[],
+): Promise<BulkPageActionOutcome> {
+  const failedTargets = new Set<string>();
+  let updated = 0;
+  let refused = 0;
+
+  if (!ids.length) return { updated, refused, failedTargets };
+
+  if (action === 'delete') {
+    const deleted: TrashedPageRef[] = [];
+    for (const chunk of chunks(ids)) {
+      const trashed = await trashDraftPages(env.DB, chunk);
+      if (!trashed.length) continue;
+      // One bulk unpublish per chunk instead of a per-page delete: D1 collapses
+      // the whole slice into a single batch, so a 90-page chunk costs ~1 round
+      // trip to the published DB rather than ~3 per page.
+      const outcome = await unpublishPagesFromTargets(env, trashed);
+      refused += outcome.refusedCount;
+      outcome.failures.forEach((target) => failedTargets.add(target));
+      deleted.push(...trashed);
+      updated += trashed.length;
+    }
+    await emitPageLifecycle(env, user, 'delete', deleted);
+    return { updated, refused, failedTargets };
+  }
+
+  const pages = await draftPagesByIds(env.DB, ids);
+  const succeeded: Page[] = [];
+  for (const page of pages) {
+    const outcome = action === 'publish'
+      ? await publishPageToTargets(env, page.id)
+      : await unpublishPageFromTargets(env, page.uuid, await isSubmissionMirror(env.DB, page.id));
+    if (!outcome) continue;
+    if (outcome.refused) {
+      refused += 1;
+      continue;
+    }
+    outcome.failures.forEach((target) => failedTargets.add(target));
+    succeeded.push(page);
+    updated += 1;
+  }
+  await emitPageLifecycle(env, user, action, succeeded);
+
+  return { updated, refused, failedTargets };
+}
+
+/** The flash a finished bulk action reports. */
+export function bulkActionFlash(
+  action: BulkPageAction,
+  count: number,
+  refused = 0,
+  failedTargets: string[] = [],
+): string {
+  const past = action === 'delete' ? 'moved to trash' : `${action}ed`;
+  const pageLabel = count === 1 ? 'page' : 'pages';
+  const base = count === 0 ? 'No pages updated' : `${count} ${pageLabel} ${past}`;
+  const notes: string[] = [];
+  if (refused) notes.push(`${refused} submission ${refused === 1 ? 'page was' : 'pages were'} skipped`);
+  if (failedTargets.length) notes.push(`target failures: ${failedTargets.join(', ')}`);
+  return notes.length ? `${base}; ${notes.join('; ')}` : base;
+}
+
+// Records audit rows and fires lifecycle hooks for a whole batch of pages at
+// once: one DB.batch of audit inserts instead of an INSERT per page, and hooks
+// delivered in chunked bulk POSTs rather than one fetch per page. Both are
+// best-effort (a failed audit or hook never fails the bulk action), mirroring
+// the plugin bulk path.
+async function emitPageLifecycle(
+  env: Env,
+  user: JWTPayload,
+  event: PageEvent,
+  pages: PageEventPage[],
+): Promise<void> {
+  if (!pages.length) return;
+  const auditPromise = env.DB.batch(
+    pages.map((page) => env.DB.prepare(
+      `INSERT INTO audit_log (user_id, user_email, action, entity_type, entity_id, detail)
+       VALUES (?, ?, ?, 'page', ?, ?)`,
+    ).bind(
+      String(user.sub),
+      user.email,
+      `page.${event}`,
+      String(page.id),
+      JSON.stringify({ name: page.name, slug: page.slug, page_type: page.page_type }),
+    )),
+  );
+  const hooksPromise = coreExtensions().notifyPageEvent?.(env, user, event, pages) ?? Promise.resolve();
+  await Promise.allSettled([auditPromise, hooksPromise]);
+}
+
+/** Draft rows for `ids`, in the order given, skipping ids that no longer exist. */
+export async function draftPagesByIds(db: D1DatabaseClient, ids: number[]): Promise<Page[]> {
+  const pages: Page[] = [];
+  for (const chunk of chunks(ids)) {
+    if (!chunk.length) continue;
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = await db.prepare(`SELECT * FROM draft_pages WHERE id IN (${placeholders})`)
+      .bind(...chunk)
+      .all<Page>();
+    pages.push(...rows.results);
+  }
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  return ids.map((id) => byId.get(id)).filter((page): page is Page => !!page);
+}
+
+function chunks<T>(values: T[], size = 90): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}

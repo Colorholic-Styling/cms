@@ -67,8 +67,9 @@ npm run db:migrate
 For production, add `--remote` to each `wrangler d1 migrations apply` command.
 
 The `cms` migrations create auth tables plus draft, trash, taxonomy,
-versioning, media tables, and the CMS-owned `admin_jobs` table for durable
-background admin actions such as long plugin duplicate/delete requests. The
+versioning, media tables, and (with the `jobs` feature installed) the
+`admin_jobs` table for durable background admin actions such as long plugin
+duplicate/delete requests. The
 `cms-published` migrations create only the published `live_*` content tables.
 They do not automatically import rows from other D1 databases.
 
@@ -608,7 +609,7 @@ A feature may own code, tables, or both. Ten are switchable:
 | `runtime-content-types` | `page_types`, `block_types` (+1 trigger) |
 | `media` | R2 uploads, `/media` delivery, the Files browser — plus `media_files` |
 | `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) — schema only, in its own slice directory |
-| `jobs` | `admin_jobs` (+2 indexes) — the durable admin job queue |
+| `jobs` | Durable background execution for long plugin actions and bulk page actions — the queue consumer, the runner, plus `admin_jobs` (+2 indexes) |
 
 After editing `cms.features.json`:
 
@@ -684,14 +685,14 @@ as schema-only:
 rm -rf src/features/trash
 ```
 
-Then drop `"trash"` from `cms.features.json` and run `npm run build`. Two
-details:
+Then drop `"trash"` from `cms.features.json` and run `npm run build`. Every
+switchable feature now has a directory to delete, so this works for all of
+them. One detail: `plugin-pointer-indexes` declares `-- requires: plugins`, so
+dropping the platform means dropping that slice in the same edit.
 
-- A feature with no directory (`jobs`, whose fragment is
-  `src/core/jobs/schema.sql`) is switched with `false` instead — its key must
-  stay, or the assembler cannot tell which fragment to skip.
-- `plugin-pointer-indexes` declares `-- requires: plugins`, so dropping the
-  platform means dropping that slice in the same edit.
+A key listed with no directory *and* no schema fragment fails the build rather
+than being treated as a code-free feature — that is deliberate, because a
+silently ignored key is how a table goes missing.
 
 What deletion does not clean up: the feature's `views/sections/*.liquid` (the
 whole `views/` directory ships as Worker assets regardless of profile) and its
@@ -839,7 +840,7 @@ switch that turns features on and off.
 │   │   ├── auth/          # JWT, sessions, cookies, guards, roles, permissions
 │   │   ├── db/            # Page/tag stores, lect, search, settings, content config
 │   │   ├── render/        # Liquid, layout, admin chrome (buildBaseProps/renderPage)
-│   │   ├── jobs/          # Durable admin job queue and runner
+│   │   ├── pages/         # Bulk page actions (publish/unpublish/trash a set)
 │   │   ├── publish/       # Draft -> live pipeline and the d1/r2 adapters
 │   │   └── durable-objects/  # PageSyncDO (live editing), FormOnceDO (form tokens)
 │   ├── generated/         # GENERATED feature registries; do not edit

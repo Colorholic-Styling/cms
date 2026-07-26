@@ -6,6 +6,7 @@
 import type { CmsFeature } from '../core/feature';
 import { creditsFeature } from '../features/credits/feature';
 import { i18nFeature } from '../features/i18n/feature';
+import { jobsFeature } from '../features/jobs/feature';
 import { mediaFeature } from '../features/media/feature';
 import { pluginsFeature } from '../features/plugins/feature';
 import { runtimeContentTypesFeature } from '../features/runtime-content-types/feature';
@@ -17,6 +18,7 @@ import { usersRolesFeature } from '../features/users-roles/feature';
 export const featureManifests: readonly CmsFeature[] = [
   creditsFeature,
   i18nFeature,
+  jobsFeature,
   mediaFeature,
   pluginsFeature,
   runtimeContentTypesFeature,

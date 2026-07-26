@@ -1,17 +1,19 @@
+// The admin_jobs table: creating, claiming and completing a durable job.
+//
+// The queue message shape is core's (src/core/extensions.ts) because the
+// Worker's `queue()` handler and the ADMIN_JOBS_QUEUE binding type belong to
+// the entrypoint; everything about what a job *is* belongs here.
+
 import type { JWTPayload } from '../../types';
-import type { AdvancedSearchCriterion, AdvancedSearchOperator } from '../db/search';
+import type { AdvancedSearchCriterion, AdvancedSearchOperator } from '../../core/db/search';
+import type { BulkPageAction } from '../../core/pages/bulk-action';
+import type { CmsAdminJobMessage } from '../../core/extensions';
 
 export const CMS_ADMIN_JOB_KIND = 'cms_admin_job' as const;
 
 export type AdminJobType = 'plugin_admin_action' | 'advanced_search_bulk_action';
 export type AdminJobStatus = 'queued' | 'running' | 'done' | 'failed';
-export type AdvancedSearchBulkAction = 'publish' | 'unpublish' | 'delete';
 export type AdvancedSearchBulkScope = 'selected' | 'all';
-
-export interface CmsAdminJobMessage {
-  kind: typeof CMS_ADMIN_JOB_KIND;
-  jobId: string;
-}
 
 export interface PluginAdminActionInput {
   pluginId: string;
@@ -23,7 +25,7 @@ export interface PluginAdminActionInput {
 }
 
 export interface AdvancedSearchBulkActionInput {
-  action: AdvancedSearchBulkAction;
+  action: BulkPageAction;
   scope: AdvancedSearchBulkScope;
   ids: number[];
   pageTypes: string[];

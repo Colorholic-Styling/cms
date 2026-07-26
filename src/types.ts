@@ -2,7 +2,7 @@
 // Shared TypeScript types
 // ============================================================
 
-import type { CmsAdminJobMessage } from './core/jobs/queue';
+import type { CmsAdminJobMessage } from './core/extensions';
 
 declare global {
   /** Query surface shared by a raw D1 binding and a D1 Sessions API client. */
