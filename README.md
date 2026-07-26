@@ -570,10 +570,20 @@ current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
 
 ### Feature profiles
 
-The baseline migrations are **generated**. Each feature keeps its SQL fragment
-next to its code — `src/features/trash/schema.sql`, `src/plugins/schema.sql`,
-and so on — and `scripts/build-migrations.mjs` concatenates the enabled ones
-into the flat files Wrangler applies:
+`cms.features.json` is the single switch per feature. Editing it and running
+`npm run build` regenerates two things: the code registries a feature is
+mounted through, and the schema its tables come from.
+
+**Code.** `scripts/build-features.mjs` writes `src/features/generated/` from
+the profile, discovering each slice by convention (`feature.ts` exports one
+`CmsFeature`; `routes.ts` / `routes/*.ts` export `*Routes`). Because those
+generated files are the only thing importing a slice, dropping a feature takes
+its modules out of the bundle.
+
+**Schema.** Each feature keeps its SQL fragment next to its code —
+`src/features/trash/schema.sql`, `src/features/plugins/schema.sql`, and so on —
+and `scripts/build-migrations.mjs` concatenates the enabled ones into the flat
+files Wrangler applies:
 
 ```
 src/core/schema.sql + every enabled fragment  →  migrations/0001_initial_schema.sql
@@ -585,24 +595,31 @@ database and has no CLI override — features cannot each own a folder that
 Wrangler walks. It does **not** need extra databases: every feature shares the
 same two, owning tables rather than databases.
 
-`cms.features.json` selects the profile. Of the 37 objects in a core install
-and 31 optional ones, these seven features are independently removable:
+A feature may own code, tables, or both. Ten are switchable:
 
 | Feature | Owns |
 |---|---|
+| `plugins` | The plugin platform: registry, hooks, proxy, manage UI, `/__cms` API — plus `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals` (+3 indexes) |
+| `credits` | Metered billing and the credit summary screen — plus `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+3 indexes) |
+| `search` | The advanced-search screen and bulk actions (code only; the query builder is core) |
+| `users-roles` | The user and role admin screens (code only; the tables and permission resolver are core) |
+| `i18n` | The languages and translations screens (code only; see the note below) |
 | `trash` | `trash_pages`, `trash_page_tags`, `trash_page_versions` (+2 indexes, 2 triggers) |
 | `db-types` | `page_types`, `block_types` (+1 trigger) |
-| `media` | `media_files` |
-| `plugins` | `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals` (+3 indexes) |
+| `media` | R2 uploads, `/media` delivery, the Files browser — plus `media_files` |
 | `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) |
-| `jobs` | `admin_jobs` (+2 indexes) |
-| `credits` | `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+3 indexes) |
+| `jobs` | `admin_jobs` (+2 indexes) — the durable admin job queue |
 
 After editing `cms.features.json`:
 
 ```bash
-npm run build:migrations
+npm run build
 ```
+
+A feature declares any dependency on another in its `feature.ts` `requires`,
+which `assertFeatureRegistry` validates at startup and the boundary guard
+enforces at build time — so a profile that keeps `users-roles` but drops
+`credits` fails loudly rather than at runtime.
 
 A fragment is any `src/**/schema.sql` (or `*.schema.sql`) declaring
 `-- feature: <id>` in its header — the id, not the path, is what
@@ -639,8 +656,15 @@ without them. The optional part is the `i18n` *code* feature — the screens for
 editing locales and translations. Serving the UI's own catalog
 (`GET /admin/i18n/catalog/:locale`) stays core too.
 
-One known coupling remains: the per-user balance is `users.credits`, a column
-on a core table, so disabling `credits` leaves that column in place.
+Two known couplings remain:
+
+- The per-user balance is `users.credits`, a column on a core table, so
+  disabling `credits` leaves that column in place (unused, always 0).
+- `plugins` and `credits` currently require *each other*: credits prices
+  plugin-declared costs, while `/__cms` and the manage screen charge through
+  the credit engine. Both manifests declare it, so a broken profile is refused
+  — but neither can be dropped without the other today. Splitting the balance
+  ledger into core would break the cycle.
 
 ### CMS database (`DB`) — 28 tables
 
@@ -753,42 +777,91 @@ are write-only.
 
 ## Project structure
 
+The codebase is split along one line: **`core/` is what every deployment has,
+`features/` is what a deployment chooses.** Nothing in `core/` may import a
+feature — where core needs something a feature provides, it declares an
+extension point in `core/extensions.ts` and the feature registers an
+implementation. `scripts/check-boundaries.mjs` enforces this and fails the
+build when it is violated; see [Feature profiles](#feature-profiles) for the
+switch that turns features on and off.
+
 ```
-├── migrations/
+├── cms.features.json      # One switch per feature — the profile for this deployment
+├── migrations/            # GENERATED from the schema.sql fragments; do not edit
 │   ├── 0001_initial_schema.sql
-│   └── published/
-│       └── 0001_published_schema.sql
+│   └── published/0001_published_schema.sql
+├── scripts/
+│   ├── build-features.mjs     # cms.features.json -> src/features/generated/*
+│   ├── build-migrations.mjs   # schema.sql fragments -> migrations/*
+│   ├── check-boundaries.mjs   # import-layering rules
+│   └── check-profiles.mjs     # every feature profile executes and is removable
 ├── src/
-│   ├── index.ts       # Hono app entry point
-│   ├── types.ts       # Shared TypeScript types & Env bindings
-│   ├── middleware/
-│   │   ├── auth.ts    # Dual-JWT auth + capability guard
-│   │   └── rate-limit.ts
-│   ├── plugins/       # Registry, hooks, proxy views, and config validation
-│   ├── publish/
-│   │   ├── adapter.ts # PublishAdapter contract + snapshot types
-│   │   ├── d1.ts      # D1 target (published database, default)
-│   │   ├── r2.ts      # R2 target (static JSON snapshots)
-│   │   ├── plugin.ts  # Plugin-Worker target (/__plugin/publish/*)
-│   │   └── index.ts   # Registry: resolves targets, fans out publishes
+│   ├── index.ts           # Worker entry: fetch, queue, scheduled, DO exports
+│   ├── types.ts           # Env bindings and shared content types
+│   ├── cms-config.ts      # Compiled base blueprint, blocks and taxonomies
+│   ├── core/              # Never optional
+│   │   ├── extensions.ts  # What core will call if a feature provides it
+│   │   ├── feature.ts     # The CmsFeature manifest contract
+│   │   ├── schema.sql     # Core tables (users, pages, tags, roles, locales…)
+│   │   ├── http/          # Headers, rate limit, request context, D1 sessions, forms
+│   │   ├── auth/          # JWT, sessions, cookies, guards, roles, permissions
+│   │   ├── db/            # Page/tag stores, lect, search, settings, content config
+│   │   ├── render/        # Liquid, layout, admin chrome (buildBaseProps/renderPage)
+│   │   ├── jobs/          # Durable admin job queue and runner
+│   │   ├── publish/       # Draft -> live pipeline and the d1/r2 adapters
+│   │   └── durable-objects/  # PageSyncDO (live editing), FormOnceDO (form tokens)
+│   ├── features/          # Optional; each directory is one switchable feature
+│   │   ├── generated/     # GENERATED registries; do not edit
+│   │   ├── plugins/       # The plugin platform: registry, hooks, proxy,
+│   │   │                  #   manage UI, and the /__cms write-back API
+│   │   ├── credits/       # Metered billing and the credit summary screen
+│   │   ├── search/        # Advanced search screen and bulk actions
+│   │   ├── media/         # R2 uploads, /media delivery, the Files browser
+│   │   ├── trash/         # Soft-delete holding area
+│   │   ├── db-types/      # Runtime-editable page and block types
+│   │   ├── i18n/          # Languages and translations admin
+│   │   └── users-roles/   # User and role administration
 │   ├── routes/
-│   │   ├── auth.ts    # OAuth 2.1 login / callback / logout / refresh
-│   │   ├── cms-api.ts # Authenticated plugin-facing /__cms API
-│   │   ├── media.ts   # Private R2 media delivery
-│   │   └── admin/     # Capability-protected admin route modules
-│   ├── security/      # JWT, cookies, sessions, HTTP, media, plugin proxy
-│   ├── templates/     # Server renderers for Liquid section data
-│   └── utils/
-│       ├── lect.ts    # Structured content helpers
-│       └── pkce.ts    # PKCE code verifier / challenge helpers
+│   │   ├── auth.ts        # OAuth 2.1 login / callback / logout / refresh
+│   │   └── admin/         # Capability-protected admin routes (pages, tags,
+│   │                      #   settings, profile, JSON API)
+│   └── templates/         # Server renderers for core admin screens
 ├── views/
-│   ├── layout/        # Liquid layout
-│   ├── sections/      # Admin UI Liquid sections
-│   ├── templates/     # Section composition maps
-│   └── assets/        # Compiled Tailwind CSS and browser scripts
-├── styles/
-│   └── admin.css      # Tailwind source stylesheet
+│   ├── layout/            # Liquid layout
+│   ├── sections/          # Admin UI Liquid sections
+│   ├── templates/         # Section composition maps
+│   ├── locales/           # UI string catalogs
+│   └── assets/            # Compiled Tailwind CSS and browser scripts
+├── dictionary/            # Generated OpenCC tables for Chinese search
+├── styles/admin.css       # Tailwind source stylesheet
 ├── package.json
 ├── tsconfig.json
 └── wrangler.toml
 ```
+
+### A feature directory
+
+Every feature reads the same way, so a slice is self-describing:
+
+```
+src/features/trash/
+├── feature.ts     # The CmsFeature manifest: id, requires, navKeys, baseProps
+├── routes.ts      # Admin router (or routes/<name>.ts when it owns several)
+├── template.ts    # Server renderer (or templates/<name>.ts)
+└── schema.sql     # Its tables, declaring `-- feature: trash`
+```
+
+`feature.ts` is the only thing core sees. Routers are registered separately
+(`src/features/routers.ts`) because a router reaches back into the admin chrome
+through `renderPage`, and listing them alongside the manifests would make the
+import graph cyclic.
+
+A feature may depend on another only by declaring it in `requires`, which is
+validated at startup and enforced by the boundary guard. Today:
+
+| Feature | Requires |
+|---|---|
+| `users-roles` | `plugins`, `credits` |
+| `db-types`, `search`, `credits` | `plugins` |
+| `plugins` | `credits` — the mutual dependency noted under [Feature profiles](#feature-profiles) |
+| `trash`, `media`, `i18n` | — |
