@@ -57,6 +57,22 @@ export interface CoreExtensions {
   lectRules?(env: Env): Promise<Record<string, PublishLectRule>>;
   /** Announce a page lifecycle event. Must never throw or block the response. */
   notifyPageEvent?(env: Env, user: JWTPayload | undefined, event: PageEvent, pages: PageEventPage[]): Promise<void>;
+  /**
+   * Perform a queued `plugin_admin_action` job: forward the recorded request
+   * to the plugin that owns it. Resolves with the response status and any
+   * Location header; throws to fail the job.
+   */
+  runPluginAction?(env: Env, job: PluginActionJob): Promise<{ status: number; location: string | null }>;
+}
+
+/** The recorded request a `plugin_admin_action` job replays. */
+export interface PluginActionJob {
+  pluginId: string;
+  method: string;
+  path: string;
+  contentType: string | null;
+  body: string | null;
+  user: { sub: string | number; email: string; name: string; role: string };
 }
 
 let registered: CoreExtensions = {};

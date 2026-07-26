@@ -16,7 +16,7 @@ import type { Env, Variables, Page, PageVersion } from '../../../types';
 import { appendQuery, editorsFromForm, languageFromRequest, nullableStr, num, safeAdminReturnPath, str, userIdFromContext } from '../../../core/http/forms';
 import { validatePageBasics } from '../../../core/db/validation';
 import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../core/credits/service';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../features/credits/service';
 import { applyStructuredAction, isStructuredEditorAction, lectForPage, lectFromForm, withDraftMetadata } from '../../../core/db/page-logic';
 import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption } from '../../../core/db/admin-queries';
 import { publishPageToTargets } from '../../../core/publish';

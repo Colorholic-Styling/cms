@@ -1,5 +1,5 @@
 import type { CmsFeature } from '../../core/feature';
-import { getCreditBalance, getSharedCreditBalance } from '../../core/credits/service';
+import { getCreditBalance, getSharedCreditBalance } from './service';
 import { userIdFromContext } from '../../core/http/forms';
 
 /**

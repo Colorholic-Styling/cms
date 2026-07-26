@@ -109,9 +109,29 @@ for (const file of files.filter((f) => f.startsWith('src/core/'))) {
   }
 }
 
-// 4. A feature may not import a sibling feature. Shared code belongs in core/
-//    or plugins/; a genuine dependency should become a `requires` entry and an
-//    explicit exception here, not an ad-hoc import.
+// 3b. core/ may not depend on the plugin platform either. Core declares
+//     extension points (core/extensions.ts) and the platform fills them in, so
+//     a build without plugins still compiles. Type-only imports are erased and
+//     do not bind the bundle, so they are allowed.
+for (const file of files.filter((f) => f.startsWith('src/core/'))) {
+  for (const target of graph.get(file) ?? []) {
+    if (target.startsWith('src/plugins/')) {
+      failures.push(`${file} imports ${target}; core must reach the plugin platform through core/extensions.ts, not directly`);
+    }
+  }
+}
+
+// 4. A feature may not import a sibling feature unless it declares the
+//    dependency in its manifest's `requires`. Shared code belongs in core/ or
+//    plugins/; a genuine dependency should be stated, not implied by an
+//    import, so the registry can refuse a profile that breaks it
+//    (assertFeatureRegistry) and the reader can see it.
+const declaredRequires = (feature) => {
+  const file = path.join(rootDir, 'src', 'features', feature, 'feature.ts');
+  if (!files.includes(path.relative(rootDir, file))) return [];
+  const block = /requires:\s*\[([^\]]*)\]/.exec(readFileSync(file, 'utf8'));
+  return block ? [...block[1].matchAll(/'([\w-]+)'/g)].map((m) => m[1]) : [];
+};
 // `generated/` is the registry, not a slice: it aggregates every feature by
 // design, which is exactly what this rule forbids everywhere else.
 const featureOf = (file) => {
@@ -123,8 +143,9 @@ for (const file of files) {
   if (!owner) continue;
   for (const target of graph.get(file) ?? []) {
     const other = featureOf(target);
-    if (other && other !== owner) {
-      failures.push(`${file} imports ${target}; features must not depend on each other`);
+    if (!other || other === owner) continue;
+    if (!declaredRequires(owner).includes(other)) {
+      failures.push(`${file} imports ${target}; add "${other}" to the ${owner} feature's requires, or move the shared code to core/`);
     }
   }
 }

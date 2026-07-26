@@ -16,7 +16,7 @@ import {
   spendCredits,
   transferCredits,
   transferSharedCredits,
-} from '../src/core/credits/service';
+} from '../src/features/credits/service';
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import type { JWTPayload } from '../src/types';
 import type { PluginManifest } from '../src/plugins/types';

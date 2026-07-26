@@ -27,7 +27,7 @@ import type { Env, Variables, WorkerEnv } from './types';
 import { isCmsAdminJobMessage } from './core/jobs/queue';
 import { runCmsAdminJob } from './core/jobs/runner';
 import { ingestSubmissions } from './core/db/submission-ingest';
-import { sweepCreditSubscriptions } from './core/credits/subscriptions';
+import { sweepCreditSubscriptions } from './features/credits/subscriptions';
 import { withD1Sessions } from './core/http/d1-sessions';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();

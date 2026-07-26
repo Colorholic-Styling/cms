@@ -38,7 +38,7 @@ import {
 } from './create';
 import type { HookPage } from '../../plugins/hooks';
 import { checkCreateLimits, createCandidate } from '../../plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../core/credits/service';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../features/credits/service';
 import { emitPluginHook, emitPluginHooks } from './hooks';
 import { chineseSearchVariants } from '../../core/db/chinese';
 import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../core/db/search';

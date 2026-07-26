@@ -4,7 +4,7 @@
 // It lives here rather than in either of them so neither has to import the
 // other: this is the whole of what they had in common.
 
-import type { CreditLedgerRow } from '../core/credits/service';
+import type { CreditLedgerRow } from '../features/credits/service';
 
 /** The display-relevant columns shared by credit_ledger and shared_credit_ledger rows. */
 type CreditLedgerViewSource = Pick<CreditLedgerRow, 'delta' | 'balance_after' | 'action' | 'note' | 'created_by' | 'created_at'>;

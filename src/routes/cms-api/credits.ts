@@ -9,8 +9,8 @@ import type { Env, Variables } from '../../types';
 import { authenticatePlugin } from './auth';
 import { asFiniteNumber } from './serialize';
 import { actingUserId } from './create';
-import { effectiveCreditsForPlugin, getCreditBalance, getSharedCreditBalance, spendCredits } from '../../core/credits/service';
-import { listSubscriptionsForPlugin, reportSubscriptionUsage, type CreditSubscriptionRow } from '../../core/credits/subscriptions';
+import { effectiveCreditsForPlugin, getCreditBalance, getSharedCreditBalance, spendCredits } from '../../features/credits/service';
+import { listSubscriptionsForPlugin, reportSubscriptionUsage, type CreditSubscriptionRow } from '../../features/credits/subscriptions';
 
 export const creditsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

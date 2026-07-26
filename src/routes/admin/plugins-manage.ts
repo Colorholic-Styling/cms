@@ -53,7 +53,7 @@ import {
   saveCreditValues,
   type NormalizedCreditDef,
   type PluginCreditValues,
-} from '../../core/credits/service';
+} from '../../features/credits/service';
 import {
   pluginsManagePage,
   pluginFormPage,

@@ -9,7 +9,7 @@ import { requirePermission } from '../../../core/auth/guards';
 import { renderPage } from '../../../core/render/chrome';
 import { allRoleOptions } from '../../../core/auth/role-store';
 import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
-import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../../core/credits/service';
+import { adjustCredits, adjustSharedCredits, getSharedCreditBalance, listCreditLedger, listSharedCreditLedger, transferSharedCredits } from '../../credits/service';
 import { creditLedgerRowForView } from '../../../templates/credit-ledger';
 import type { AppContext } from '../../../core/http/context';
 

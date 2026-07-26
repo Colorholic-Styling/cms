@@ -9,8 +9,8 @@ import type { PublishAdapter } from '../core/publish/adapter';
 import type { PublishLectRule } from '../core/publish/projection';
 import { flattenMessages } from '../core/i18n';
 import type { Env, JWTPayload } from '../types';
-import { getPlugins, pluginNav, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
-import { pluginTenantId } from './proxy';
+import { getPlugins, pluginById, pluginNav, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
+import { pluginTenantId, setPluginAuthHeaders } from './proxy';
 import { deliverHooks } from './hooks';
 import { pluginAdapter } from './publish-adapter';
 
@@ -58,6 +58,37 @@ registerCoreExtensions({
 
   async notifyPageEvent(env, user: JWTPayload | undefined, event, pages): Promise<void> {
     await deliverHooks(env, user, event, pages);
+  },
+
+  /** Replays a queued admin request against the plugin that owns it. */
+  async runPluginAction(env: Env, job): Promise<{ status: number; location: string | null }> {
+    const plugin = await pluginById(env, job.pluginId);
+    if (!plugin) throw new Error(`Plugin ${job.pluginId} is not available`);
+    if (!plugin.secret) throw new Error(`Plugin ${job.pluginId} has no secret configured`);
+
+    const headers = new Headers();
+    headers.set('x-cms-user', JSON.stringify({
+      id: job.user.sub,
+      email: job.user.email,
+      name: job.user.name,
+      role: job.user.role,
+    }));
+    setPluginAuthHeaders(headers, plugin.secret, pluginTenantId(env));
+    headers.set('x-cms-background-job', '1');
+    if (job.contentType) headers.set('content-type', job.contentType);
+
+    const response = await plugin.fetcher.fetch(`${PLUGIN_ORIGIN}${job.path}`, {
+      method: job.method,
+      headers,
+      body: job.method === 'GET' || job.method === 'HEAD' ? undefined : job.body ?? undefined,
+      redirect: 'manual',
+    });
+
+    if (response.status < 200 || response.status >= 400) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Plugin action returned ${response.status}${text ? `: ${text.slice(0, 160)}` : ''}`);
+    }
+    return { status: response.status, location: response.headers.get('location') };
   },
 });
 

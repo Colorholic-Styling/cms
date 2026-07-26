@@ -1,6 +1,4 @@
-import { deliverHooks, type HookEvent, type HookPage } from '../../plugins/hooks';
-import { PLUGIN_ORIGIN, pluginById } from '../../plugins/registry';
-import { pluginTenantId, setPluginAuthHeaders } from '../../plugins/proxy';
+import { coreExtensions, type PageEvent, type PageEventPage } from '../extensions';
 import {
   listLiveByTypes,
   publishPageToTargets,
@@ -45,34 +43,24 @@ export async function runCmsAdminJob(env: Env, jobId: string): Promise<void> {
 async function runPluginAdminActionJob(env: Env, job: AdminJobRecord): Promise<void> {
   if (!job.pluginId || !job.method || !job.path || !job.user) throw new Error('Admin job is missing plugin request data');
 
-  const plugin = await pluginById(env, job.pluginId);
-  if (!plugin) throw new Error(`Plugin ${job.pluginId} is not available`);
-  if (!plugin.secret) throw new Error(`Plugin ${job.pluginId} has no secret configured`);
+  const run = coreExtensions().runPluginAction;
+  if (!run) throw new Error('Plugin admin actions require the plugin platform');
 
-  const headers = new Headers();
-  headers.set('x-cms-user', JSON.stringify({
-    id: job.user.sub,
-    email: job.user.email,
-    name: job.user.name,
-    role: job.user.role,
-  }));
-  setPluginAuthHeaders(headers, plugin.secret, pluginTenantId(env));
-  headers.set('x-cms-background-job', '1');
-  if (job.contentType) headers.set('content-type', job.contentType);
-
-  const response = await plugin.fetcher.fetch(`${PLUGIN_ORIGIN}${job.path}`, {
+  const result = await run(env, {
+    pluginId: job.pluginId,
     method: job.method,
-    headers,
-    body: job.method === 'GET' || job.method === 'HEAD' ? undefined : job.body ?? undefined,
-    redirect: 'manual',
+    path: job.path,
+    contentType: job.contentType,
+    body: job.body,
+    user: {
+      sub: job.user.sub,
+      email: job.user.email,
+      name: job.user.name,
+      role: job.user.role,
+    },
   });
 
-  if (response.status < 200 || response.status >= 400) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`Plugin action returned ${response.status}${text ? `: ${text.slice(0, 160)}` : ''}`);
-  }
-
-  await completeAdminJob(env.DB, job.id, response.status, response.headers.get('location'));
+  await completeAdminJob(env.DB, job.id, result.status, result.location);
 }
 
 async function runAdvancedSearchBulkActionJob(env: Env, job: AdminJobRecord): Promise<void> {
@@ -214,8 +202,8 @@ async function applyAdvancedSearchBulkAction(
 async function emitPageLifecycle(
   env: Env,
   user: JWTPayload,
-  event: HookEvent,
-  pages: HookPage[],
+  event: PageEvent,
+  pages: PageEventPage[],
 ): Promise<void> {
   if (!pages.length) return;
   const auditPromise = env.DB.batch(
@@ -230,7 +218,7 @@ async function emitPageLifecycle(
       JSON.stringify({ name: page.name, slug: page.slug, page_type: page.page_type }),
     )),
   );
-  const hooksPromise = deliverHooks(env, user, event, pages);
+  const hooksPromise = coreExtensions().notifyPageEvent?.(env, user, event, pages) ?? Promise.resolve();
   await Promise.allSettled([auditPromise, hooksPromise]);
 }
 

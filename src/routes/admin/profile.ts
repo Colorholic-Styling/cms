@@ -4,7 +4,7 @@ import type { Env, Variables, User } from '../../types';
 import { renderPage } from '../../core/render/chrome';
 import { ROLE_LABELS, splitRoles } from '../../core/auth/roles';
 import { allRoleOptions } from '../../core/auth/role-store';
-import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../core/credits/service';
+import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../features/credits/service';
 import { creditLedgerRowForView } from '../../templates/credit-ledger';
 import { logAudit } from '../../core/db/audit';
 import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../core/i18n';

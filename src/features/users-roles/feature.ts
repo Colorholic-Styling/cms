@@ -12,5 +12,8 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const usersRolesFeature: CmsFeature = {
   id: 'users-roles',
+  // The Users screen shows and adjusts credit balances, so it cannot be
+  // installed without the credits feature that owns them.
+  requires: ['credits'],
   navKeys: ['users', 'roles'],
 };

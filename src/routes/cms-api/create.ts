@@ -15,7 +15,7 @@ import { withDraftMetadata } from '../../core/db/page-logic';
 import { slugify } from '../../core/http/forms';
 import { pageTypeScopeAllows } from '../../plugins/page-types';
 import { checkCreateLimits, createCandidate } from '../../plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../core/credits/service';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../features/credits/service';
 
 /** Largest batch accepted by POST /pages/batch — bounds D1 write volume per call. */
 
