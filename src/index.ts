@@ -24,7 +24,7 @@ import type { Env, Variables, WorkerEnv } from './types';
 import { isCmsAdminJobMessage } from './core/jobs/queue';
 import { runCmsAdminJob } from './core/jobs/runner';
 import { ingestSubmissions } from './core/db/submission-ingest';
-import { sweepCreditSubscriptions } from './features/credits/subscriptions';
+import { coreExtensions } from './core/extensions';
 import { withD1Sessions } from './core/http/d1-sessions';
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -187,8 +187,10 @@ export default {
     const sessionEnv = withD1Sessions(env);
     const result = await ingestSubmissions(sessionEnv);
     if (result.scanned) console.log('submission ingest:', JSON.stringify(result));
-    const sweep = await sweepCreditSubscriptions(sessionEnv);
-    if (sweep.processed) console.log('credit subscription sweep:', JSON.stringify(sweep));
+    // Cron work a feature owns (today, the credit subscription sweep). Absent
+    // when no feature registers it.
+    const featureWork = await coreExtensions().runScheduled?.(sessionEnv);
+    if (featureWork) console.log(featureWork);
   },
 };
 export { PageSyncDO } from './core/durable-objects/page-sync';

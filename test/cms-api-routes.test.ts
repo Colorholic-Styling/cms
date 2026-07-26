@@ -9,9 +9,18 @@
 //
 // Splitting cms-api.ts into per-resource modules is exactly the kind of change
 // that can reorder registrations without any other test noticing.
+//
+// The surface is assembled from two routers mounted at the same prefix: the
+// platform's own write-back API, and the credits endpoints, which live with
+// the credits engine so the two features install independently. Callers see
+// one flat set of paths, so that is what this pins.
 
 import { describe, expect, it } from 'vitest';
 import { cmsApiRoutes } from '../src/features/plugins/api';
+import { creditApiRoutes } from '../src/features/credits/routes/contributor-api';
+
+const pathsOf = (router: { routes: Array<{ method: string; path: string }> }) =>
+  router.routes.map((route) => `${route.method} ${route.path}`);
 
 const EXPECTED = [
   'GET /limits',
@@ -44,13 +53,13 @@ describe('/__cms route table', () => {
     // request (say GET /credits vs DELETE /pages/:id) carries no meaning, and
     // pinning it would just make grouping routes by resource look like a
     // breaking change. The order that does matter is asserted below.
-    const table = cmsApiRoutes.routes.map((route) => `${route.method} ${route.path}`);
+    const table = [...pathsOf(cmsApiRoutes), ...pathsOf(creditApiRoutes)];
     expect(table.slice().sort()).toEqual(EXPECTED.slice().sort());
     expect(table).toHaveLength(EXPECTED.length);
   });
 
   it('keeps the static /pages sub-paths ahead of the :id catch-alls', () => {
-    const table = cmsApiRoutes.routes.map((route) => `${route.method} ${route.path}`);
+    const table = pathsOf(cmsApiRoutes);
     const before = (specific: string, catchAll: string) => {
       expect(table.indexOf(specific), `${specific} missing`).toBeGreaterThan(-1);
       expect(table.indexOf(catchAll), `${catchAll} missing`).toBeGreaterThan(-1);

@@ -33,17 +33,21 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { PluginCreditBilling, PluginCreditCharge, PluginCreditDef, PluginManifest, ResolvedPlugin } from '../plugins/types';
-import { getPlugins } from '../plugins/registry';
-import { limitScopeTypes } from '../plugins/limits';
+import {
+  coreExtensions,
+  type ContributedCreditDef,
+  type CreditBillingMode,
+  type CreditChargeKind,
+  type CreditContributor,
+} from '../../core/extensions';
 import { getSetting, saveSetting } from '../../core/db/settings';
 
 /** Cap on manifest-declared credit costs honored per plugin. */
 export const MAX_DECLARED_CREDITS = 20;
 
 const CREDIT_KEY_RE = /^[a-z0-9_]{1,64}$/;
-const CHARGES = new Set<PluginCreditCharge>(['page_create', 'metered', 'recurring']);
-const BILLINGS = new Set<PluginCreditBilling>(['advance', 'arrears']);
+const CHARGES = new Set<CreditChargeKind>(['page_create', 'metered', 'recurring']);
+const BILLINGS = new Set<CreditBillingMode>(['advance', 'arrears']);
 /** Cap on a recurring cost's billing block size. */
 const MAX_RECURRING_PER = 1_000_000_000;
 
@@ -56,7 +60,7 @@ export interface NormalizedCreditDef {
   key: string;
   label: string;
   description: string;
-  charge: PluginCreditCharge;
+  charge: CreditChargeKind;
   /** Set exactly when charge is 'page_create'. */
   pageType: string | null;
   /** Display unit for metered/recurring costs. */
@@ -66,7 +70,7 @@ export interface NormalizedCreditDef {
   /** Recurring only: usage block size the price applies to (≥ 1). */
   per: number;
   /** Set exactly when charge is 'recurring'. */
-  billing: PluginCreditBilling | null;
+  billing: CreditBillingMode | null;
 }
 
 /** Configured prices keyed by credit key (always ≥ 0; 0 = explicitly free). */
@@ -124,21 +128,22 @@ function coercePrice(value: unknown): number {
  * `allowedTypes` are dropped — a plugin must not be able to attach prices to
  * another plugin's content.
  */
-export function declaredCredits(manifest: PluginManifest, allowedTypes: Set<string>): NormalizedCreditDef[] {
+export function declaredCredits(contributor: CreditContributor): NormalizedCreditDef[] {
+  const allowedTypes = contributor.pricablePageTypes;
   const out: NormalizedCreditDef[] = [];
   const seen = new Set<string>();
-  for (const raw of Array.isArray(manifest.credits) ? manifest.credits : []) {
+  for (const raw of Array.isArray(contributor.credits) ? contributor.credits : []) {
     if (out.length >= MAX_DECLARED_CREDITS) break;
     if (!raw || typeof raw !== 'object') continue;
-    const def = raw as PluginCreditDef;
+    const def = raw as ContributedCreditDef;
     if (typeof def.key !== 'string' || !CREDIT_KEY_RE.test(def.key) || seen.has(def.key)) continue;
-    if (!CHARGES.has(def.charge as PluginCreditCharge)) continue;
+    if (!CHARGES.has(def.charge as CreditChargeKind)) continue;
     const pageType = typeof def.page_type === 'string' ? def.page_type : '';
     if (def.charge === 'page_create' && (!pageType || !allowedTypes.has(pageType))) continue;
     // Recurring costs bill monthly; an unknown period must not silently bill
     // at the wrong cadence, so anything but 'month' (or omitted) is dropped.
     if (def.charge === 'recurring' && def.period !== undefined && def.period !== 'month') continue;
-    if (def.charge === 'recurring' && def.billing !== undefined && !BILLINGS.has(def.billing as PluginCreditBilling)) continue;
+    if (def.charge === 'recurring' && def.billing !== undefined && !BILLINGS.has(def.billing as CreditBillingMode)) continue;
     const per = typeof def.per === 'number' && Number.isFinite(def.per)
       ? Math.min(Math.max(Math.trunc(def.per), 1), MAX_RECURRING_PER)
       : 1;
@@ -153,7 +158,7 @@ export function declaredCredits(manifest: PluginManifest, allowedTypes: Set<stri
       unit: typeof def.unit === 'string' && def.unit.trim() ? def.unit.trim().slice(0, 40) : 'action',
       defaultValue: coercePrice(def.default),
       per: def.charge === 'recurring' ? per : 1,
-      billing: def.charge === 'recurring' ? (def.billing as PluginCreditBilling | undefined) ?? 'advance' : null,
+      billing: def.charge === 'recurring' ? (def.billing as CreditBillingMode | undefined) ?? 'advance' : null,
     });
   }
   return out;
@@ -185,20 +190,30 @@ export async function saveCreditValues(env: Env, pluginId: string, values: Plugi
   await saveSetting(env, creditsSettingKey(pluginId), JSON.stringify(values));
 }
 
-/** All of one plugin's declared costs resolved to effective prices. */
-export async function effectiveCreditsForPlugin(env: Env, plugin: ResolvedPlugin): Promise<EffectiveCredit[]> {
-  const allowed = await limitScopeTypes(env.DB, plugin.manifest);
-  const defs = declaredCredits(plugin.manifest, allowed);
+/** All of one contributor's declared costs resolved to effective prices. */
+export async function effectiveCreditsFor(env: Env, contributor: CreditContributor): Promise<EffectiveCredit[]> {
+  const defs = declaredCredits(contributor);
   if (!defs.length) return [];
-  const values = await loadCreditValues(env, plugin.manifest.id);
+  const values = await loadCreditValues(env, contributor.id);
   return defs.map((def) => {
     const configured = def.key in values;
-    return { pluginId: plugin.manifest.id, def, value: configured ? values[def.key] : def.defaultValue, configured };
+    return { pluginId: contributor.id, def, value: configured ? values[def.key] : def.defaultValue, configured };
   });
 }
 
+/** As effectiveCreditsFor, by id — empty when nobody by that id contributes. */
+export async function effectiveCreditsForId(env: Env, contributorId: string): Promise<EffectiveCredit[]> {
+  const contributor = await coreExtensions().creditContributor?.(env, contributorId);
+  return contributor ? effectiveCreditsFor(env, contributor) : [];
+}
+
+/** Everyone declaring priced actions; empty when no feature contributes. */
+export async function creditContributors(env: Env): Promise<CreditContributor[]> {
+  return coreExtensions().creditContributors?.(env) ?? [];
+}
+
 export interface PageCreateCost {
-  /** Sum of every plugin's effective price for creating one page of the type. */
+  /** Sum of every contributor's effective price for creating one page of the type. */
   total: number;
   /** The priced parts (value > 0 only). */
   parts: Array<{ pluginId: string; key: string; label: string; value: number }>;
@@ -206,14 +221,13 @@ export interface PageCreateCost {
 
 /** The effective cost of creating one page of `pageType`, across all plugins. */
 export async function pageCreateCostForType(env: Env, pageType: string): Promise<PageCreateCost> {
-  const plugins = await getPlugins(env);
   const parts: PageCreateCost['parts'] = [];
-  for (const plugin of plugins) {
+  for (const contributor of await creditContributors(env)) {
     // Cheap pre-filter before touching D1.
-    const mentions = (plugin.manifest.credits ?? [])
+    const mentions = (contributor.credits ?? [])
       .some((def) => def?.charge === 'page_create' && def?.page_type === pageType);
     if (!mentions) continue;
-    for (const credit of await effectiveCreditsForPlugin(env, plugin)) {
+    for (const credit of await effectiveCreditsFor(env, contributor)) {
       if (credit.def.charge === 'page_create' && credit.def.pageType === pageType && credit.value > 0) {
         parts.push({ pluginId: credit.pluginId, key: credit.def.key, label: credit.def.label, value: credit.value });
       }

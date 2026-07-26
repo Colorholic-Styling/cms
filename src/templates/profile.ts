@@ -1,6 +1,5 @@
 import { adminLayout, type BaseTemplateProps } from '../core/render/layout';
 import { renderView } from '../core/render/liquid';
-import type { UserCreditLedgerRow } from './credit-ledger';
 
 export interface ProfileIdentity {
   id: string;
@@ -19,18 +18,6 @@ export interface ProfileProvider {
   connectHref: string;
 }
 
-export interface ProfileCreditLedgerPagination {
-  page: number;
-  pageCount: number;
-  total: number;
-  from: number;
-  to: number;
-  hasPrevious: boolean;
-  previousHref: string;
-  hasNext: boolean;
-  nextHref: string;
-}
-
 export async function profilePage(views: Fetcher, opts: BaseTemplateProps & {
   email: string;
   name: string;
@@ -40,14 +27,14 @@ export async function profilePage(views: Fetcher, opts: BaseTemplateProps & {
   error?: string;
   identities: ProfileIdentity[];
   providers: ProfileProvider[];
-  creditBalance: number;
-  creditTransferAction: string;
-  sharedCreditBalance: number;
-  sharedDonateAction: string;
-  creditLedger: UserCreditLedgerRow[];
-  creditLedgerPagination: ProfileCreditLedgerPagination;
   uiLocaleOptions: Array<{ code: string; label: string; selected: boolean }>;
   uiLocaleAction: string;
+  /**
+   * Props for panels contributed by a feature (today, credits). Passed through
+   * to the view untouched: the section renders a panel only when the feature
+   * that owns it supplied the props, so a build without it shows nothing.
+   */
+  panels?: Record<string, unknown>;
 }): Promise<string> {
   const body = await renderView(views, '/templates/profile.json', {
     name: opts.name,
@@ -64,14 +51,7 @@ export async function profilePage(views: Fetcher, opts: BaseTemplateProps & {
     identities: opts.identities,
     hasProviders: opts.providers.length > 0,
     providers: opts.providers,
-    creditBalance: opts.creditBalance,
-    creditTransferAction: opts.creditTransferAction,
-    sharedCreditBalance: opts.sharedCreditBalance,
-    sharedDonateAction: opts.sharedDonateAction,
-    hasCreditLedger: opts.creditLedger.length > 0,
-    creditLedger: opts.creditLedger,
-    creditLedgerPagination: opts.creditLedgerPagination,
-    showCreditLedgerPagination: opts.creditLedgerPagination.pageCount > 1,
+    ...opts.panels,
     uiLocaleOptions: opts.uiLocaleOptions,
     uiLocaleAction: opts.uiLocaleAction,
   });

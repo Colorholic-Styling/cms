@@ -1,6 +1,5 @@
 import { adminLayout, type BaseTemplateProps } from '../../../core/render/layout';
 import { renderView } from '../../../core/render/liquid';
-import type { UserCreditLedgerRow } from '../../../templates/credit-ledger';
 
 export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
   users: Array<{
@@ -15,9 +14,10 @@ export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
   }>;
   flash?: string;
   error?: string;
-  sharedCreditBalance: number;
-  sharedCreditAction: string;
-  sharedCreditLedger: UserCreditLedgerRow[];
+  /** Props for panels contributed by another feature (today, the shared
+   *  credit pool). Passed through untouched; the section renders a panel only
+   *  when its owner supplied the props. */
+  panels?: Record<string, unknown>;
 }): Promise<string> {
   const { users } = opts;
   const body = await renderView(views, '/templates/users.json', {
@@ -27,10 +27,7 @@ export async function usersPage(views: Fetcher, opts: BaseTemplateProps & {
     hasError: !!opts.error,
     hasUsers: users.length > 0,
     users,
-    sharedCreditBalance: opts.sharedCreditBalance,
-    sharedCreditAction: opts.sharedCreditAction,
-    hasSharedCreditLedger: opts.sharedCreditLedger.length > 0,
-    sharedCreditLedger: opts.sharedCreditLedger,
+    ...opts.panels,
   });
   return adminLayout(views, opts, { title: 'Users', body });
 }
@@ -42,12 +39,8 @@ export async function userFormPage(views: Fetcher, opts: BaseTemplateProps & {
   error?: string;
   flash?: string;
   roleOptions: Array<{ value: string; label: string; labelKey: string; checked: boolean }>;
-  creditBalance: number;
-  creditAdjustAction: string;
-  canShareCredits: boolean;
-  sharedCreditBalance: number;
-  sharedGrantAction: string;
-  creditLedger: UserCreditLedgerRow[];
+  /** As usersPage.panels — today, this user's credit balance and ledger. */
+  panels?: Record<string, unknown>;
 }): Promise<string> {
   const { id, name, email, error, flash, roleOptions } = opts;
   const body = await renderView(views, '/templates/user-form.json', {
@@ -59,13 +52,7 @@ export async function userFormPage(views: Fetcher, opts: BaseTemplateProps & {
     flash: flash ?? '',
     hasFlash: !!flash,
     roleOptions,
-    creditBalance: opts.creditBalance,
-    creditAdjustAction: opts.creditAdjustAction,
-    canShareCredits: opts.canShareCredits,
-    sharedCreditBalance: opts.sharedCreditBalance,
-    sharedGrantAction: opts.sharedGrantAction,
-    hasCreditLedger: opts.creditLedger.length > 0,
-    creditLedger: opts.creditLedger,
+    ...opts.panels,
   });
   return adminLayout(views, opts, { title: `Edit ${name || email}`, body });
 }

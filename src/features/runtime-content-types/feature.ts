@@ -12,7 +12,7 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const runtimeContentTypesFeature: CmsFeature = {
   id: 'runtime-content-types',
-  // Lists which page types a plugin owns, so its rows are read-only here.
-  requires: ['plugins'],
+  // No `requires`: the "owned by" column reads core's contentTypeContributors
+  // extension, which is empty when nothing contributes types.
   navKeys: ['pageTypes', 'blockTypes'],
 };

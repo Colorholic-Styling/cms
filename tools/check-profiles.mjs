@@ -114,13 +114,22 @@ for (const object of optional) {
 }
 
 // ── Dependency enforcement ───────────────────────────────────────────────────
-let threw = false;
-try {
-  buildCms(profile(features.filter((id) => id !== 'plugins')));
-} catch {
-  threw = true;
+// A fragment that declares `-- requires: x` must be refused when x is off,
+// rather than emitting SQL that references something never created. Derived
+// from the fragments rather than naming a pair, so it keeps holding as
+// dependencies appear and disappear — including in a build where the feature
+// on either end has been deleted outright.
+for (const dependency of features) {
+  const needers = features.filter((id) => requiredFeatures(id).includes(dependency));
+  if (!needers.length) continue;
+  let threw = false;
+  try {
+    buildCms(profile(features.filter((id) => id !== dependency)));
+  } catch {
+    threw = true;
+  }
+  check(threw, `disabling "${dependency}" while "${needers.join('", "')}" is enabled should have thrown`);
 }
-check(threw, 'disabling "plugins" while "plugin-pointer-indexes" is enabled should have thrown');
 
 if (failures.length) {
   console.error(`\n${failures.length} profile check(s) failed:`);

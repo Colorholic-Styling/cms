@@ -5,20 +5,18 @@ import { Hono } from 'hono';
 import { dashboardPage } from '../../../templates/dashboard';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { advancedSearchPageTypes } from '../../../core/db/search';
-import { dispatchHook } from '../../../features/plugins/hooks';
+import { announcePageEvent } from '../../../core/page-events';
 import { blueprintToLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page } from '../../../types';
 import type { BlueprintEntry } from '../../../cms-config';
 import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
-import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../features/plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../features/credits/service';
+import { coreExtensions, type PageCreateChargeResult } from '../../../core/extensions';
 import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
 import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
 import { userCan } from '../../../core/auth/permissions';
-import { importExportHrefs } from '../../../features/plugins/import-export';
 import { loadAdminHomeSettings } from '../../../core/db/settings';
 import { requirePermission } from '../../../core/auth/guards';
 import type { AppContext } from '../../../core/http/context';
@@ -26,6 +24,15 @@ import { savePageVersionAndSetCurrent } from '../../../core/db/page-store';
 
 
 export const pageDashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
+
+/** Import/Export button targets. Empty hrefs hide the buttons, which is what
+ *  an install without an import-export provider gets. */
+async function importExportLinks(
+  env: Env,
+  pageType?: string,
+): Promise<{ importHref: string; exportHref: string }> {
+  return coreExtensions().importExportHrefs?.(env, pageType) ?? { importHref: '', exportHref: '' };
+}
 
 type DashboardStatusFilter = ReturnType<typeof dashboardStatusFilter>;
 type DashboardLiveUuidRow = { uuid: string };
@@ -191,7 +198,7 @@ async function renderAllPagesList(c: AppContext, routeBase: string) {
     pageSize,
   });
   const statusParams = statusFilter ? { status: statusFilter } : {};
-  const { importHref, exportHref } = await importExportHrefs(c.env);
+  const { importHref, exportHref } = await importExportLinks(c.env);
   const config = await resolveCmsConfig(c.env);
 
   return renderPage(c, dashboardPage, {
@@ -247,7 +254,7 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
   const routeBase = `/admin/pages/list/${encodeURIComponent(pageType)}`;
   const statusParams = statusFilter ? { status: statusFilter } : {};
   const config = await resolveCmsConfig(c.env);
-  const { importHref, exportHref } = await importExportHrefs(c.env, pageType);
+  const { importHref, exportHref } = await importExportLinks(c.env, pageType);
 
   return renderPage(c, dashboardPage, {
       siteTitle: `${c.env.SITE_TITLE ?? '0xCMS'} · ${pageType}`,
@@ -299,22 +306,11 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
     ),
   );
 
-  const violation = await checkCreateLimits(c.env, [createCandidate(pageType, null, lect)]);
-  if (violation) return c.text(limitViolationMessage(violation), 422);
+  const violation = await coreExtensions().checkCreateLimits?.(c.env, [{ pageType, parentId: null, lect }]);
+  if (violation) return c.text(violation, 422);
 
-  const cost = await pageCreateCostForType(c.env, pageType);
-  let creditCharge: { userId: number; amount: number; action: string; source: CreditSource } | null = null;
-  if (cost.total > 0) {
-    const userId = Number(c.get('user').sub);
-    const action = pageCreateAction(pageType, cost);
-    const charge = await spendCredits(c.env, {
-      userId, amount: cost.total, action, entityType: pageType, createdBy: String(userId),
-    });
-    if (!charge.ok) {
-      return c.text(`Not enough credits: creating this needs ${charge.required} credits and you have ${charge.balance} (shared pool: ${charge.sharedBalance}).`, 402);
-    }
-    creditCharge = { userId, amount: cost.total, action, source: charge.source };
-  }
+  const creditCharge: PageCreateChargeResult | null = await coreExtensions().chargePageCreate?.(c, pageType) ?? null;
+  if (creditCharge && !creditCharge.ok) return c.text(creditCharge.error, 402);
 
   try {
     const result = await c.env.DB.prepare(
@@ -330,19 +326,11 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
 
     await savePageVersionAndSetCurrent(c.env.DB, page.id, lect, 'create');
 
-    dispatchHook(c, 'create', { id: page.id, page_type: pageType, name, slug });
+    announcePageEvent(c, 'create', { id: page.id, page_type: pageType, name, slug });
 
     return c.redirect(`/admin/pages/${page.id}/edit`);
   } catch (error) {
-    if (creditCharge) {
-      await refundCredits(c.env, {
-        userId: creditCharge.userId,
-        amount: creditCharge.amount,
-        action: creditCharge.action,
-        source: creditCharge.source,
-        createdBy: String(creditCharge.userId),
-      });
-    }
+    if (creditCharge?.ok) await creditCharge.refund();
     throw error;
   }
 });

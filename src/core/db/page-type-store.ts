@@ -3,13 +3,13 @@
 //
 // A row in `page_types` is the runtime-editable equivalent of a
 // plugin content-type fragment: it is converted into the same
-// PluginContentTypes shape and merged into the effective CmsConfig
+// ContributedContentTypes shape and merged into the effective CmsConfig
 // by resolveCmsConfig() (src/plugins/config.ts).
 // ============================================================
 
 import type { BlueprintEntry, CmsConfig } from '../../cms-config';
 import type { Env, PageType } from '../../types';
-import type { PluginContentTypes } from '../../features/plugins/types';
+import type { ContributedContentTypes } from '../extensions';
 import { getSetting, saveSetting } from './settings';
 
 /** Loads all database-defined page types, ordered for display. */
@@ -36,8 +36,8 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
  * so it can flow through the same mergeContentTypes() path as plugin fragments.
  * Malformed JSON is treated as empty rather than throwing.
  */
-export function dbPageTypeToContentTypes(row: PageType): PluginContentTypes {
-  const fragment: PluginContentTypes = {
+export function dbPageTypeToContentTypes(row: PageType): ContributedContentTypes {
+  const fragment: ContributedContentTypes = {
     blueprint: { [row.slug]: parseJson<BlueprintEntry[]>(row.blueprint, []) },
   };
 

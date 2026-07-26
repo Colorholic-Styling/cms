@@ -15,7 +15,7 @@ import { withDraftMetadata } from '../../../core/db/page-logic';
 import { slugify } from '../../../core/http/forms';
 import { pageTypeScopeAllows } from '../page-types';
 import { checkCreateLimits, createCandidate } from '../limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../credits/service';
+import { coreExtensions, type CreditChargeOutcome } from '../../../core/extensions';
 
 /** Largest batch accepted by POST /pages/batch — bounds D1 write volume per call. */
 
@@ -289,42 +289,23 @@ export async function createPages(c: AppContext, auth: PluginAuth, items: PageIn
   // nothing. A downstream commit failure refunds via the catch below.
   const typeCounts = new Map<string, number>();
   for (const item of finalized) typeCounts.set(item.pageType, (typeCounts.get(item.pageType) ?? 0) + 1);
-  let totalCost = 0;
-  const breakdown: Record<string, number> = {};
-  let chargeAction = 'page_create:batch';
-  for (const [type, count] of typeCounts) {
-    const cost = await pageCreateCostForType(c.env, type);
-    if (cost.total > 0) {
-      totalCost += cost.total * count;
-      breakdown[type] = cost.total * count;
-    }
-    if (finalized.length === 1) chargeAction = pageCreateAction(type, cost);
-  }
-  const singleType = finalized.length === 1 ? finalized[0].pageType : undefined;
   const payer = actingUserId(c);
-  let charged = 0;
-  let chargeSource: CreditSource = 'user';
-  if (totalCost > 0 && payer !== null) {
-    const charge = await spendCredits(c.env, {
-      userId: payer,
-      amount: totalCost,
-      action: chargeAction,
-      entityType: singleType,
-      pluginId: auth.pluginId,
-      note: singleType ? undefined : JSON.stringify(breakdown),
-      createdBy: `plugin:${auth.pluginId}`,
-    });
-    if (!charge.ok) {
-      if (charge.error === 'unknown_user') return { ok: false, status: 400, body: { error: 'unknown_acting_user' } };
-      return {
-        ok: false,
-        status: 402,
-        body: { error: 'insufficient_credits', credit: { required: charge.required, balance: charge.balance, shared_balance: charge.sharedBalance } },
-      };
-    }
-    charged = totalCost;
-    chargeSource = charge.source;
+  // Charged by whichever feature meters page creates; free when none is
+  // installed. Refunded below if the batch write then fails.
+  const charge: CreditChargeOutcome = await coreExtensions().chargePageCreates?.(c.env, {
+    pageTypes: [...typeCounts].map(([pageType, count]) => ({ pageType, count })),
+    payerUserId: payer,
+    contributorId: auth.pluginId,
+  }) ?? { ok: true, charged: 0, refund: async () => {} };
+  if (!charge.ok) {
+    if (charge.reason === 'unknown_user') return { ok: false, status: 400, body: { error: 'unknown_acting_user' } };
+    return {
+      ok: false,
+      status: 402,
+      body: { error: 'insufficient_credits', credit: { required: charge.required, balance: charge.balance, shared_balance: charge.sharedBalance } },
+    };
   }
+  const charged = charge.charged;
 
   const usedSlugs = await existingSlugSet(c.env.DB, finalized.map((item) => item.baseSlug));
   const statements: D1PreparedStatement[] = [];
@@ -371,9 +352,7 @@ export async function createPages(c: AppContext, auth: PluginAuth, items: PageIn
   try {
     await c.env.DB.batch(statements);
   } catch (error) {
-    if (charged && payer !== null) {
-      await refundCredits(c.env, { userId: payer, amount: charged, action: chargeAction, source: chargeSource, pluginId: auth.pluginId, createdBy: `plugin:${auth.pluginId}` });
-    }
+    if (charged) await charge.refund();
     console.error('Plugin API batch create failed', error);
     return { ok: false, status: 500, body: { error: 'create_failed' } };
   }

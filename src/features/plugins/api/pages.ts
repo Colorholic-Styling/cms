@@ -38,7 +38,7 @@ import {
 } from './create';
 import type { HookPage } from '../hooks';
 import { checkCreateLimits, createCandidate } from '../limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../credits/service';
+import { coreExtensions, type CreditChargeOutcome } from '../../../core/extensions';
 import { emitPluginHook, emitPluginHooks } from './hooks';
 import { chineseSearchVariants } from '../../../core/db/chinese';
 import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../../core/db/search';
@@ -476,31 +476,25 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
   // Charge for every clone this call will make; if the loop clones fewer
   // (failure mid-way, or sources trashed concurrently) the difference is
   // refunded below.
-  const cloneCost = await pageCreateCostForType(c.env, pageType);
   const payer = actingUserId(c);
-  const cloneAction = pageCreateAction(pageType, cloneCost);
-  let chargedClones = 0;
-  let cloneChargeSource: CreditSource = 'user';
-  if (remaining > 0 && cloneCost.total > 0 && payer !== null) {
-    const charge = await spendCredits(c.env, {
-      userId: payer,
-      amount: cloneCost.total * remaining,
-      action: cloneAction,
-      entityType: pageType,
-      pluginId: auth.pluginId,
-      note: `duplicate x${remaining}`,
-      createdBy: `plugin:${auth.pluginId}`,
-    });
-    if (!charge.ok) {
-      if (charge.error === 'unknown_user') return c.json({ error: 'unknown_acting_user' }, 400);
-      return c.json(
-        { error: 'insufficient_credits', credit: { required: charge.required, balance: charge.balance, shared_balance: charge.sharedBalance } },
-        402,
-      );
-    }
-    chargedClones = remaining;
-    cloneChargeSource = charge.source;
+  const cloneCharge: CreditChargeOutcome = remaining > 0
+    ? await coreExtensions().chargePageCreates?.(c.env, {
+      pageTypes: [{ pageType, count: remaining }],
+      payerUserId: payer,
+      contributorId: auth.pluginId,
+    }) ?? { ok: true, charged: 0, refund: async () => {} }
+    : { ok: true, charged: 0, refund: async () => {} };
+  if (!cloneCharge.ok) {
+    if (cloneCharge.reason === 'unknown_user') return c.json({ error: 'unknown_acting_user' }, 400);
+    return c.json(
+      { error: 'insufficient_credits', credit: { required: cloneCharge.required, balance: cloneCharge.balance, shared_balance: cloneCharge.sharedBalance } },
+      402,
+    );
   }
+  // Charged up front for `remaining` clones; whatever is not written gets
+  // refunded at the same per-clone price below.
+  const chargedClones = cloneCharge.charged > 0 ? remaining : 0;
+  const perClone = chargedClones > 0 ? cloneCharge.charged / chargedClones : 0;
   let copied = 0;
   let done = false;
   try {
@@ -556,30 +550,12 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
     if (!hasMore) { done = true; break; }
   }
   } catch (error) {
-    if (chargedClones > copied && payer !== null) {
-      await refundCredits(c.env, {
-        userId: payer,
-        amount: cloneCost.total * (chargedClones - copied),
-        action: cloneAction,
-        source: cloneChargeSource,
-        pluginId: auth.pluginId,
-        createdBy: `plugin:${auth.pluginId}`,
-      });
-    }
+    if (chargedClones > copied) await cloneCharge.refund(perClone * (chargedClones - copied));
     throw error;
   }
 
   // Sources trashed concurrently → fewer clones than were charged for.
-  if (chargedClones > copied && payer !== null) {
-    await refundCredits(c.env, {
-      userId: payer,
-      amount: cloneCost.total * (chargedClones - copied),
-      action: cloneAction,
-      source: cloneChargeSource,
-      pluginId: auth.pluginId,
-      createdBy: `plugin:${auth.pluginId}`,
-    });
-  }
+  if (chargedClones > copied) await cloneCharge.refund(perClone * (chargedClones - copied));
 
   return c.json({ count: copied, next_cursor: done ? null : cursor, done });
 });

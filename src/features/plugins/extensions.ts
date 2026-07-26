@@ -4,15 +4,37 @@
 // does nothing when the platform is absent, which is what makes the platform
 // droppable: nothing in core/ names it.
 
-import { registerCoreExtensions, type ContributedContentTypes, type ContributedNavItem } from '../../core/extensions';
+import {
+  registerCoreExtensions,
+  type ContentTypeContributorInfo,
+  type ContributedContentTypes,
+  type ContributedNavItem,
+  type ContributedLimitSummary,
+  type ContributedPermission,
+  type CreditContributor,
+  type ImportExportHrefs,
+  type ApiCallerIdentity,
+  type EditViewContext,
+  type PageCreateCandidate,
+  type ReadViewContext,
+} from '../../core/extensions';
 import type { PublishAdapter } from '../../core/publish/adapter';
 import type { PublishLectRule } from '../../core/publish/projection';
 import { flattenMessages } from '../../core/i18n';
+import type { AppContext } from '../../core/http/context';
 import type { Env, JWTPayload } from '../../types';
-import { getPlugins, pluginById, pluginNav, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
+import { allPluginPermissions, getPlugins, pluginAutoPublishesPageType, pluginById, pluginNav, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { pluginTenantId, setPluginAuthHeaders } from './proxy';
 import { deliverHooks } from './hooks';
 import { pluginAdapter } from './publish-adapter';
+import { checkCreateLimits, createCandidate, effectiveLimitsForPlugin, limitScopeTypes, limitViolationMessage } from './limits';
+import { importExportHrefs } from './import-export';
+import { pluginEditView, pluginNewView, pluginReadView } from './edit-view';
+import { viewsFor } from './views';
+import { listPlugins } from './store';
+import { authenticatePlugin } from './api/auth';
+import { actingUserId } from './api/create';
+import type { ResolvedPlugin } from './types';
 
 registerCoreExtensions({
   async publishAdapters(env: Env): Promise<PublishAdapter[]> {
@@ -96,7 +118,116 @@ registerCoreExtensions({
     }
     return { status: response.status, location: response.headers.get('location') };
   },
+
+  /** CMS assets first, then each active plugin's own view endpoint. */
+  viewSource(env: Env): Fetcher {
+    return viewsFor(env);
+  },
+
+  async contentTypeContributors(env: Env): Promise<ContentTypeContributorInfo[]> {
+    return (await getPlugins(env)).map((plugin) => ({
+      name: plugin.manifest.name,
+      contentTypes: plugin.manifest.contentTypes,
+    }));
+  },
+
+  async autoPublishesPageType(env: Env, pageType: string): Promise<boolean> {
+    return pluginAutoPublishesPageType(env, pageType);
+  },
+
+  async checkCreateLimits(env: Env, candidates: readonly PageCreateCandidate[]): Promise<string | null> {
+    const violation = await checkCreateLimits(
+      env,
+      candidates.map((candidate) => createCandidate(candidate.pageType, candidate.parentId, candidate.lect)),
+    );
+    return violation ? limitViolationMessage(violation) : null;
+  },
+
+  async importExportHrefs(env: Env, pageType?: string): Promise<ImportExportHrefs> {
+    return importExportHrefs(env, pageType);
+  },
+
+  async contributedPermissions(env: Env): Promise<ContributedPermission[]> {
+    return allPluginPermissions(env);
+  },
+
+  /** `mode` picks the endpoint: a plugin declares editViews and newViews separately. */
+  async pageEditView(c: AppContext, context: EditViewContext): Promise<Response | null> {
+    return context.mode === 'new'
+      ? pluginNewView(c, context.pageType, context)
+      : pluginEditView(c, context.pageType, context);
+  },
+
+  async pageReadView(c: AppContext, context: ReadViewContext): Promise<Response | null> {
+    return pluginReadView(c, context.pageType, context);
+  },
+
+  /** Every installed plugin's declared costs, for whoever prices them. */
+  async creditContributors(env: Env): Promise<CreditContributor[]> {
+    const [plugins, hrefs] = await Promise.all([getPlugins(env), manageHrefs(env)]);
+    return Promise.all(plugins.map((plugin) => asCreditContributor(env, plugin, hrefs)));
+  },
+
+  async creditContributor(env: Env, id: string): Promise<CreditContributor | null> {
+    const plugin = await pluginById(env, id);
+    if (!plugin) return null;
+    return asCreditContributor(env, plugin, await manageHrefs(env));
+  },
+
+  async limitSummaries(env: Env): Promise<ContributedLimitSummary[]> {
+    const [plugins, hrefs] = await Promise.all([getPlugins(env), manageHrefs(env)]);
+    const summaries = await Promise.all(plugins.map(async (plugin) => {
+      const limits = await effectiveLimitsForPlugin(env, plugin);
+      const contributorLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
+      return limits.map((limit) => ({
+        contributorId: plugin.manifest.id,
+        contributorLabel,
+        key: limit.def.key,
+        label: limit.def.label,
+        description: limit.def.description,
+        scope: limit.def.scope,
+        pointerKey: limit.def.pointerKey ?? undefined,
+        value: limit.value,
+        manageHref: hrefs(plugin.binding, 'limits'),
+      }));
+    }));
+    return summaries.flat();
+  },
+
+  async authenticateApiCaller(c: AppContext): Promise<ApiCallerIdentity | Response> {
+    const auth = await authenticatePlugin(c);
+    return auth instanceof Response ? auth : { callerId: auth.pluginId };
+  },
+
+  actingUserId(c: AppContext): number | null {
+    return actingUserId(c);
+  },
 });
+
+/** Deep links into the manage screen, resolved once per request. */
+async function manageHrefs(env: Env): Promise<(binding: string, section: 'credits' | 'limits') => string> {
+  const records = await listPlugins(env.DB);
+  const idByUrl = new Map(records.map((record) => [record.url, record.id]));
+  return (binding, section) => {
+    const id = idByUrl.get(binding);
+    return id ? `/admin/plugins-manage/${id}/${section}` : '/admin/plugins-manage';
+  };
+}
+
+async function asCreditContributor(
+  env: Env,
+  plugin: ResolvedPlugin,
+  hrefs: (binding: string, section: 'credits' | 'limits') => string,
+): Promise<CreditContributor> {
+  return {
+    id: plugin.manifest.id,
+    name: plugin.manifest.name || plugin.label || plugin.manifest.id,
+    credits: plugin.manifest.credits ?? [],
+    // Only types the plugin owns or has approval to write may carry a price.
+    pricablePageTypes: await limitScopeTypes(env.DB, plugin.manifest),
+    manageHref: hrefs(plugin.binding, 'credits'),
+  };
+}
 
 async function pluginBundledCatalog(plugins: Fetcher[], code: string): Promise<Record<string, string>> {
   const catalogs = await Promise.all(plugins.map(async (plugin) => {

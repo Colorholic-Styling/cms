@@ -10,7 +10,7 @@
 --   src/core/jobs/schema.sql
 --   src/features/media/schema.sql
 --   src/features/plugins/schema.sql
---   src/features/plugins/pointer-indexes.schema.sql
+--   src/features/plugin-pointer-indexes/schema.sql
 --   src/features/runtime-content-types/schema.sql
 --   src/features/trash/schema.sql
 -- ============================================================
@@ -471,6 +471,10 @@ CREATE INDEX IF NOT EXISTS idx_plugin_page_type_approvals_plugin ON plugin_page_
 -- These are pure query accelerators on the core draft_pages table: dropping
 -- them loses no data and no functionality, only speed, and only for the
 -- plugins that use those pointers. Install alongside the matching plugin.
+--
+-- It has its own slice directory rather than living beside the platform's
+-- schema, so dropping src/features/plugins does not silently take a fragment
+-- that cms.features.json still lists with it.
 --
 -- SQLite only uses an expression index when the query spells the expression
 -- identically, so these must stay byte-for-byte in sync with the SQL in

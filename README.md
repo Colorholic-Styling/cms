@@ -607,7 +607,7 @@ A feature may own code, tables, or both. Ten are switchable:
 | `trash` | `trash_pages`, `trash_page_tags`, `trash_page_versions` (+2 indexes, 2 triggers) |
 | `runtime-content-types` | `page_types`, `block_types` (+1 trigger) |
 | `media` | R2 uploads, `/media` delivery, the Files browser — plus `media_files` |
-| `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) |
+| `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) — schema only, in its own slice directory |
 | `jobs` | `admin_jobs` (+2 indexes) — the durable admin job queue |
 
 After editing `cms.features.json`:
@@ -616,10 +616,22 @@ After editing `cms.features.json`:
 npm run build
 ```
 
-A feature declares any dependency on another in its `feature.ts` `requires`,
-which `assertFeatureRegistry` validates at startup and the boundary guard
-enforces at build time — so a profile that keeps `users-roles` but drops
-`credits` fails loudly rather than at runtime.
+No code feature depends on another. Features cooperate through the extension
+points in `src/core/extensions.ts`: core (and any feature hosting a screen)
+declares what it will call if someone provides it, and a feature registers an
+implementation at module load. Nothing registered means the extension point is
+inert — pages are free without `credits`, the Import/Export buttons disappear
+without the import-export plugin, the role editor lists only built-in
+permissions without `plugins`. `feature.ts` still supports `requires` for a
+genuine dependency, validated by `assertFeatureRegistry` at startup; today none
+declares one.
+
+`npm run check:boundaries` enforces this. Nothing outside `src/features/` may
+import a feature — not `src/core/`, not `src/routes/`, not `src/templates/`,
+not `src/index.ts` — and no feature may import a sibling it has not declared.
+Type-only imports count, because `tsc` fails on those too: an `import type`
+reaching into a feature is exactly how a feature stays undroppable while
+looking clean.
 
 A fragment is any `src/**/schema.sql` (or `*.schema.sql`) declaring
 `-- feature: <id>` in its header — the id, not the path, is what
@@ -656,15 +668,34 @@ without them. The optional part is the `i18n` *code* feature — the screens for
 editing locales and translations. Serving the UI's own catalog
 (`GET /admin/i18n/catalog/:locale`) stays core too.
 
-Two known couplings remain:
+One coupling remains: the per-user balance is `users.credits`, a column on a
+core table, so disabling `credits` leaves that column in place (unused, always
+0).
 
-- The per-user balance is `users.credits`, a column on a core table, so
-  disabling `credits` leaves that column in place (unused, always 0).
-- `plugins` and `credits` currently require *each other*: credits prices
-  plugin-declared costs, while `/__cms` and the manage screen charge through
-  the credit engine. Both manifests declare it, so a broken profile is refused
-  — but neither can be dropped without the other today. Splitting the balance
-  ledger into core would break the cycle.
+#### Deleting a feature's source
+
+Switching a feature off keeps its code in the tree (out of the bundle, but
+still there to read and audit). To remove it outright, delete the directory
+**and** its key in `cms.features.json` — with the key still listed,
+`build:migrations` refuses the build rather than silently treating the feature
+as schema-only:
+
+```bash
+rm -rf src/features/trash
+```
+
+Then drop `"trash"` from `cms.features.json` and run `npm run build`. Two
+details:
+
+- A feature with no directory (`jobs`, whose fragment is
+  `src/core/jobs/schema.sql`) is switched with `false` instead — its key must
+  stay, or the assembler cannot tell which fragment to skip.
+- `plugin-pointer-indexes` declares `-- requires: plugins`, so dropping the
+  platform means dropping that slice in the same edit.
+
+What deletion does not clean up: the feature's `views/sections/*.liquid` (the
+whole `views/` directory ships as Worker assets regardless of profile) and its
+`test/*.test.ts`. Remove those by hand.
 
 ### CMS database (`DB`) — 28 tables
 

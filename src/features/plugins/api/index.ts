@@ -30,7 +30,6 @@
 import { Hono } from 'hono';
 import type { Env, Variables } from '../../../types';
 import { limitsApiRoutes } from './limits';
-import { creditsApiRoutes } from './credits';
 import { contentApiRoutes } from './content';
 import { pagesApiRoutes } from './pages';
 import { ingestApiRoutes } from './ingest';
@@ -41,7 +40,6 @@ export const cmsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 // :id catch-alls) and lives in ./pages.ts; across resources it is not, since
 // no two of these prefixes can match the same request.
 cmsApiRoutes.route('/', limitsApiRoutes);
-cmsApiRoutes.route('/', creditsApiRoutes);
 cmsApiRoutes.route('/', contentApiRoutes);
 cmsApiRoutes.route('/', pagesApiRoutes);
 cmsApiRoutes.route('/', ingestApiRoutes);

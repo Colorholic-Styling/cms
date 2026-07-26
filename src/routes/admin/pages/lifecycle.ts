@@ -2,7 +2,7 @@
 // published stores, and soft-deleting it to trash.
 
 import { Hono } from 'hono';
-import { dispatchHook } from '../../../features/plugins/hooks';
+import { announcePageEvent } from '../../../core/page-events';
 import type { Env, Variables } from '../../../types';
 import { appendQuery, safeAdminReturnPath } from '../../../core/http/forms';
 import { trashDraftPage } from '../../../core/db/admin-queries';
@@ -35,7 +35,7 @@ pageLifecycleRoutes.post('/pages/:id/publish', requirePermission('content:publis
     .bind(pageId)
     .first<{ uuid: string; name: string; slug: string; page_type: string | null }>();
   if (!outcome.refused) {
-    dispatchHook(c, 'publish', {
+    announcePageEvent(c, 'publish', {
       id: pageId,
       uuid: page?.uuid,
       name: page?.name,
@@ -54,7 +54,7 @@ pageLifecycleRoutes.post('/pages/pull/:uuid', requirePermission('content:write')
   if (!result) return c.notFound();
 
   if (result.created) {
-    dispatchHook(c, 'submission', {
+    announcePageEvent(c, 'submission', {
       id: result.page.id,
       uuid: result.page.uuid,
       page_type: result.page.page_type,
@@ -80,7 +80,7 @@ pageLifecycleRoutes.post('/pages/:id/unpublish', requirePermission('content:publ
 
   await unpublishPageFromTargets(c.env, page.uuid, await isSubmissionMirror(c.env.DB, pageId));
 
-  dispatchHook(c, 'unpublish', {
+  announcePageEvent(c, 'unpublish', {
     id: pageId,
     uuid: page.uuid,
     name: page.name,
@@ -105,7 +105,7 @@ pageLifecycleRoutes.post('/pages/:id/delete', requirePermission('content:delete'
   // Unpublish from every publish target now that the draft copy is gone.
   await unpublishPageFromTargets(c.env, page.uuid, !!page.submission_origin);
 
-  dispatchHook(c, 'delete', {
+  announcePageEvent(c, 'delete', {
     id: page.id,
     uuid: page.uuid,
     name: page.name,

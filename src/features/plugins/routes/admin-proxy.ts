@@ -40,7 +40,7 @@ import {
 } from '../../../core/auth/form-once';
 import type { ApprovedPluginAssets } from '../../../core/render/layout';
 import type { PluginManifest } from '../types';
-import { pluginViewRevision, pluginWorkerRevision } from '../../../core/http/view-revision';
+import { pluginViewRevision, pluginWorkerRevision } from '../revision';
 
 export const pluginAdminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

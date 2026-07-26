@@ -9,7 +9,7 @@
 
 import type { BlueprintEntry } from '../../cms-config';
 import type { BlockType } from '../../types';
-import type { PluginContentTypes } from '../../features/plugins/types';
+import type { ContributedContentTypes } from '../extensions';
 
 /** Loads all database-defined block types, ordered for display. */
 export async function listDbBlockTypes(db: D1DatabaseClient): Promise<BlockType[]> {
@@ -34,7 +34,7 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
  * single named block, so it flows through the same mergeContentTypes() path as
  * plugin fragments. Malformed JSON is treated as empty rather than throwing.
  */
-export function dbBlockTypeToContentTypes(row: BlockType): PluginContentTypes {
+export function dbBlockTypeToContentTypes(row: BlockType): ContributedContentTypes {
   return {
     blocks: { [row.slug]: parseJson<BlueprintEntry[]>(row.blueprint, []) },
   };

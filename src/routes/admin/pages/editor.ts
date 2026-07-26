@@ -2,8 +2,8 @@
 // edit/new/read view delegation, and page-version helpers.
 
 import { resolveCmsConfig } from '../../../core/db/content-config';
-import { pluginEditView, pluginNewView, pluginReadView } from '../../../features/plugins/edit-view';
-import type { EditViewContext, ReadViewContext } from '../../../features/plugins/edit-view';
+import { coreExtensions } from '../../../core/extensions';
+import type { EditViewContext, ReadViewContext } from '../../../core/extensions';
 import { stringifyLect } from '../../../core/db/lect';
 import type { Lect } from '../../../core/db/lect';
 import type { Page, PageVersion } from '../../../types';
@@ -73,40 +73,27 @@ export function pluginPageFromForm(
   };
 }
 
+/** Version rows trimmed to what an external view is allowed to see. */
+function viewVersions(versions: PageVersion[] = []): EditViewContext['versions'] {
+  return versions.map((v) => ({ id: v.id, created_at: v.created_at, action: v.action }));
+}
+
 /**
- * Renders through the owning plugin's edit view, unless the native-editor
- * escape hatch is active. Returns null when the caller should render the
- * built-in editor instead.
+ * Renders the edit or create form through whoever owns this page type (today,
+ * the plugin platform), unless the native-editor escape hatch is active.
+ * Returns null when the caller should render the built-in editor instead —
+ * which is also what an install with no owner registered gets.
  */
 export async function maybePluginEditView(
   c: AppContext,
   context: Omit<EditViewContext, 'versions'> & { versions?: PageVersion[] },
 ): Promise<Response | null> {
   if (preferNativeEditor(c)) return null;
-  return pluginEditView(c, context.pageType, {
-    ...context,
-    versions: (context.versions ?? []).map((v) => ({ id: v.id, created_at: v.created_at, action: v.action })),
-  });
+  return coreExtensions().pageEditView?.(c, { ...context, versions: viewVersions(context.versions) }) ?? null;
 }
 
 /**
- * Renders the new/create form through the owning plugin, unless the native
- * editor escape hatch is active. Returns null when the caller should render the
- * built-in editor instead.
- */
-export async function maybePluginNewView(
-  c: AppContext,
-  context: Omit<EditViewContext, 'versions'> & { versions?: PageVersion[] },
-): Promise<Response | null> {
-  if (preferNativeEditor(c)) return null;
-  return pluginNewView(c, context.pageType, {
-    ...context,
-    versions: (context.versions ?? []).map((v) => ({ id: v.id, created_at: v.created_at, action: v.action })),
-  });
-}
-
-/**
- * Renders through the owning plugin's read view, unless the native escape hatch
+ * Renders through the owning read view, unless the native escape hatch
  * (`?native=1`) is active. Returns null when the caller should render the
  * built-in read view instead.
  */
@@ -115,10 +102,7 @@ export async function maybePluginReadView(
   context: Omit<ReadViewContext, 'versions'> & { versions?: PageVersion[] },
 ): Promise<Response | null> {
   if (preferNativeEditor(c)) return null;
-  return pluginReadView(c, context.pageType, {
-    ...context,
-    versions: (context.versions ?? []).map((v) => ({ id: v.id, created_at: v.created_at, action: v.action })),
-  });
+  return coreExtensions().pageReadView?.(c, { ...context, versions: viewVersions(context.versions) }) ?? null;
 }
 
 /**

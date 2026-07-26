@@ -2,20 +2,15 @@ import { Hono } from 'hono';
 import { profilePage } from '../../templates/profile';
 import type { Env, Variables, User } from '../../types';
 import { renderPage } from '../../core/render/chrome';
-import { ROLE_LABELS, splitRoles } from '../../core/auth/roles';
+import { ROLE_LABELS } from '../../core/auth/roles';
 import { allRoleOptions } from '../../core/auth/role-store';
-import { countCreditLedger, donateSharedCredits, getSharedCreditBalance, listCreditLedger, transferCredits } from '../../features/credits/service';
-import { creditLedgerRowForView } from '../../templates/credit-ledger';
-import { logAudit } from '../../core/db/audit';
+import { coreExtensions } from '../../core/extensions';
 import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../core/i18n';
 import { appendQuery, safeAdminReturnPath } from '../../core/http/forms';
 
-const CREDIT_TRANSFER_ACTION = '/admin/profile/credits/transfer';
-const SHARED_DONATE_ACTION = '/admin/profile/credits/shared';
 
 export const profileRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-const CREDIT_LEDGER_PAGE_SIZE = 20;
 
 interface OAuthIdentityRow {
   id: number;
@@ -59,23 +54,12 @@ function roleLabel(role: string, options: Array<{ name: string; label: string }>
     .join(', ');
 }
 
-function positivePage(value: string | undefined): number {
-  const page = Number(value ?? '1');
-  return Number.isInteger(page) && page > 0 ? page : 1;
-}
-
-function profileCreditPageHref(page: number): string {
-  if (page <= 1) return '/admin/profile';
-  return `/admin/profile?credit_page=${page}`;
-}
-
 profileRoutes.get('/profile', async (c) => {
   const userId = Number(c.get('user').sub);
   const flash = c.req.query('flash') ?? '';
   const error = c.req.query('error') ?? '';
-  const requestedCreditPage = positivePage(c.req.query('credit_page'));
-  const [user, identityRows, roleOptions, creditLedgerTotal, registry, currentUiLocale] = await Promise.all([
-    c.env.DB.prepare('SELECT id, oauth_id, email, name, avatar_url, role, credits FROM users WHERE id = ?')
+  const [user, identityRows, roleOptions, creditPanel, registry, currentUiLocale] = await Promise.all([
+    c.env.DB.prepare('SELECT id, oauth_id, email, name, avatar_url, role FROM users WHERE id = ?')
       .bind(userId)
       .first<User>(),
     c.env.DB.prepare(
@@ -87,18 +71,11 @@ profileRoutes.get('/profile', async (c) => {
       .bind(userId)
       .all<OAuthIdentityRow>(),
     allRoleOptions(c.env),
-    countCreditLedger(c.env, userId),
+    coreExtensions().adminScreenProps?.(c, { screen: 'profile' }) ?? {},
     localeRegistry(c.env),
     resolveUiLocale(c),
   ]);
   if (!user) return c.notFound();
-  const creditPageCount = Math.max(1, Math.ceil(creditLedgerTotal / CREDIT_LEDGER_PAGE_SIZE));
-  const creditPage = Math.min(requestedCreditPage, creditPageCount);
-  const creditLedger = await listCreditLedger(c.env, userId, {
-    limit: CREDIT_LEDGER_PAGE_SIZE,
-    offset: (creditPage - 1) * CREDIT_LEDGER_PAGE_SIZE,
-  });
-  const sharedCreditBalance = await getSharedCreditBalance(c.env);
 
   const byOAuthId = new Map<string, OAuthIdentityRow>();
   for (const identity of identityRows.results) {
@@ -141,22 +118,8 @@ profileRoutes.get('/profile', async (c) => {
     error,
     identities,
     providers,
-    creditBalance: user.credits ?? 0,
-    creditTransferAction: CREDIT_TRANSFER_ACTION,
-    sharedCreditBalance,
-    sharedDonateAction: SHARED_DONATE_ACTION,
-    creditLedger: creditLedger.map(creditLedgerRowForView),
-    creditLedgerPagination: {
-      page: creditPage,
-      pageCount: creditPageCount,
-      total: creditLedgerTotal,
-      from: creditLedgerTotal === 0 ? 0 : ((creditPage - 1) * CREDIT_LEDGER_PAGE_SIZE) + 1,
-      to: Math.min(creditPage * CREDIT_LEDGER_PAGE_SIZE, creditLedgerTotal),
-      hasPrevious: creditPage > 1,
-      previousHref: profileCreditPageHref(creditPage - 1),
-      hasNext: creditPage < creditPageCount,
-      nextHref: profileCreditPageHref(creditPage + 1),
-    },
+    // Panels contributed by a feature (today, the credits card).
+    panels: creditPanel,
     uiLocaleOptions: registry.uiLocales.map((locale) => ({
       code: locale.code,
       label: locale.label,
@@ -176,88 +139,6 @@ profileRoutes.post('/profile/locale', async (c) => {
   }
   setUiLocaleCookie(c, requested);
   return c.redirect(appendQuery(back, 'flash=profile.language_saved'), 303);
-});
-
-// Send credits to another user. Recipients are looked up by email and must be
-// a different, non-admin user (admins manage credits via the users admin, not
-// by receiving transfers). The move is atomic and overdraft-guarded in
-// transferCredits — a balance can never go below zero.
-profileRoutes.post('/profile/credits/transfer', async (c) => {
-  const userId = Number(c.get('user').sub);
-  const back = '/admin/profile';
-  const form = await c.req.formData();
-  const email = String(form.get('recipient') ?? '').trim().toLowerCase();
-  const amount = Math.trunc(Number(form.get('amount')));
-  const note = String(form.get('note') ?? '').trim().slice(0, 300);
-
-  if (!email) return c.redirect(`${back}?error=Enter+the+recipient+email`);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return c.redirect(`${back}?error=Enter+a+positive+amount`);
-  }
-
-  const recipient = await c.env.DB.prepare(
-    'SELECT id, email, role FROM users WHERE lower(email) = ?',
-  ).bind(email).first<Pick<User, 'id' | 'email' | 'role'>>();
-  if (!recipient) return c.redirect(`${back}?error=No+user+with+that+email`);
-  if (recipient.id === userId) {
-    return c.redirect(`${back}?error=You+cannot+send+credits+to+yourself`);
-  }
-  if (splitRoles(recipient.role).includes('admin')) {
-    return c.redirect(`${back}?error=Credits+cannot+be+sent+to+an+administrator`);
-  }
-
-  const result = await transferCredits(c.env, {
-    fromUserId: userId,
-    toUserId: recipient.id,
-    amount,
-    note: note || undefined,
-    createdBy: c.get('user').sub,
-  });
-  if (!result.ok) {
-    return c.redirect(result.error === 'insufficient_credits'
-      ? `${back}?error=Not+enough+credits+(balance+${result.balance})`
-      : `${back}?error=Transfer+failed`);
-  }
-
-  logAudit(c, 'user.credits.transfer', 'user', recipient.id, {
-    amount, from: userId, balance_after: result.senderBalance,
-  });
-  return c.redirect(`${back}?flash=${encodeURIComponent(`Sent ${amount} credits to ${recipient.email}`)}`);
-});
-
-// Donate credits from your OWN balance into the shared pool. The pool is for
-// all users (it covers charged actions when someone's balance runs out), so
-// there is no recipient to pick and no permission needed — the donation is
-// overdraft-guarded like any spend and ledger-audited on both sides
-// ('shared:donate'). Moving credits OUT of the pool to a user is the
-// privileged direction, gated by 'credits:share' in the users admin.
-profileRoutes.post('/profile/credits/shared', async (c) => {
-  const userId = Number(c.get('user').sub);
-  const back = '/admin/profile';
-  const form = await c.req.formData();
-  const amount = Math.trunc(Number(form.get('amount')));
-  const note = String(form.get('note') ?? '').trim().slice(0, 300);
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return c.redirect(`${back}?error=Enter+a+positive+amount`);
-  }
-
-  const result = await donateSharedCredits(c.env, {
-    fromUserId: userId,
-    amount,
-    note: note || undefined,
-    createdBy: c.get('user').sub,
-  });
-  if (!result.ok) {
-    return c.redirect(result.error === 'insufficient_credits'
-      ? `${back}?error=Not+enough+credits+(balance+${result.balance})`
-      : `${back}?error=Donation+failed`);
-  }
-
-  logAudit(c, 'user.credits.donate', 'user', userId, {
-    amount, balance_after: result.balanceAfter, shared_balance_after: result.sharedBalance,
-  });
-  return c.redirect(`${back}?flash=${encodeURIComponent(`Moved ${amount} credits into the shared pool`)}`);
 });
 
 profileRoutes.post('/profile/identities/:id/disconnect', async (c) => {

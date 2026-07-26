@@ -3,7 +3,6 @@
 // config-vs-DB listing rules.
 
 import type { AppContext } from '../http/context';
-import type { ResolvedPlugin } from '../../features/plugins/types';
 
 export interface ConfigTypeRow {
   slug: string;
@@ -13,21 +12,33 @@ export interface ConfigTypeRow {
 }
 
 /**
+ * One contributor's claim over a set of type slugs. Structural on purpose:
+ * core must not know what a plugin is, so the caller projects whatever it has
+ * (today, resolved plugin manifests) down to a display name and the slug map
+ * this listing is about.
+ */
+export interface ContentTypeContributor {
+  /** Shown in the listing's source column. */
+  name: string;
+  /** The manifest map being listed — blueprint, blocks or taxonomies. */
+  types?: Record<string, unknown>;
+}
+
+/**
  * Read-only rows for the type listings: everything in the resolved config that
  * isn't a DB row — static config-file entries plus those contributed by active
- * plugins. Plugins are merged in registry order, so the last declaration is
- * the effective source when two plugins define the same slug.
+ * plugins. Contributors are merged in order, so the last declaration is the
+ * effective source when two of them define the same slug.
  */
 export function configOnlyTypes(
   resolvedSlugs: string[],
   dbSlugs: Set<string>,
-  plugins: ResolvedPlugin[],
-  manifestTypes: (plugin: ResolvedPlugin) => Record<string, unknown> | undefined,
+  contributors: readonly ContentTypeContributor[],
 ): ConfigTypeRow[] {
   const pluginNameBySlug = new Map<string, string>();
-  for (const plugin of plugins) {
-    for (const slug of Object.keys(manifestTypes(plugin) ?? {})) {
-      pluginNameBySlug.set(slug, plugin.manifest.name);
+  for (const contributor of contributors) {
+    for (const slug of Object.keys(contributor.types ?? {})) {
+      pluginNameBySlug.set(slug, contributor.name);
     }
   }
   return resolvedSlugs

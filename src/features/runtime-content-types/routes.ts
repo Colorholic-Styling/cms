@@ -12,14 +12,13 @@ import { typeFormPage, typeListPage } from './template';
 import type { TypeAdminCopy, TypeFormModel, TypeFormOption } from './template';
 import { cmsConfig, type CmsConfig } from '../../cms-config';
 import type { Env, Variables, Permission } from '../../types';
-import type { ResolvedPlugin } from '../plugins/types';
+import { coreExtensions, type ContentTypeContributorInfo } from '../../core/extensions';
 import { num, slugify, str } from '../../core/http/forms';
 import { logAudit } from '../../core/db/audit';
 import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { clearConfigCache, resolveCmsConfig } from '../../core/db/content-config';
-import { getPlugins } from '../plugins/registry';
 import {
   listDbPageTypes,
   loadPageTypeExtensions,
@@ -55,8 +54,8 @@ interface TypeCrudSpec<Row extends DbTypeRow, Values extends BaseTypeFormValues>
   configSlugs: Record<string, unknown>;
   /** Slugs in the resolved config (DB + config + plugins) for the read-only list. */
   resolvedSlugs: (config: CmsConfig) => string[];
-  /** Where a plugin manifest declares this kind of type. */
-  manifestTypes: (plugin: ResolvedPlugin) => Record<string, unknown> | undefined;
+  /** Where a contributor declares this kind of type. */
+  manifestTypes: (source: ContentTypeContributorInfo) => Record<string, unknown> | undefined;
   listRows: (db: D1DatabaseClient) => Promise<Row[]>;
   formValues: (form: FormData) => Values;
   /** Columns beyond slug/name/blueprint/weight, with their binds. */
@@ -95,10 +94,17 @@ function dbTypeRoutes<Row extends DbTypeRow, Values extends BaseTypeFormValues>(
     [slug, values.name, values.blueprint || '[]', ...spec.extraBinds(values), num(values.weight)];
 
   routes.get(base, async (c) => {
-    const [dbRows, plugins] = await Promise.all([spec.listRows(c.env.DB), getPlugins(c.env)]);
+    const [dbRows, contributors] = await Promise.all([
+      spec.listRows(c.env.DB),
+      coreExtensions().contentTypeContributors?.(c.env) ?? [],
+    ]);
     const resolved = await resolveCmsConfig(c.env);
     const dbSlugs = new Set(dbRows.map((row) => row.slug));
-    const configRows = configOnlyTypes(spec.resolvedSlugs(resolved), dbSlugs, plugins, spec.manifestTypes);
+    const configRows = configOnlyTypes(
+      spec.resolvedSlugs(resolved),
+      dbSlugs,
+      contributors.map((source) => ({ name: source.name, types: spec.manifestTypes(source) })),
+    );
     return renderPage(c, typeListPage, {
       copy: spec.copy,
       dbRows,
@@ -256,7 +262,7 @@ export const pageTypesRoutes = dbTypeRoutes<DbTypeRow & { block_lists: string | 
   },
   configSlugs: cmsConfig.blueprint,
   resolvedSlugs: (config) => Object.keys(config.blueprint),
-  manifestTypes: (plugin) => plugin.manifest.contentTypes?.blueprint,
+  manifestTypes: (source) => source.contentTypes?.blueprint,
   listRows: listDbPageTypes,
   formValues: (form) => ({
     name: str(form.get('name')),
@@ -389,7 +395,7 @@ export const blockTypesRoutes = dbTypeRoutes<DbTypeRow, BaseTypeFormValues>({
   },
   configSlugs: cmsConfig.blocks,
   resolvedSlugs: (config) => Object.keys(config.blocks),
-  manifestTypes: (plugin) => plugin.manifest.contentTypes?.blocks,
+  manifestTypes: (source) => source.contentTypes?.blocks,
   listRows: listDbBlockTypes,
   formValues: (form) => ({
     name: str(form.get('name')),

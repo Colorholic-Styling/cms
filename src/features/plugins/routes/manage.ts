@@ -46,14 +46,7 @@ import {
   type NormalizedLimitDef,
   type PluginLimitValues,
 } from '../limits';
-import {
-  creditUnitLabel,
-  declaredCredits,
-  loadCreditValues,
-  saveCreditValues,
-  type NormalizedCreditDef,
-  type PluginCreditValues,
-} from '../../credits/service';
+import { coreExtensions, type CreditPricingRow } from '../../../core/extensions';
 import {
   pluginsManagePage,
   pluginFormPage,
@@ -555,20 +548,6 @@ pluginsManageRoutes.post('/plugins-manage/:id/limits', async (c) => {
 // table; the host deducts from the acting user's balance on each action and
 // logs every change in credit_ledger. See utils/credits.ts.
 
-function creditChargeLabel(def: NormalizedCreditDef): string {
-  return def.charge === 'page_create' ? String(def.pageType) : creditUnitLabel(def);
-}
-
-function creditChargeKey(def: NormalizedCreditDef): string {
-  if (def.charge === 'page_create') return 'view_strings.sections_plugin_credits.on_create';
-  if (def.charge === 'recurring') {
-    return def.billing === 'arrears'
-      ? 'view_strings.sections_plugin_credits.monthly_arrears_per'
-      : 'view_strings.sections_plugin_credits.monthly_advance_per';
-  }
-  return 'view_strings.sections_plugin_credits.metered_per';
-}
-
 function priceLabel(value: number): string {
   return value === 0 ? '' : String(value);
 }
@@ -589,28 +568,23 @@ pluginsManageRoutes.get('/plugins-manage/:id/credits', async (c) => {
     });
   }
 
-  const allowed = await limitScopeTypes(c.env.DB, resolved.manifest);
-  const defs = declaredCredits(resolved.manifest, allowed);
-  const values = await loadCreditValues(c.env, resolved.manifest.id);
-
-  const credits: PluginCreditRow[] = defs.map((def) => {
-    const configured = def.key in values;
-    const effective = configured ? values[def.key] : def.defaultValue;
-    return {
-      key: def.key,
-      label: def.label,
-      description: def.description,
-      chargeLabel: creditChargeLabel(def),
-      chargeKey: creditChargeKey(def),
-      chargeDetail: creditChargeLabel(def),
-      defaultLabel: priceLabel(def.defaultValue),
-      defaultKey: def.defaultValue === 0 ? 'view_strings.sections_plugin_credits.free' : '',
-      effectiveLabel: priceLabel(effective),
-      effectiveKey: effective === 0 ? 'view_strings.sections_plugin_credits.free' : '',
-      usesDefault: !configured,
-      value: configured ? String(values[def.key]) : '',
-    };
-  });
+  // Prices come from whoever meters them; with no such feature installed the
+  // list is empty and the screen shows a plugin with nothing chargeable.
+  const pricing = await (coreExtensions().creditPricing?.(c.env, resolved.manifest.id) ?? []);
+  const credits: PluginCreditRow[] = pricing.map((row: CreditPricingRow) => ({
+    key: row.key,
+    label: row.label,
+    description: row.description,
+    chargeLabel: row.chargeLabel,
+    chargeKey: row.chargeKey,
+    chargeDetail: row.chargeLabel,
+    defaultLabel: priceLabel(row.defaultValue),
+    defaultKey: row.defaultValue === 0 ? 'view_strings.sections_plugin_credits.free' : '',
+    effectiveLabel: priceLabel(row.effectiveValue),
+    effectiveKey: row.effectiveValue === 0 ? 'view_strings.sections_plugin_credits.free' : '',
+    usesDefault: !row.configured,
+    value: row.configured ? String(row.effectiveValue) : '',
+  }));
 
   return renderPage(c, pluginCreditsPage, {
     pluginId: id,
@@ -628,20 +602,15 @@ pluginsManageRoutes.post('/plugins-manage/:id/credits', async (c) => {
   if (!found?.resolved) return c.notFound();
   const { resolved } = found;
 
-  const allowed = await limitScopeTypes(c.env.DB, resolved.manifest);
-  const defs = declaredCredits(resolved.manifest, allowed);
   const form = await c.req.formData();
-
-  // Only manifest-declared keys are saved; blank = unset (default applies).
-  const values: PluginCreditValues = {};
-  for (const def of defs) {
-    const raw = str(form.get(`value_${def.key}`));
-    if (!raw) continue;
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) values[def.key] = Math.trunc(parsed);
+  // Hand every submitted price to the metering feature keyed by credit key; it
+  // owns which keys are real and what a blank means.
+  const submitted: Record<string, string> = {};
+  for (const [field, value] of form.entries()) {
+    if (field.startsWith('value_')) submitted[field.slice('value_'.length)] = str(value);
   }
 
-  await saveCreditValues(c.env, resolved.manifest.id, values);
+  const values = await (coreExtensions().saveCreditPricing?.(c.env, resolved.manifest.id, submitted) ?? {});
   logAudit(c, 'plugin.credits.update', 'plugin', resolved.manifest.id, values);
   return c.redirect(`/admin/plugins-manage/${id}/credits?flash=saved`);
 });

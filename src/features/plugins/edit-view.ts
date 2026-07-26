@@ -21,6 +21,7 @@
 // ============================================================
 
 import type { AppContext } from '../../core/http/context';
+import type { EditViewContext, ReadViewContext } from '../../core/extensions';
 import type { ResolvedPlugin } from './types';
 import { pluginForEditView, pluginForNewView, pluginForReadView, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { adminLayout, escHtml, type ApprovedPluginAssets } from '../../core/render/layout';
@@ -30,67 +31,14 @@ import { viewsFor } from './views';
 import { sanitizePluginHtmlFragment } from './sanitize';
 import { isPluginClientViewResponse, pluginTenantId, readPluginClientViewData, setPluginAuthHeaders } from './proxy';
 import { listApprovals } from './assets';
-import { pluginViewRevision, pluginWorkerRevision } from '../../core/http/view-revision';
+import { pluginViewRevision, pluginWorkerRevision } from './revision';
 import { resolveUiLocale } from '../../core/i18n';
 
-/** Editor context the CMS sends to a plugin's `/__plugin/edit` endpoint. */
-export interface EditViewContext {
-  /** 'new' for the create form, 'edit' for an existing page. */
-  mode: 'new' | 'edit';
-  /** Form POST target — the CMS's existing create/update handler. */
-  action: string;
-  /** Where the editor's back / cancel control should return to. */
-  backHref: string;
-  /** Active editing language. */
-  language: string;
-  /** Signed-in user's CMS interface locale (added by the dispatcher). */
-  uiLocale?: string;
-  /** Text direction for uiLocale. */
-  uiDirection?: 'ltr' | 'rtl';
-  /** The page type being edited/created (one of the plugin's declared editViews or newViews). */
-  pageType: string;
-  page: {
-    /** Numeric id when editing; '' when creating. */
-    id: number | string;
-    name: string;
-    slug: string;
-    pageType: string;
-    weight: number;
-    start: string | null;
-    end: string | null;
-    timezone: string | null;
-    editors: string | null;
-    /** Stringified lect JSON for the current/selected version. */
-    lect: string;
-  };
-  /** Saved versions (most-recent first), for an optional version picker. */
-  versions: Array<{ id: number; created_at: string; action: string | null }>;
-  /** Flash message to surface, if any. */
-  flash?: string;
-  /** Validation errors to surface when re-rendering after a failed save. */
-  errors?: string[];
-}
-
-/** Read-only context the CMS sends to a plugin's `/__plugin/read` endpoint.
- *  Mirrors EditViewContext minus the form-submission fields — a read view has
- *  nothing to POST back — plus `editHref` so it can offer an "Edit" control. */
-export interface ReadViewContext {
-  /** Link to the CMS editor for this page (for an optional "Edit" control). */
-  editHref: string;
-  /** Where the view's back / cancel control should return to. */
-  backHref: string;
-  /** Active display language. */
-  language: string;
-  /** Signed-in user's CMS interface locale (added by the dispatcher). */
-  uiLocale?: string;
-  /** Text direction for uiLocale. */
-  uiDirection?: 'ltr' | 'rtl';
-  /** The page type being viewed (one of the plugin's declared readViews). */
-  pageType: string;
-  page: EditViewContext['page'];
-  /** Saved versions (most-recent first), for an optional version picker. */
-  versions: EditViewContext['versions'];
-}
+// The edit/read view contracts live in core/extensions.ts: they are what core
+// hands any owner of a page type, and core must be able to describe that
+// without the platform installed. Re-exported here so plugin-side callers keep
+// importing them from the module that uses them.
+export type { EditViewContext, ReadViewContext } from '../../core/extensions';
 
 /**
  * Renders the edit/new view through the plugin that owns `pageType`, returning

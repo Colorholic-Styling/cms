@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
-import { pluginNav } from '../../features/plugins/registry';
+import { coreExtensions } from '../../core/extensions';
 import { systemSettingsPage } from '../../templates/settings';
 import type { Env, Variables } from '../../types';
 import { logAudit } from '../../core/db/audit';
@@ -41,7 +41,7 @@ settingsRoutes.get('/settings/system', async (c) => {
     loadSidebarChromeSettings(c.env),
     loadAppBrandingSettings(c.env, fallbackName),
     loadAdminHomeSettings(c.env),
-    pluginNav(c.env),
+    coreExtensions().sidebarNav?.(c.env) ?? [],
     loadSystemTimezone(c.env),
   ]);
   const menuOption = (item: typeof SIDEBAR_MENU_ITEMS[number]) => ({
@@ -103,7 +103,7 @@ settingsRoutes.post('/settings/system', async (c) => {
     ? await loadSystemTimezone(c.env)
     : normalizeSystemTimezone(submittedTimezone);
   if (!systemTimezone) return c.redirect('/admin/settings/system?error=invalid-timezone', 303);
-  const pluginItems = await pluginNav(c.env);
+  const pluginItems = await (coreExtensions().sidebarNav?.(c.env) ?? []);
   const visibleKeys = form.getAll('visible_items').map(String);
   const weights = Object.fromEntries(SIDEBAR_MENU_ITEMS.map((item) => [item.key, form.get(`weight_${item.key}`)]));
   const pluginWeights = Object.fromEntries(pluginItems.map((item) => {

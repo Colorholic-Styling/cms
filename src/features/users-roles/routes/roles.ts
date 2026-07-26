@@ -10,7 +10,7 @@ import { logAudit } from '../../../core/db/audit';
 import { requirePermission } from '../../../core/auth/guards';
 import { renderPage } from '../../../core/render/chrome';
 import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
-import { allPluginPermissions } from '../../plugins/registry';
+import { coreExtensions } from '../../../core/extensions';
 import {
   createCustomRole,
   deleteCustomRole,
@@ -32,7 +32,7 @@ async function canManagePermissions(c: AppContext, permissions: Iterable<string>
 }
 
 async function buildPermissionOptions(env: Env, granted: Set<Permission | string>): Promise<Array<{ value: string; label: string; checked: boolean }>> {
-  const pluginPerms = await allPluginPermissions(env);
+  const pluginPerms = await (coreExtensions().contributedPermissions?.(env) ?? []);
   return [
     ...PERMISSIONS.map((permission) => ({
       value: permission,
@@ -50,7 +50,7 @@ async function buildPermissionOptions(env: Env, granted: Set<Permission | string
 rolesRoutes.get('/roles', async (c) => {
   const [roles, pluginPerms] = await Promise.all([
     listRolesForAdmin(c.env),
-    allPluginPermissions(c.env),
+    (coreExtensions().contributedPermissions?.(c.env) ?? []),
   ]);
   const totalPermCount = PERMISSIONS.length + pluginPerms.length;
   return renderPage(c, rolesPage, {
@@ -108,7 +108,7 @@ rolesRoutes.post('/roles', async (c) => {
 rolesRoutes.get('/roles/:name/edit', async (c) => {
   const role = await getRoleForEdit(c.env, c.req.param('name'));
   if (!role) return c.notFound();
-  const granted: Set<Permission | string> = role.locked ? new Set([...PERMISSIONS, ...(await allPluginPermissions(c.env)).map((p) => p.value)]) : role.permissions;
+  const granted: Set<Permission | string> = role.locked ? new Set([...PERMISSIONS, ...(await (coreExtensions().contributedPermissions?.(c.env) ?? [])).map((p) => p.value)]) : role.permissions;
   return renderPage(c, roleFormPage, {
     isNew: false,
     name: role.name,
@@ -130,7 +130,7 @@ rolesRoutes.post('/roles/:name', async (c) => {
   const permissions = [...new Set(form.getAll('permissions').map(String))];
   const assignable = new Set<string>([
     ...PERMISSIONS,
-    ...(await allPluginPermissions(c.env)).map((permission) => permission.value),
+    ...(await (coreExtensions().contributedPermissions?.(c.env) ?? [])).map((permission) => permission.value),
   ]);
   if (permissions.some((permission) => !assignable.has(permission))) {
     return c.text('Invalid permission', 400);

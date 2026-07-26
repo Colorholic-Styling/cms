@@ -1,10 +1,7 @@
-// Display shape for credit ledger rows, shared by the users admin (a feature)
-// and the profile page (core, since the chrome links to /admin/profile/locale).
-//
-// It lives here rather than in either of them so neither has to import the
-// other: this is the whole of what they had in common.
+// Display shape for credit ledger rows, shared by every screen this feature
+// contributes a credits panel to (the profile page and the users admin).
 
-import type { CreditLedgerRow } from '../features/credits/service';
+import type { CreditLedgerRow } from './service';
 
 /** The display-relevant columns shared by credit_ledger and shared_credit_ledger rows. */
 type CreditLedgerViewSource = Pick<CreditLedgerRow, 'delta' | 'balance_after' | 'action' | 'note' | 'created_by' | 'created_at'>;

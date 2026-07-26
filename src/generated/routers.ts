@@ -4,7 +4,9 @@
 // To add or drop a feature, edit that file and run `npm run build:features`.
 
 import type { FeatureRouterEntry } from '../features/routers';
-import { creditSettingsRoutes } from '../features/credits/routes';
+import { creditApiRoutes } from '../features/credits/routes/contributor-api';
+import { creditPanelRoutes } from '../features/credits/routes/panels';
+import { creditSettingsRoutes } from '../features/credits/routes/settings';
 import { i18nRoutes } from '../features/i18n/routes';
 import { mediaFilesRoutes } from '../features/media/routes/files';
 import { mediaPublicRoutes } from '../features/media/routes/public';
@@ -20,6 +22,7 @@ import { usersRoutes } from '../features/users-roles/routes/users';
 
 /** Mounted under /admin, in registry order. */
 export const adminRouterEntries: readonly FeatureRouterEntry[] = [
+  { id: 'credits', router: creditPanelRoutes },
   { id: 'credits', router: creditSettingsRoutes },
   { id: 'i18n', router: i18nRoutes },
   { id: 'media', router: mediaFilesRoutes },
@@ -36,6 +39,7 @@ export const adminRouterEntries: readonly FeatureRouterEntry[] = [
 
 /** Mounted at the worker root, outside the auth stack. */
 export const publicRouterEntries: readonly FeatureRouterEntry[] = [
+  { id: 'credits', router: creditApiRoutes, basePath: '/__cms' },
   { id: 'media', router: mediaPublicRoutes },
   { id: 'plugins', router: pluginApiRoutes, basePath: '/__cms' },
   { id: 'plugins', router: pluginTenantRoutes, basePath: '/__cms' },

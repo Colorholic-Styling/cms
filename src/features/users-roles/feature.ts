@@ -1,8 +1,9 @@
 import type { CmsFeature } from '../../core/feature';
 
 /**
- * User and role administration: the Users screen (with credit adjustments)
- * and the Roles/permissions editor.
+ * User and role administration: the Users screen and the Roles/permissions
+ * editor. The credits panel on both screens is contributed by the credits
+ * feature, not owned here.
  *
  * The tables and the permission resolver stay core — every authenticated
  * request resolves permissions through utils/roles and role_permissions, and
@@ -12,9 +13,7 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const usersRolesFeature: CmsFeature = {
   id: 'users-roles',
-  // The roles editor offers plugin-declared permissions.
-  requires: ['plugins', 'credits'],
-  // The Users screen shows and adjusts credit balances, so it cannot be
-  // installed without the credits feature that owns them.
+  // No `requires`: contributed permissions and the credits panels both arrive
+  // through core's extension points, so this installs with neither feature.
   navKeys: ['users', 'roles'],
 };

@@ -1,12 +1,17 @@
 import type { CmsFeature } from '../../core/feature';
+// Importing this registers the feature's implementations of core's extension
+// points (page-create charging, the credits panels on the profile and users
+// screens, the subscription sweep). Core calls whatever is registered and does
+// nothing when this feature is not installed — see src/core/extensions.ts.
+import './extensions';
 import { getCreditBalance, getSharedCreditBalance } from './service';
 import { userIdFromContext } from '../../core/http/forms';
 
 /**
- * Metered billing. The admin screens still live in routes/admin (users,
- * profile, settings) because they are interleaved with non-credit handlers;
- * what this manifest owns is the pair of balances in the sidebar footer and
- * the Credit Summary nav entry.
+ * Metered billing: balances, the ledger, transfers and the shared pool. The
+ * screens that host a credits panel (profile, users) belong to core and to the
+ * users-roles feature; this feature contributes their props and owns the forms
+ * they post to, so neither has to know credits exist.
  *
  * Dropping it from the registry removes the balances (showCredits gates the
  * markup) and takes the credits engine out of every admin route's import
@@ -14,10 +19,10 @@ import { userIdFromContext } from '../../core/http/forms';
  */
 export const creditsFeature: CmsFeature = {
   id: 'credits',
-  // Credit definitions come from plugin manifests, and the charge engine
-  // prices them per plugin, so credits cannot be installed without the
-  // platform that declares them.
-  requires: ['plugins'],
+  // No `requires`: priced actions arrive through core's creditContributors
+  // extension rather than from the plugin platform directly, so this installs
+  // alone. With nothing contributing, every action is free and the summary is
+  // empty — balances, transfers and the shared pool still work.
   navKeys: ['credits'],
   async baseProps(c) {
     const [userCredits, sharedCredits] = await Promise.all([

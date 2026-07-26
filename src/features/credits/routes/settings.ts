@@ -5,14 +5,12 @@
 // and language screens for no reason other than sharing a URL prefix.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
-import { renderPage } from '../../core/render/chrome';
-import { userCan } from '../../core/auth/permissions';
-import { getPlugins } from '../plugins/registry';
-import { listPlugins } from '../plugins/store';
-import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from './service';
-import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../plugins/limits';
-import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from './template';
+import type { Env, Variables } from '../../../types';
+import { renderPage } from '../../../core/render/chrome';
+import { userCan } from '../../../core/auth/permissions';
+import { coreExtensions, type ContributedLimitSummary } from '../../../core/extensions';
+import { creditContributors, creditUnitLabel, effectiveCreditsFor, type EffectiveCredit } from '../service';
+import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from '../template';
 
 export const creditSettingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -32,7 +30,7 @@ function creditSummaryChargeKey(credit: EffectiveCredit): string {
   return 'credits.summary.metered_per';
 }
 
-function limitSummaryScopeLabel(def: NormalizedLimitDef): string {
+function limitSummaryScopeLabel(def: ContributedLimitSummary): string {
   if (def.scope === 'per_second') return 'Per second';
   if (def.scope === 'per_parent') return 'Per parent page';
   if (def.scope === 'per_pointer') return `Per ${def.pointerKey}`;
@@ -49,22 +47,17 @@ function bySummaryOrder(
 }
 
 creditSettingsRoutes.get('/settings/credits', async (c) => {
-  const [plugins, pluginRecords] = await Promise.all([
-    getPlugins(c.env),
-    listPlugins(c.env.DB),
+  const [contributors, limits] = await Promise.all([
+    creditContributors(c.env),
+    coreExtensions().limitSummaries?.(c.env) ?? [],
   ]);
-  const recordIds = new Map(pluginRecords.map((record) => [record.url, record.id]));
-  const manageHref = (binding: string, section: 'credits' | 'limits'): string => {
-    const id = recordIds.get(binding);
-    return id ? `/admin/plugins-manage/${id}/${section}` : '/admin/plugins-manage';
-  };
 
-  const rows: CreditSummaryRow[] = (await Promise.all(plugins.map(async (plugin) => {
-    const credits = await effectiveCreditsForPlugin(c.env, plugin);
-    const pluginLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
+  const rows: CreditSummaryRow[] = (await Promise.all(contributors.map(async (contributor) => {
+    const credits = await effectiveCreditsFor(c.env, contributor);
+    const pluginLabel = contributor.name || contributor.id;
     return credits.map((credit) => ({
       pluginLabel,
-      pluginId: plugin.manifest.id,
+      pluginId: contributor.id,
       key: credit.def.key,
       label: credit.def.label,
       description: credit.def.description,
@@ -74,34 +67,30 @@ creditSettingsRoutes.get('/settings/credits', async (c) => {
       effectiveLabel: credit.value === 0 ? 'Free' : `${credit.value} credits`,
       effectiveFree: credit.value === 0,
       effectiveValue: credit.value,
-      manageHref: manageHref(plugin.binding, 'credits'),
+      manageHref: contributor.manageHref ?? '',
     }));
   }))).flat().sort(bySummaryOrder);
 
-  const limitRows: LimitSummaryRow[] = (await Promise.all(plugins.map(async (plugin) => {
-    const limits = await effectiveLimitsForPlugin(c.env, plugin);
-    const pluginLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
-    return limits.map((limit) => ({
-      pluginLabel,
-      pluginId: plugin.manifest.id,
-      key: limit.def.key,
-      label: limit.def.label,
-      description: limit.def.description,
-      scopeLabel: limitSummaryScopeLabel(limit.def),
-      scopeKey: limit.def.scope === 'per_second'
-        ? 'credits.summary.per_second'
-        : limit.def.scope === 'per_parent'
-          ? 'credits.summary.per_parent_page'
-          : limit.def.scope === 'per_pointer'
-            ? 'credits.summary.per'
-            : 'credits.summary.total',
-      scopeValue: limit.def.scope === 'per_pointer' ? (limit.def.pointerKey ?? '') : '',
-      effectiveLabel: limit.value === null ? 'Unlimited' : `${limit.value}`,
-      effectiveUnlimited: limit.value === null,
-      effectiveValue: limit.value,
-      manageHref: manageHref(plugin.binding, 'limits'),
-    }));
-  }))).flat().sort(bySummaryOrder);
+  const limitRows: LimitSummaryRow[] = limits.map((limit) => ({
+    pluginLabel: limit.contributorLabel,
+    pluginId: limit.contributorId,
+    key: limit.key,
+    label: limit.label,
+    description: limit.description,
+    scopeLabel: limitSummaryScopeLabel(limit),
+    scopeKey: limit.scope === 'per_second'
+      ? 'credits.summary.per_second'
+      : limit.scope === 'per_parent'
+        ? 'credits.summary.per_parent_page'
+        : limit.scope === 'per_pointer'
+          ? 'credits.summary.per'
+          : 'credits.summary.total',
+    scopeValue: limit.scope === 'per_pointer' ? (limit.pointerKey ?? '') : '',
+    effectiveLabel: limit.value === null ? 'Unlimited' : `${limit.value}`,
+    effectiveUnlimited: limit.value === null,
+    effectiveValue: limit.value,
+    manageHref: limit.manageHref,
+  })).sort(bySummaryOrder);
 
   const pluginCount = new Set([...rows, ...limitRows].map((row) => row.pluginId)).size;
   const paidCount = rows.filter((row) => row.effectiveLabel !== 'Free').length;

@@ -7,6 +7,7 @@
 
 import type { BlueprintEntry } from '../../cms-config';
 import type { PublishLectRule } from '../../core/publish/projection';
+import type { ContributedCreditDef } from '../../core/extensions';
 
 export type { PublishLectRule };
 
@@ -186,7 +187,7 @@ export interface PluginManifest {
    * balance, and records every change in the credit ledger. See
    * utils/credits.ts.
    */
-  credits?: PluginCreditDef[];
+  credits?: ContributedCreditDef[];
   /**
    * When true the plugin serves `POST /__plugin/tenants/enroll` and this CMS
    * can register itself as a tenant instead of an operator hand-writing the
@@ -236,41 +237,13 @@ export interface PluginLimitDef {
  * quantity (POST /__cms/credits/usage) once per period via the cron sweep
  * (e.g. record storage). See utils/credit-subscriptions.ts.
  */
-export type PluginCreditCharge = 'page_create' | 'metered' | 'recurring';
-
-/** When a recurring cost bills: 'advance' charges the current usage snapshot
- *  for the coming period; 'arrears' charges the period's high-water mark once
- *  the period has elapsed. */
-export type PluginCreditBilling = 'advance' | 'arrears';
-
-/** A credit cost declared in a plugin manifest (see PluginManifest.credits). */
-export interface PluginCreditDef {
-  /** Identifier unique within the plugin, e.g. "create_guest_list". */
-  key: string;
-  /** Human label shown in the credits admin and the ledger. */
-  label?: string;
-  /** Optional longer description shown in the credits admin. */
-  description?: string;
-  charge: PluginCreditCharge;
-  /** Required when charge is 'page_create': the page type whose creation is
-   *  charged. Must be a type the plugin owns or may write via an approved
-   *  writeType. */
-  page_type?: string;
-  /** Display unit for metered/recurring costs (e.g. "recipient", "record");
-   *  defaults to "action". */
-  unit?: string;
-  /** Cost in credits until an admin configures a value. Omitted or 0 = free —
-   *  a freshly deployed manifest never silently starts charging. */
-  default?: number;
-  /** Recurring only: usage block size the price applies to — e.g. per: 5000
-   *  with default: 50 bills 50 credits per started block of 5000 units.
-   *  Omitted → 1 (price per unit). */
-  per?: number;
-  /** Recurring only: billing period. Only 'month' is supported. */
-  period?: 'month';
-  /** Recurring only: 'advance' (default) or 'arrears'. */
-  billing?: PluginCreditBilling;
-}
+// The credit-declaration contract lives in core/extensions.ts: it is what the
+// CMS hands whoever prices these actions, and core must be able to describe it
+// without either the platform or the credits engine installed. Aliased here so
+// manifest code keeps reading in plugin vocabulary.
+export type { CreditChargeKind as PluginCreditCharge } from '../../core/extensions';
+export type { CreditBillingMode as PluginCreditBilling } from '../../core/extensions';
+export type { ContributedCreditDef as PluginCreditDef } from '../../core/extensions';
 
 /** An admin-approved plugin asset (see PluginManifest.assets), stored in the
  *  `plugin_asset_approvals` table. `integrity` is the SRI hash (sha384-...) of

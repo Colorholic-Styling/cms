@@ -20,6 +20,7 @@ import {
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import type { JWTPayload } from '../src/types';
 import type { PluginManifest } from '../src/features/plugins/types';
+import type { CreditContributor } from '../src/core/extensions';
 
 // Credit system: manifest-declared costs, admin-configured prices, charged by
 // the host on page creates (both doors) and plugin-reported metered usage,
@@ -182,14 +183,21 @@ beforeEach(async () => {
 
 describe('declaredCredits validation', () => {
   const allowed = new Set(['event', 'guest', 'mail_list']);
+  /** The manifest as the plugin platform contributes it to the credits engine. */
+  const contributor = (manifest: PluginManifest = MANIFEST): CreditContributor => ({
+    id: PLUGIN_ID,
+    name: 'Events Suite',
+    credits: manifest.credits ?? [],
+    pricablePageTypes: allowed,
+  });
 
   it('keeps valid costs and drops ones on non-owned page types', () => {
-    const defs = declaredCredits(MANIFEST, allowed);
+    const defs = declaredCredits(contributor());
     expect(defs.map((def) => def.key)).toEqual(['create_event', 'create_guest_list', 'import_guest', 'send_edm']);
   });
 
   it('normalizes charge kind, unit, and defaults', () => {
-    const defs = declaredCredits(MANIFEST, allowed);
+    const defs = declaredCredits(contributor());
     expect(defs.find((def) => def.key === 'create_event')).toMatchObject({ charge: 'page_create', pageType: 'event', defaultValue: 100 });
     expect(defs.find((def) => def.key === 'import_guest')!.defaultValue).toBe(0);
     expect(defs.find((def) => def.key === 'send_edm')).toMatchObject({ charge: 'metered', pageType: null, unit: 'recipient', defaultValue: 2 });
@@ -206,7 +214,7 @@ describe('declaredCredits validation', () => {
         { key: 'BAD KEY', charge: 'metered' },
       ],
     } as unknown as PluginManifest;
-    const defs = declaredCredits(manifest, allowed);
+    const defs = declaredCredits(contributor(manifest));
     expect(defs.map((def) => def.key)).toEqual(['c']);
     expect(defs[0].defaultValue).toBe(0);
   });

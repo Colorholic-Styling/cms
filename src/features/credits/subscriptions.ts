@@ -38,9 +38,8 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { PluginCreditBilling } from '../plugins/types';
-import { getPlugins } from '../plugins/registry';
-import { type EffectiveCredit, effectiveCreditsForPlugin, spendCredits } from './service';
+import type { CreditBillingMode } from '../../core/extensions';
+import { type EffectiveCredit, creditContributors, effectiveCreditsFor, spendCredits } from './service';
 
 /** Rows swept per cron tick — bounds sweep time and subrequests. */
 const SWEEP_BATCH = 25;
@@ -62,7 +61,7 @@ export interface CreditSubscriptionRow {
   next_charge_at: string;
   last_charged_at: string | null;
   /** Billing mode of the last successful charge — drives mode-switch rules. */
-  last_mode: PluginCreditBilling | null;
+  last_mode: CreditBillingMode | null;
   created_at: string;
   updated_at: string;
 }
@@ -188,15 +187,15 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
   ).bind(sqliteDate(now), SWEEP_BATCH).all<CreditSubscriptionRow>();
   if (!due.results.length) return result;
 
-  const plugins = new Map((await getPlugins(env)).map((plugin) => [plugin.manifest.id, plugin]));
-  // Effective prices are per-plugin, not per-row — resolve each plugin once.
+  const contributors = new Map((await creditContributors(env)).map((entry) => [entry.id, entry]));
+  // Effective prices are per-contributor, not per-row — resolve each once.
   const creditCache = new Map<string, EffectiveCredit[]>();
 
   for (const row of due.results) {
     result.processed += 1;
 
-    const plugin = plugins.get(row.plugin_id);
-    if (!plugin) {
+    const contributor = contributors.get(row.plugin_id);
+    if (!contributor) {
       // Unreachable or disabled — likely transient, so defer without touching
       // status; a permanently removed plugin keeps deferring hourly until an
       // admin clears it or it comes back.
@@ -208,7 +207,7 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
 
     let credits = creditCache.get(row.plugin_id);
     if (!credits) {
-      credits = await effectiveCreditsForPlugin(env, plugin);
+      credits = await effectiveCreditsFor(env, contributor);
       creditCache.set(row.plugin_id, credits);
     }
     const credit = credits.find((entry) => entry.def.key === row.credit_key);

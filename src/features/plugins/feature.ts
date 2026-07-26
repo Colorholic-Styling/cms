@@ -16,12 +16,8 @@ import './extensions';
  */
 export const pluginsFeature: CmsFeature = {
   id: 'plugins',
-  // MUTUAL with credits, and that is a real defect rather than a design:
-  // credits prices plugin-declared costs, while the /__cms API and the manage
-  // screen charge and refund through the credit engine. Neither can be
-  // installed without the other today. Splitting the balance ledger
-  // (spend/refund/adjust, which has no plugin dependency) into core would
-  // break the cycle — see the note in features/credits/service.ts.
-  requires: ['credits'],
+  // No `requires`: the platform cooperates with the credits engine through
+  // core's extension points in both directions, so either installs alone. With
+  // credits off, plugin-declared costs are simply never charged.
   navKeys: ['plugins'],
 };

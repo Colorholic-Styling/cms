@@ -37,7 +37,18 @@ const FORBIDDEN_IN_CHROME = [
 ];
 
 // Paths in FORBIDDEN_IN_CHROME must exist, or the rule silently passes forever.
-// They have moved once already (the utils/ dissolution), so this is checked.
+// They have moved once already (the utils/ dissolution), so this is checked —
+// except for a path inside a feature this build does not install, which is
+// absent on purpose rather than moved.
+const installedFeatures = new Set(Object.entries(
+  JSON.parse(readFileSync(path.join(rootDir, 'cms.features.json'), 'utf8')).features ?? {},
+).filter(([, on]) => on === true).map(([id]) => id));
+
+/** True when the path belongs to a feature that is not installed. */
+function droppedWithItsFeature(file) {
+  const owner = (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
+  return Boolean(owner) && !installedFeatures.has(owner);
+}
 
 const files = [];
 (function walk(dir) {
@@ -48,13 +59,19 @@ const files = [];
   }
 })(path.join(rootDir, 'src'));
 
-/** Value imports only — `import type` is erased and costs nothing at runtime. */
-function importsOf(file) {
+/**
+ * Local imports of a file. `import type` is erased at build time and costs
+ * nothing at runtime, so the bundle-shape rules skip it — but it is still a
+ * compile-time dependency, so the droppability rules (3, 4) do not: deleting a
+ * feature directory has to leave `tsc` green, and a stray `import type` from
+ * outside would break it. Pass includeTypes to get both.
+ */
+function importsOf(file, includeTypes = false) {
   const source = readFileSync(path.join(rootDir, file), 'utf8');
   const out = new Set();
-  const pattern = /(^|\n)\s*import\s+(type\s+)?([\s\S]*?)from\s+'(\.[^']+)'/g;
+  const pattern = /(^|\n)\s*(?:import|export)\s+(type\s+)?([\s\S]*?)from\s+'(\.[^']+)'/g;
   for (let match = pattern.exec(source); match; match = pattern.exec(source)) {
-    if (match[2]) continue;
+    if (match[2] && !includeTypes) continue;
     const target = path.normalize(path.join(path.dirname(file), match[4]));
     const resolved = [`${target}.ts`, path.join(target, 'index.ts'), target].find((candidate) => files.includes(candidate));
     if (resolved) out.add(resolved);
@@ -63,6 +80,8 @@ function importsOf(file) {
 }
 
 const graph = new Map(files.map((file) => [file, importsOf(file)]));
+/** As `graph`, but counting `import type` too — see importsOf. */
+const typeGraph = new Map(files.map((file) => [file, importsOf(file, true)]));
 
 function closure(root, blocked = new Set()) {
   const seen = new Set();
@@ -79,9 +98,9 @@ function closure(root, blocked = new Set()) {
 const failures = [];
 
 for (const forbidden of FORBIDDEN_IN_CHROME) {
-  if (!files.includes(forbidden) && forbidden.startsWith('src/')) {
-    failures.push(`FORBIDDEN_IN_CHROME lists ${forbidden}, which no longer exists — the rule would pass by accident`);
-  }
+  if (files.includes(forbidden) || !forbidden.startsWith('src/')) continue;
+  if (droppedWithItsFeature(forbidden)) continue;
+  failures.push(`FORBIDDEN_IN_CHROME lists ${forbidden}, which no longer exists — the rule would pass by accident`);
 }
 
 // 1. The chrome may reach feature code only through the contributor registry.
@@ -98,34 +117,42 @@ for (const forbidden of FORBIDDEN_IN_CHROME) {
   if (full.has(forbidden)) failures.push(`${CHROME} reaches ${forbidden}; every admin render would pay for it`);
 }
 
-// 3. core/ may not reach into features/ at all, except the chrome reading the
-//    manifest registry. This is the layering the utils/ dissolution paid for:
-//    without it, "core" is just a folder name.
-for (const file of files.filter((f) => f.startsWith('src/core/'))) {
-  for (const target of graph.get(file) ?? []) {
+// 3. Nothing outside src/features/ may reach into it — not core, not the
+//    routers, not the shared templates, not the entrypoint — except the
+//    generated registries and the chrome reading the manifest registry.
+//
+//    This is what makes a feature droppable: `rm -rf src/features/<id>` plus
+//    its key in cms.features.json has to leave a tree that still compiles.
+//    Type-only imports count here, because tsc fails on those too — that is
+//    exactly how the plugin platform stayed undroppable while looking clean.
+//    Everything a host screen needs from a feature goes through
+//    core/extensions.ts, which core declares and the feature fills in.
+const OUTSIDE_FEATURES = (file) => (
+  (file.startsWith('src/core/') || file.startsWith('src/routes/') || file.startsWith('src/templates/') || file === 'src/index.ts')
+);
+// The two registries are the sanctioned doors: both are generated from
+// cms.features.json and survive any feature being dropped.
+const FEATURE_REGISTRIES = new Set([REGISTRY, ROUTERS]);
+for (const file of files.filter(OUTSIDE_FEATURES)) {
+  for (const target of typeGraph.get(file) ?? []) {
     if (!target.startsWith('src/features/')) continue;
-    if (file === CHROME && target === REGISTRY) continue;
-    failures.push(`${file} imports ${target}; core must not depend on a feature (only ${CHROME} -> ${REGISTRY})`);
-  }
-}
-
-// 3b. core/ may not depend on the plugin platform either. Core declares
-//     extension points (core/extensions.ts) and the platform fills them in, so
-//     a build without plugins still compiles. Type-only imports are erased and
-//     do not bind the bundle, so they are allowed.
-for (const file of files.filter((f) => f.startsWith('src/core/'))) {
-  for (const target of graph.get(file) ?? []) {
-    if (target.startsWith('src/plugins/')) {
-      failures.push(`${file} imports ${target}; core must reach the plugin platform through core/extensions.ts, not directly`);
-    }
+    if (FEATURE_REGISTRIES.has(target)) continue;
+    failures.push(
+      `${file} imports ${target}; nothing outside src/features may depend on a feature `
+      + `(only the ${REGISTRY} / ${ROUTERS} registries). `
+      + 'Add an extension point in src/core/extensions.ts instead.',
+    );
   }
 }
 
 // 4. A feature may not import a sibling feature unless it declares the
-//    dependency in its manifest's `requires`. Shared code belongs in core/ or
-//    plugins/; a genuine dependency should be stated, not implied by an
-//    import, so the registry can refuse a profile that breaks it
-//    (assertFeatureRegistry) and the reader can see it.
+//    dependency in its manifest's `requires`. Shared code belongs in core/; a
+//    genuine dependency should be stated, not implied by an import, so the
+//    registry can refuse a profile that breaks it (assertFeatureRegistry) and
+//    the reader can see it. As rule 3, type-only imports count: a declared
+//    dependency is also a compile-time one, and no feature declares any today
+//    — they cooperate through core/extensions.ts, which is what lets each be
+//    dropped on its own.
 const declaredRequires = (feature) => {
   const file = path.join(rootDir, 'src', 'features', feature, 'feature.ts');
   if (!files.includes(path.relative(rootDir, file))) return [];
@@ -136,7 +163,7 @@ const featureOf = (file) => (file.match(/^src\/features\/([^/]+)\//) ?? [])[1];
 for (const file of files) {
   const owner = featureOf(file);
   if (!owner) continue;
-  for (const target of graph.get(file) ?? []) {
+  for (const target of typeGraph.get(file) ?? []) {
     const other = featureOf(target);
     if (!other || other === owner) continue;
     if (!declaredRequires(owner).includes(other)) {

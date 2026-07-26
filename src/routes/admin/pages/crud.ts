@@ -8,15 +8,13 @@ import { Hono } from 'hono';
 import { editorPage } from '../../../templates/editor';
 import { readPage } from '../../../templates/read';
 import { resolveCmsConfig } from '../../../core/db/content-config';
-import { dispatchHook } from '../../../features/plugins/hooks';
-import { viewsFor } from '../../../features/plugins/views';
-import { pluginAutoPublishesPageType } from '../../../features/plugins/registry';
+import { announcePageEvent } from '../../../core/page-events';
+import { viewSourceFor } from '../../../core/render/view-source';
+import { coreExtensions, type PageCreateChargeResult } from '../../../core/extensions';
 import { blueprintToLect, safeParseLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page, PageVersion } from '../../../types';
 import { appendQuery, editorsFromForm, languageFromRequest, nullableStr, num, safeAdminReturnPath, str, userIdFromContext } from '../../../core/http/forms';
 import { validatePageBasics } from '../../../core/db/validation';
-import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../features/plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../features/credits/service';
 import { applyStructuredAction, isStructuredEditorAction, lectForPage, lectFromForm, withDraftMetadata } from '../../../core/db/page-logic';
 import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption } from '../../../core/db/admin-queries';
 import { publishPageToTargets } from '../../../core/publish';
@@ -30,7 +28,6 @@ import {
   deletePageVersion,
   editorPageData,
   maybePluginEditView,
-  maybePluginNewView,
   maybePluginReadView,
   pluginPageFromForm,
   preferNativeEditor,
@@ -50,7 +47,7 @@ pageCrudRoutes.get('/pages/new', requirePermission('content:write'), async (c) =
   const lect = blueprintToLect(pageType, config.blueprint, config.defaultLanguage);
   const backHref = safeAdminReturnPath(c.req.query('return_to'));
 
-  const pluginView = await maybePluginNewView(c, {
+  const pluginView = await maybePluginEditView(c, {
     mode: 'new',
     action: '/admin/pages',
     backHref,
@@ -82,7 +79,7 @@ pageCrudRoutes.get('/pages/new', requirePermission('content:write'), async (c) =
     defaultTimezone: defaultTimezone(c),
     backHref,
     structured: structuredEditorProps(config, language, lect, pageType),
-  }, viewsFor(c.env));
+  }, viewSourceFor(c.env));
 });
 
 // ── Create page ───────────────────────────────────────────────────────────────
@@ -110,37 +107,20 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
       form,
       language,
     );
-    const violation = await checkCreateLimits(c.env, [
-      createCandidate(pageType, parentRaw ? parseInt(parentRaw, 10) : null, lect),
+    const violation = await coreExtensions().checkCreateLimits?.(c.env, [
+      { pageType, parentId: parentRaw ? parseInt(parentRaw, 10) : null, lect },
     ]);
-    if (violation) errors.push(limitViolationMessage(violation));
+    if (violation) errors.push(violation);
   }
 
-  // Plugin-declared page-create costs charge the signed-in editor. Deducted
-  // only when the request is otherwise valid (a validation re-render must
-  // never cost credits); a failed insert below refunds.
-  let creditCharge: { userId: number; amount: number; action: string; source: CreditSource } | null = null;
+  // Page-create costs charge the signed-in editor. Deducted only when the
+  // request is otherwise valid (a validation re-render must never cost
+  // credits); a failed insert below refunds.
+  let creditCharge: PageCreateChargeResult | null = null;
   if (!errors.length) {
     const pageType = nullableStr(form.get('page_type')) ?? 'default';
-    const cost = await pageCreateCostForType(c.env, pageType);
-    if (cost.total > 0) {
-      const userId = Number(c.get('user').sub);
-      const action = pageCreateAction(pageType, cost);
-      const charge = await spendCredits(c.env, {
-        userId,
-        amount: cost.total,
-        action,
-        entityType: pageType,
-        createdBy: String(userId),
-      });
-      if (!charge.ok) {
-        errors.push(charge.error === 'unknown_user'
-          ? 'Your user account could not be charged credits.'
-          : `Not enough credits: creating this needs ${charge.required} credits and you have ${charge.balance} (shared pool: ${charge.sharedBalance}).`);
-      } else {
-        creditCharge = { userId, amount: cost.total, action, source: charge.source };
-      }
-    }
+    creditCharge = await coreExtensions().chargePageCreate?.(c, pageType) ?? null;
+    if (creditCharge && !creditCharge.ok) errors.push(creditCharge.error);
   }
 
   if (errors.length) {
@@ -153,7 +133,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
       language,
     );
 
-    const pluginView = await maybePluginNewView(c, {
+    const pluginView = await maybePluginEditView(c, {
       mode: 'new',
       action: '/admin/pages',
       backHref,
@@ -179,7 +159,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
       defaultTimezone: defaultTimezone(c),
       backHref,
       structured: structuredEditorProps(config, language, lect, pageType),
-    }, viewsFor(c.env), 422);
+    }, viewSourceFor(c.env), 422);
   }
 
   const pageTypeVal = nullableStr(form.get('page_type')) ?? 'default';
@@ -236,19 +216,11 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
   await savePageVersionAndSetCurrent(c.env.DB, pageId, lectVal, 'create');
   await setDraftPageTags(c.env.DB, pageId, form.getAll('tag_ids'), false);
 
-  dispatchHook(c, 'create', { id: pageId, page_type: pageTypeVal, name, slug: uniqueSlug });
+  announcePageEvent(c, 'create', { id: pageId, page_type: pageTypeVal, name, slug: uniqueSlug });
 
   return c.redirect(appendQuery(backHref, 'flash=Page+created+successfully'));
   } catch (error) {
-    if (creditCharge) {
-      await refundCredits(c.env, {
-        userId: creditCharge.userId,
-        amount: creditCharge.amount,
-        action: creditCharge.action,
-        source: creditCharge.source,
-        createdBy: String(creditCharge.userId),
-      });
-    }
+    if (creditCharge?.ok) await creditCharge.refund();
     throw error;
   }
 });
@@ -408,7 +380,7 @@ pageCrudRoutes.get('/pages/:id/edit', requirePermission('content:read'), async (
     // Current draft lect, so a version preview can diff against it.
     draftLect: stringifyLect(lectForPage(config, pageType, page.lect)),
     structured: structuredEditorProps(config, language, lect, pageType, data.versions),
-  }, viewsFor(c.env));
+  }, viewSourceFor(c.env));
 });
 
 pageCrudRoutes.post('/pages/:id/weight', requirePermission('content:write'), async (c) => {
@@ -514,7 +486,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
       backHref,
       defaultTimezone: defaultTimezone(c),
       structured: structuredEditorProps(config, language, lect, pageType, data.versions),
-    }, viewsFor(c.env), 422);
+    }, viewSourceFor(c.env), 422);
   }
 
   const pageTypeVal = nullableStr(form.get('page_type')) ?? page.page_type ?? 'default';
@@ -573,7 +545,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
   const nativeParam = preferNativeEditor(c) ? '&native=1' : '';
 
   const autoRepublish = action !== 'publish'
-    && await pluginAutoPublishesPageType(c.env, pageTypeVal)
+    && await (coreExtensions().autoPublishesPageType?.(c.env, pageTypeVal) ?? false)
     && !!await c.env.PUBLISHED_DB.prepare('SELECT 1 FROM live_pages WHERE uuid = ?')
       .bind(page.uuid)
       .first();
@@ -581,7 +553,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
   if (action === 'publish' || autoRepublish) {
     const outcome = await publishPageToTargets(c.env, pageId);
     if (!outcome) return c.notFound();
-    if (!outcome.refused) dispatchHook(c, 'publish', { id: pageId, uuid: page.uuid, page_type: pageTypeVal, name, slug: uniqueSlug });
+    if (!outcome.refused) announcePageEvent(c, 'publish', { id: pageId, uuid: page.uuid, page_type: pageTypeVal, name, slug: uniqueSlug });
     if (action === 'publish') {
       return c.redirect(`/admin/pages/${pageId}/edit?language=${encodeURIComponent(language)}&flash=${publishFlash(outcome)}${returnToParam}${nativeParam}`);
     }
@@ -591,7 +563,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
     return c.redirect(`/admin/pages/${pageId}/edit?language=${encodeURIComponent(language)}${returnToParam}${nativeParam}`);
   }
 
-  if (!autoRepublish) dispatchHook(c, 'update', { id: pageId, uuid: page.uuid, page_type: pageTypeVal, name, slug: uniqueSlug });
+  if (!autoRepublish) announcePageEvent(c, 'update', { id: pageId, uuid: page.uuid, page_type: pageTypeVal, name, slug: uniqueSlug });
 
   const savedFlash = autoRepublish ? 'Page+updated+and+published+successfully' : 'Page+updated+successfully';
   return c.redirect(`/admin/pages/${pageId}/edit?language=${encodeURIComponent(language)}&flash=${savedFlash}${returnToParam}${nativeParam}`);

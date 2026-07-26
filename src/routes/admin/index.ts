@@ -24,7 +24,7 @@ import { profileRoutes } from './profile';
 import { apiRoutes } from './api';
 import { settingsRoutes } from './settings';
 import { i18nCatalogRoutes } from './i18n-catalog';
-import { viewsFor } from '../../features/plugins/views';
+import { viewSourceFor } from '../../core/render/view-source';
 import { featureRouters } from '../../features/routers';
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -37,7 +37,7 @@ adminRoutes.get('/views/*', async (c) => {
   const path = c.req.path.slice('/admin/views'.length);
   if (!path.startsWith('/') || path.includes('..')) return c.notFound();
 
-  const response = await viewsFor(c.env).fetch(`https://views.local${path}`);
+  const response = await viewSourceFor(c.env).fetch(`https://views.local${path}`);
   if (!response.ok) return c.notFound();
 
   const headers = new Headers(response.headers);

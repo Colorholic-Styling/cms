@@ -28,7 +28,7 @@ import { listLiveByTypes } from '../../core/publish';
 import { draftLectProjector } from '../../core/publish/projection';
 import { withLiveStatus } from '../../core/db/page-logic';
 import { renderPage } from '../../core/render/chrome';
-import { IMPORT_EXPORT_PLUGIN_ID, importExportPluginBase } from '../plugins/import-export';
+import { coreExtensions } from '../../core/extensions';
 
 export async function renderAdvancedSearch(c: AppContext, defaultPageType = 'all', canSelectPageType = true) {
   const config = await resolveCmsConfig(c.env);
@@ -73,9 +73,7 @@ export async function renderAdvancedSearch(c: AppContext, defaultPageType = 'all
     : `/admin/advanced-search/${encodeURIComponent(selectedPageType)}`;
   // CSV export lives in the import-export plugin now; the button only shows
   // when that plugin is registered and enabled.
-  const exportBase = (await importExportPluginBase(c.env))
-    ? `/admin/plugins/${IMPORT_EXPORT_PLUGIN_ID}/export-search?page_type=${encodeURIComponent(selectedPageType)}`
-    : '';
+  const exportBase = (await coreExtensions().importExportHrefs?.(c.env, selectedPageType))?.searchExportHref ?? '';
   const queryWithoutPage = advancedSearchQueryString(criteria, operator, pageSize, { sort, order });
   const pageQuery = (page: number) => advancedSearchQueryString(criteria, operator, pageSize, {
     sort,

@@ -29,7 +29,7 @@ import { removeTagFromTargets } from '../../core/publish';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { resolveCmsConfig } from '../../core/db/content-config';
-import { getPlugins } from '../../features/plugins/registry';
+import { coreExtensions } from '../../core/extensions';
 import { configOnlyTypes } from '../../core/db/type-admin';
 import type { AppContext } from '../../core/http/context';
 
@@ -38,17 +38,16 @@ export const tagsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 // ── Tag types ─────────────────────────────────────────────────────────────────
 
 tagsRoutes.get('/taxonomies', async (c) => {
-  const [dbTaxonomies, plugins, config] = await Promise.all([
+  const [dbTaxonomies, contributors, config] = await Promise.all([
     c.env.DB.prepare('SELECT * FROM taxonomies ORDER BY name ASC').all<Taxonomy>(),
-    getPlugins(c.env),
+    coreExtensions().contentTypeContributors?.(c.env) ?? [],
     resolveCmsConfig(c.env),
   ]);
   const dbSlugs = new Set(dbTaxonomies.results.map((taxonomy) => taxonomy.slug));
   const configTaxonomies = configOnlyTypes(
     Object.keys(config.taxonomies),
     dbSlugs,
-    plugins,
-    (plugin) => plugin.manifest.contentTypes?.taxonomies,
+    contributors.map((source) => ({ name: source.name, types: source.contentTypes?.taxonomies })),
   ).map((taxonomy) => ({
     ...taxonomy,
     name: config.taxonomies[taxonomy.slug] ?? taxonomy.name,
@@ -280,17 +279,16 @@ function optionalNumericId(value: FormValue): number | null {
 }
 
 async function tagTaxonomyOptions(c: AppContext): Promise<TagTaxonomyOption[]> {
-  const [dbTaxonomies, plugins, config] = await Promise.all([
+  const [dbTaxonomies, contributors, config] = await Promise.all([
     c.env.DB.prepare('SELECT * FROM taxonomies ORDER BY name ASC').all<Taxonomy>(),
-    getPlugins(c.env),
+    coreExtensions().contentTypeContributors?.(c.env) ?? [],
     resolveCmsConfig(c.env),
   ]);
   const dbSlugs = new Set(dbTaxonomies.results.map((taxonomy) => taxonomy.slug));
   const configTaxonomies = configOnlyTypes(
     Object.keys(config.taxonomies),
     dbSlugs,
-    plugins,
-    (plugin) => plugin.manifest.contentTypes?.taxonomies,
+    contributors.map((source) => ({ name: source.name, types: source.contentTypes?.taxonomies })),
   ).map((taxonomy) => ({
     id: taxonomy.slug,
     name: config.taxonomies[taxonomy.slug] ?? taxonomy.name,

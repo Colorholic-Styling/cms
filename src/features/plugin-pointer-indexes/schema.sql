@@ -7,6 +7,10 @@
 -- them loses no data and no functionality, only speed, and only for the
 -- plugins that use those pointers. Install alongside the matching plugin.
 --
+-- It has its own slice directory rather than living beside the platform's
+-- schema, so dropping src/features/plugins does not silently take a fragment
+-- that cms.features.json still lists with it.
+--
 -- SQLite only uses an expression index when the query spells the expression
 -- identically, so these must stay byte-for-byte in sync with the SQL in
 -- src/routes/cms-api.ts.
