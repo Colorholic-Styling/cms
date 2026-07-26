@@ -1,7 +1,7 @@
 import { getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { Env } from '../types';
-import { getPlugins, PLUGIN_ORIGIN, PLUGIN_PREFIX } from '../plugins/registry';
+import { coreExtensions } from './extensions';
 
 export const DEFAULT_CONTENT_LANGUAGE = 'mis';
 export const DEFAULT_UI_LOCALE = 'en';
@@ -177,14 +177,13 @@ export async function buildTranslationCatalog(
   }
   if (!chain.includes(DEFAULT_UI_LOCALE)) chain.unshift(DEFAULT_UI_LOCALE);
 
-  const pluginViews = includePluginCatalogs
-    ? (await getPlugins(env))
-      .filter((plugin) => plugin.manifest.i18n === true)
-      .map((plugin) => plugin.fetcher)
-    : [];
   const catalog: Record<string, string> = {};
   for (const localeCode of chain) {
-    Object.assign(catalog, await bundledPluginCatalog(pluginViews, localeCode));
+    // Contributed strings go in first so a CMS string, and then a database
+    // override, always wins over them.
+    if (includePluginCatalogs) {
+      Object.assign(catalog, await coreExtensions().localeCatalog?.(env, localeCode) ?? {});
+    }
     Object.assign(catalog, await bundledCatalog(env, localeCode));
     const messages = await listLocaleMessages(env, localeCode);
     for (const message of messages) catalog[message.message_key] = message.value;
@@ -209,21 +208,6 @@ export async function uiTranslator(c: Context<any>): Promise<UiTranslator> {
   const locale = await resolveUiLocale(c);
   const catalog = await buildTranslationCatalog(c.env, locale.code);
   return (key, fallback) => catalog[key] ?? fallback;
-}
-
-async function bundledPluginCatalog(plugins: Fetcher[], code: string): Promise<Record<string, string>> {
-  const catalogs = await Promise.all(plugins.map(async (plugin) => {
-    try {
-      const response = await plugin.fetch(
-        `${PLUGIN_ORIGIN}${PLUGIN_PREFIX}/views/locales/${encodeURIComponent(code)}.json`,
-      );
-      if (!response.ok) return {};
-      return flattenMessages(await response.json());
-    } catch {
-      return {};
-    }
-  }));
-  return Object.assign({}, ...catalogs);
 }
 
 async function bundledCatalog(env: Env, code: string): Promise<Record<string, string>> {

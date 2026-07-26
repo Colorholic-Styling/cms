@@ -14,7 +14,31 @@
 // served, so a handler is always in place by the time a route runs.
 
 import type { Env } from '../types';
+import type { JWTPayload } from '../types';
 import type { PublishAdapter } from './publish/adapter';
+import type { PublishLectRule } from './publish/projection';
+
+/** A sidebar entry contributed at runtime rather than declared in code. */
+export interface ContributedNavItem {
+  pluginId: string;
+  label: string;
+  href: string;
+  roles?: string[];
+  group?: 'settings';
+  i18n: boolean;
+}
+
+/** Page lifecycle events core announces to whoever is listening. */
+export type PageEvent = 'create' | 'submission' | 'update' | 'publish' | 'unpublish' | 'delete';
+
+/** The subset of a page that a listener is given. */
+export interface PageEventPage {
+  id: number;
+  uuid?: string;
+  page_type?: string | null;
+  name?: string;
+  slug?: string;
+}
 
 export interface CoreExtensions {
   /**
@@ -22,6 +46,17 @@ export interface CoreExtensions {
    * contributes one per plugin whose manifest declares `publishTarget`.
    */
   publishAdapters?(env: Env): Promise<PublishAdapter[]>;
+  /** Sidebar entries to append to the ones core declares. */
+  sidebarNav?(env: Env): Promise<ContributedNavItem[]>;
+  /**
+   * UI-string catalogs merged *under* the core ones, so a contributed string
+   * never overrides a CMS string or a database override.
+   */
+  localeCatalog?(env: Env, localeCode: string): Promise<Record<string, string>>;
+  /** Per-page-type rules for what survives publication. */
+  lectRules?(env: Env): Promise<Record<string, PublishLectRule>>;
+  /** Announce a page lifecycle event. Must never throw or block the response. */
+  notifyPageEvent?(env: Env, user: JWTPayload | undefined, event: PageEvent, pages: PageEventPage[]): Promise<void>;
 }
 
 let registered: CoreExtensions = {};

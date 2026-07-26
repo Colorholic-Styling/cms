@@ -12,9 +12,15 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { PublishLectRule } from '../../plugins/types';
-import { getPlugins } from '../../plugins/registry';
+import { coreExtensions } from '../extensions';
 import { safeParseLect, stringifyLect } from '../db/lect';
+
+/** What survives publication for a page type: an allow-list, a deny-list, or
+ *  neither (the whole lect is published). */
+export interface PublishLectRule {
+  keep?: string[];
+  drop?: string[];
+}
 
 /**
  * Effective projection rules by page type. A rule is honored only when the
@@ -22,17 +28,7 @@ import { safeParseLect, stringifyLect } from '../db/lect';
  * out pages it doesn't own. First declaration wins on (unexpected) overlap.
  */
 export async function publishLectRules(env: Env): Promise<Record<string, PublishLectRule>> {
-  const rules: Record<string, PublishLectRule> = {};
-  const plugins = await getPlugins(env);
-  for (const plugin of plugins) {
-    const declared = plugin.manifest.contentTypes?.publishLect ?? {};
-    const owned = plugin.manifest.contentTypes?.blueprint ?? {};
-    for (const [pageType, rule] of Object.entries(declared)) {
-      if (!Object.hasOwn(owned, pageType)) continue;
-      if (!Object.hasOwn(rules, pageType)) rules[pageType] = rule;
-    }
-  }
-  return rules;
+  return await coreExtensions().lectRules?.(env) ?? {};
 }
 
 /**

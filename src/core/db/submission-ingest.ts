@@ -18,7 +18,7 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import { deliverHook } from '../../plugins/hooks';
+import { coreExtensions } from '../extensions';
 import { getSetting, saveSetting } from './settings';
 import { savePageVersionAndSetCurrent } from './page-store';
 
@@ -162,13 +162,13 @@ export async function ingestSubmissions(env: Env): Promise<IngestResult> {
     await savePageVersionAndSetCurrent(env.DB, inserted.id, row.lect, 'ingest-submission');
     created += 1;
 
-    await deliverHook(env, undefined, 'submission', {
+    await coreExtensions().notifyPageEvent?.(env, undefined, 'submission', [{
       id: inserted.id,
       uuid: row.uuid,
       page_type: row.page_type,
       name: row.name,
       slug: row.slug,
-    });
+    }]);
   }
 
   if (last.created_at !== cursor.created_at || last.uuid !== cursor.uuid) {

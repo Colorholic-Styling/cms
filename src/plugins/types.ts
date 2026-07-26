@@ -6,6 +6,9 @@
 // screens needs them.
 
 import type { BlueprintEntry } from '../cms-config';
+import type { PublishLectRule } from '../core/publish/projection';
+
+export type { PublishLectRule };
 
 /** A registered plugin (URL transport) stored in the `plugins` table. The CMS
  *  reaches it at `{url}/__plugin/...`; see src/plugins/registry.ts. */
@@ -54,10 +57,6 @@ export interface PluginFieldType {
  * public-facing Workers, so fields no published-side consumer needs (PII,
  * secrets) should never land there.
  */
-export interface PublishLectRule {
-  keep?: string[];
-  drop?: string[];
-}
 
 /** Content-type fragments a plugin merges into the effective CmsConfig. */
 export interface PluginContentTypes {

@@ -10,7 +10,7 @@
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import type { AppContext } from '../http/context';
 import { dashboardPageHref, userIdFromContext } from '../http/forms';
-import { pluginNav } from '../../plugins/registry';
+import { coreExtensions } from '../extensions';
 import { fetchUserAvatar } from '../db/admin-queries';
 import type { DashboardListResult } from '../db/admin-queries';
 import { userPermissions } from '../auth/permissions';
@@ -48,7 +48,7 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
   const requestUrl = new URL(c.req.url);
   const [userAvatar, navItems, permissions, branding, cmsOnce, uiLocale, systemTimezone, localeState, contributed] = await Promise.all([
     fetchUserAvatar(c.env.DB, userIdFromContext(c)),
-    pluginNav(c.env),
+    coreExtensions().sidebarNav?.(c.env) ?? [],
     userPermissions(c),
     loadAppBrandingSettings(c.env, fallbackSiteTitle),
     mintFormOnceToken(c.env.JWT_SECRET),
