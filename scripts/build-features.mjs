@@ -131,8 +131,32 @@ ${publics.join('\n')}
 `;
 }
 
+/**
+ * A feature whose dependency is switched off produces a build that compiles
+ * and deploys, then throws on the first request when assertFeatureRegistry
+ * runs. Catching it here turns that into a build failure with the fix in it.
+ */
+function assertProfile(ids) {
+  const installed = new Set(ids);
+  for (const id of ids) {
+    const file = path.join(featuresDir, id, 'feature.ts');
+    if (!existsSync(file)) continue;
+    const block = /requires:\s*\[([^\]]*)\]/.exec(readFileSync(file, 'utf8'));
+    if (!block) continue;
+    for (const dependency of [...block[1].matchAll(/'([\w-]+)'/g)].map((m) => m[1])) {
+      if (!installed.has(dependency)) {
+        throw new Error(
+          `cms.features.json enables "${id}", which requires "${dependency}" — but "${dependency}" is off. `
+          + `Enable it, or turn "${id}" off too.`,
+        );
+      }
+    }
+  }
+}
+
 function main() {
   const ids = enabledFeatures();
+  assertProfile(ids);
   const outputs = [[MANIFESTS, buildManifests(ids)], [ROUTERS, buildRouters(ids)]];
 
   if (process.argv.includes('--check')) {
