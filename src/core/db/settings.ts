@@ -99,6 +99,27 @@ export const APP_ICON_OPTIONS = [
 
 export type SidebarMenuItemKey = typeof SIDEBAR_MENU_ITEMS[number]['key'];
 export type SidebarMenuSettings = Record<SidebarMenuItemKey, { visible: boolean; weight: number }>;
+export type SidebarMenuItem = typeof SIDEBAR_MENU_ITEMS[number];
+
+/** The optional feature owning a sidebar entry, if any. */
+export function menuItemFeature(item: SidebarMenuItem): string | undefined {
+  return 'feature' in item ? item.feature : undefined;
+}
+
+/**
+ * The entries this build can show: an entry owned by a feature goes with that
+ * feature. Takes the predicate rather than reaching for the feature registry
+ * itself, so core stays independent of it — callers pass featureInstalled().
+ *
+ * Every screen that lists menu entries must go through here. The System
+ * Settings screen listed SIDEBAR_MENU_ITEMS directly and so offered visibility
+ * and weight controls for features that were not installed.
+ */
+export function installedMenuItems(
+  isInstalled: (feature?: string) => boolean,
+): readonly SidebarMenuItem[] {
+  return SIDEBAR_MENU_ITEMS.filter((item) => isInstalled(menuItemFeature(item)));
+}
 export type AppIcon = typeof APP_ICON_OPTIONS[number]['value'];
 
 export interface AppBrandingSettings {

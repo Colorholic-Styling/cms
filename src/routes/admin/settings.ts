@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
 import { coreExtensions } from '../../core/extensions';
+import { featureInstalled } from '../../features';
 import { systemSettingsPage } from '../../templates/settings';
 import type { Env, Variables } from '../../types';
 import { logAudit } from '../../core/db/audit';
@@ -8,6 +9,8 @@ import { renderPage } from '../../core/render/chrome';
 import {
   APP_ICON_OPTIONS,
   SIDEBAR_MENU_ITEMS,
+  installedMenuItems,
+  menuItemFeature,
   SYSTEM_TIMEZONE_OPTIONS,
   defaultPluginNavWeight,
   loadAppBrandingSettings,
@@ -44,6 +47,9 @@ settingsRoutes.get('/settings/system', async (c) => {
     coreExtensions().sidebarNav?.(c.env) ?? [],
     loadSystemTimezone(c.env),
   ]);
+  // An entry owned by a feature that is not installed has nothing to configure
+  // — the chrome would hide it whatever this screen saved.
+  const menuItems = installedMenuItems(featureInstalled);
   const menuOption = (item: typeof SIDEBAR_MENU_ITEMS[number]) => ({
     value: item.key,
     label: item.label,
@@ -85,9 +91,9 @@ settingsRoutes.get('/settings/system', async (c) => {
       selected: option.value === branding.appIcon,
     })),
     settingsGroupWeight: sidebarSettings.settingsGroupWeight,
-    mainOptions: SIDEBAR_MENU_ITEMS.filter((item) => item.group === 'main').map(menuOption),
-    settingsOptions: SIDEBAR_MENU_ITEMS.filter((item) => item.group === 'settings').map(menuOption),
-    options: SIDEBAR_MENU_ITEMS.map(menuOption),
+    mainOptions: menuItems.filter((item) => item.group === 'main').map(menuOption),
+    settingsOptions: menuItems.filter((item) => item.group === 'settings').map(menuOption),
+    options: menuItems.map(menuOption),
     pluginOptions,
     flashKey: c.req.query('flash') === 'saved' ? 'settings.system_saved' : '',
     errorKey: c.req.query('error') === 'invalid-timezone' ? 'settings.timezone_invalid' : '',
@@ -104,8 +110,19 @@ settingsRoutes.post('/settings/system', async (c) => {
     : normalizeSystemTimezone(submittedTimezone);
   if (!systemTimezone) return c.redirect('/admin/settings/system?error=invalid-timezone', 303);
   const pluginItems = await (coreExtensions().sidebarNav?.(c.env) ?? []);
-  const visibleKeys = form.getAll('visible_items').map(String);
-  const weights = Object.fromEntries(SIDEBAR_MENU_ITEMS.map((item) => [item.key, form.get(`weight_${item.key}`)]));
+  // Entries this build does not show were never rendered, so the form says
+  // nothing about them. Carry their saved state forward instead of reading the
+  // silence as "hidden" — otherwise re-enabling a feature brings it back off.
+  const saved = await loadSidebarChromeSettings(c.env);
+  const isShown = (item: typeof SIDEBAR_MENU_ITEMS[number]) => featureInstalled(menuItemFeature(item));
+  const visibleKeys = [
+    ...form.getAll('visible_items').map(String),
+    ...SIDEBAR_MENU_ITEMS.filter((item) => !isShown(item) && saved.items[item.key].visible).map((item) => item.key),
+  ];
+  const weights = Object.fromEntries(SIDEBAR_MENU_ITEMS.map((item) => [
+    item.key,
+    isShown(item) ? form.get(`weight_${item.key}`) : saved.items[item.key].weight,
+  ]));
   const pluginWeights = Object.fromEntries(pluginItems.map((item) => {
     const key = pluginSidebarKey(item);
     return [key, form.get(`plugin_weight_${encodeURIComponent(key)}`)];

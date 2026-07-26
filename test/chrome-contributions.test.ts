@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { signJWT } from '../src/core/auth/jwt';
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import { features } from '../src/features';
+import { installedMenuItems, menuItemFeature, SIDEBAR_MENU_ITEMS } from '../src/core/db/settings';
 import type { JWTPayload } from '../src/types';
 
 const IncomingRequest = Request;
@@ -110,5 +111,46 @@ describe('admin chrome feature contributions', () => {
     const ids = features.map((feature) => feature.id);
     expect(ids).toEqual([...new Set(ids)]);
     expect(ids).toContain('credits');
+  });
+});
+
+// Sidebar entries owned by a feature must disappear from every screen that
+// lists them when that feature is not installed — not just from the sidebar.
+// The System Settings screen listed SIDEBAR_MENU_ITEMS directly, so a build
+// with the features stripped still offered visibility and weight controls for
+// Plugins, Credits, Trash, Users and the rest.
+//
+// Tested through the predicate rather than through a request, because in this
+// build every feature IS installed: the only way to observe the filtering is
+// to ask what a different profile would show.
+describe('sidebar menu items by profile', () => {
+  it('offers every entry when all features are installed', () => {
+    expect(installedMenuItems(() => true).map((item) => item.key))
+      .toEqual(SIDEBAR_MENU_ITEMS.map((item) => item.key));
+  });
+
+  it('drops feature-owned entries in a core-only profile', () => {
+    // Nothing installed: only entries with no `feature` tag survive.
+    const keys = installedMenuItems((feature) => feature === undefined).map((item) => item.key);
+    expect(keys).toEqual(['pages', 'tags', 'taxonomies', 'system']);
+    for (const key of ['plugins', 'credits', 'trash', 'users', 'roles', 'languages', 'content', 'pageTypes', 'blockTypes']) {
+      expect(keys).not.toContain(key);
+    }
+  });
+
+  it('drops only the entries the dropped feature owns', () => {
+    const keys = installedMenuItems((feature) => feature !== 'users-roles').map((item) => item.key);
+    expect(keys).not.toContain('users');
+    expect(keys).not.toContain('roles');
+    expect(keys).toContain('plugins');
+    expect(keys).toContain('system');
+  });
+
+  it('tags every feature-owned entry with an id its feature claims', () => {
+    // A typo'd `feature` would silently hide the entry in every profile.
+    const owned = new Set(features.flatMap((feature) => feature.navKeys ?? []));
+    for (const item of SIDEBAR_MENU_ITEMS) {
+      if (menuItemFeature(item)) expect(owned).toContain(item.key);
+    }
   });
 });

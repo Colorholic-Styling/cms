@@ -18,6 +18,7 @@ import { viewRevision } from '../http/view-revision';
 import { mintFormOnceToken } from '../auth/form-once';
 import {
   SIDEBAR_MENU_ITEMS,
+  menuItemFeature,
   defaultPluginNavWeight,
   loadAppBrandingSettings,
   loadSystemTimezone,
@@ -30,11 +31,6 @@ import type { BaseTemplateProps, SidebarNavItem } from './layout';
 import { withActiveSidebarItems } from './sidebar';
 import { localeRegistry, resolveUiLocale } from '../i18n';
 import { featureInstalled, features } from '../../features';
-
-/** The optional feature owning a sidebar entry, if any. */
-function menuItemFeature(item: typeof SIDEBAR_MENU_ITEMS[number]): string | undefined {
-  return 'feature' in item ? item.feature : undefined;
-}
 
 /**
  * Builds the template props shared by every authenticated admin page:
