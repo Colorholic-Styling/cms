@@ -7,13 +7,13 @@
 // ============================================================
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
-import { requirePermission } from '../../core/auth/guards';
-import { renderPage } from '../../core/render/chrome';
-import { logAudit } from '../../core/db/audit';
-import { str, num } from '../../core/http/forms';
-import { getPlugins, clearManifestCache } from '../../plugins/registry';
-import { clearConfigCache } from '../../plugins/config';
+import type { Env, Variables } from '../../../types';
+import { requirePermission } from '../../../core/auth/guards';
+import { renderPage } from '../../../core/render/chrome';
+import { logAudit } from '../../../core/db/audit';
+import { str, num } from '../../../core/http/forms';
+import { getPlugins, clearManifestCache } from '../registry';
+import { clearConfigCache } from '../../../core/db/content-config';
 import {
   listPlugins,
   getPlugin,
@@ -25,18 +25,18 @@ import {
   setPluginSecret,
   generatePluginSecret,
   type PluginInput,
-} from '../../plugins/store';
-import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAsset } from '../../plugins/assets';
+} from '../store';
+import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAsset } from '../assets';
 import {
   approvePageTypeAccess,
   getPageTypeApproval,
   isPageTypeWildcard,
   listPageTypeApprovals,
   revokePageTypeAccess,
-} from '../../plugins/page-types';
-import { PLUGIN_ORIGIN } from '../../plugins/registry';
-import { pluginTenantId } from '../../plugins/proxy';
-import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../../plugins/enroll';
+} from '../page-types';
+import { PLUGIN_ORIGIN } from '../registry';
+import { pluginTenantId } from '../proxy';
+import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../enroll';
 import {
   countLimitUsage,
   declaredLimits,
@@ -45,7 +45,7 @@ import {
   saveLimitValues,
   type NormalizedLimitDef,
   type PluginLimitValues,
-} from '../../plugins/limits';
+} from '../limits';
 import {
   creditUnitLabel,
   declaredCredits,
@@ -53,7 +53,7 @@ import {
   saveCreditValues,
   type NormalizedCreditDef,
   type PluginCreditValues,
-} from '../../features/credits/service';
+} from '../../credits/service';
 import {
   pluginsManagePage,
   pluginFormPage,
@@ -64,8 +64,8 @@ import {
   type PluginCreditRow,
   type PluginLimitRow,
   type PluginListItem,
-} from '../../templates/plugins-manage';
-import type { PluginManifest, PluginPageTypeAccess } from '../../plugins/types';
+} from '../../../templates/plugins-manage';
+import type { PluginManifest, PluginPageTypeAccess } from '../types';
 
 export const pluginsManageRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

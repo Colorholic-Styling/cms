@@ -1,9 +1,9 @@
 // Shared editor rendering: the props the structured editor needs, plugin
 // edit/new/read view delegation, and page-version helpers.
 
-import { resolveCmsConfig } from '../../../plugins/config';
-import { pluginEditView, pluginNewView, pluginReadView } from '../../../plugins/edit-view';
-import type { EditViewContext, ReadViewContext } from '../../../plugins/edit-view';
+import { resolveCmsConfig } from '../../../core/db/content-config';
+import { pluginEditView, pluginNewView, pluginReadView } from '../../../features/plugins/edit-view';
+import type { EditViewContext, ReadViewContext } from '../../../features/plugins/edit-view';
 import { stringifyLect } from '../../../core/db/lect';
 import type { Lect } from '../../../core/db/lect';
 import type { Page, PageVersion } from '../../../types';

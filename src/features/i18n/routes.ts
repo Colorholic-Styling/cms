@@ -10,7 +10,7 @@ import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
 import { logAudit } from '../../core/db/audit';
 import { languagesPage, translationsPage, type LocaleViewRow } from './template';
-import { clearConfigCache } from '../../plugins/config';
+import { clearConfigCache } from '../../core/db/content-config';
 import {
   deleteLocale,
   deleteLocaleMessage,

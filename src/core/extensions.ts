@@ -28,6 +28,15 @@ export interface ContributedNavItem {
   i18n: boolean;
 }
 
+/** A content-type fragment contributed at runtime. */
+export interface ContributedContentTypes {
+  blueprint?: Record<string, unknown[]>;
+  blocks?: Record<string, unknown[]>;
+  blockLists?: Record<string, string[]>;
+  taxonomies?: Record<string, string>;
+  taxonomyLists?: Record<string, string[]>;
+}
+
 /** Page lifecycle events core announces to whoever is listening. */
 export type PageEvent = 'create' | 'submission' | 'update' | 'publish' | 'unpublish' | 'delete';
 
@@ -53,6 +62,11 @@ export interface CoreExtensions {
    * never overrides a CMS string or a database override.
    */
   localeCatalog?(env: Env, localeCode: string): Promise<Record<string, string>>;
+  /**
+   * Content-type fragments merged between the compiled base config and the
+   * database layer, so a database page type still overrides a contributed one.
+   */
+  contentTypes?(env: Env): Promise<ContributedContentTypes[]>;
   /** Per-page-type rules for what survives publication. */
   lectRules?(env: Env): Promise<Record<string, PublishLectRule>>;
   /** Announce a page lifecycle event. Must never throw or block the response. */

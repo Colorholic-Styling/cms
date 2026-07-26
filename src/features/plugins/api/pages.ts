@@ -7,9 +7,9 @@
 // pins that.
 
 import { Hono } from 'hono';
-import type { Env, Variables, Page } from '../../types';
+import type { Env, Variables, Page } from '../../../types';
 import type { AdvancedSearchInput, ApiPage, DuplicateInput, PageInput } from './types';
-import type { AppContext } from '../../core/http/context';
+import type { AppContext } from '../../../core/http/context';
 import { authenticatePlugin, forbiddenPageType } from './auth';
 import {
   asFiniteNumber,
@@ -36,20 +36,20 @@ import {
   existingSlugSet,
   generatedPageVersionIds,
 } from './create';
-import type { HookPage } from '../../plugins/hooks';
-import { checkCreateLimits, createCandidate } from '../../plugins/limits';
-import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../features/credits/service';
+import type { HookPage } from '../hooks';
+import { checkCreateLimits, createCandidate } from '../limits';
+import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../credits/service';
 import { emitPluginHook, emitPluginHooks } from './hooks';
-import { chineseSearchVariants } from '../../core/db/chinese';
-import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../core/db/search';
-import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../core/db/lect';
-import { resolveCmsConfig } from '../../plugins/config';
-import { withDraftMetadata } from '../../core/db/page-logic';
-import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../core/db/admin-queries';
-import { slugify } from '../../core/http/forms';
-import { pageTypeScopeAllows } from '../../plugins/page-types';
-import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../core/publish';
-import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../core/db/page-store';
+import { chineseSearchVariants } from '../../../core/db/chinese';
+import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../../core/db/search';
+import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../../core/db/lect';
+import { resolveCmsConfig } from '../../../core/db/content-config';
+import { withDraftMetadata } from '../../../core/db/page-logic';
+import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../../core/db/admin-queries';
+import { slugify } from '../../../core/http/forms';
+import { pageTypeScopeAllows } from '../page-types';
+import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../../core/publish';
+import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../../core/db/page-store';
 
 const DUPLICATE_BATCH = 100;
 const DUPLICATE_MAX_PER_CALL = 1000;

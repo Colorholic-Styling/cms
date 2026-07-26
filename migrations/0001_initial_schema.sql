@@ -10,8 +10,8 @@
 --   src/features/db-types/schema.sql
 --   src/core/jobs/schema.sql
 --   src/features/media/schema.sql
---   src/plugins/schema.sql
---   src/plugins/pointer-indexes.schema.sql
+--   src/features/plugins/schema.sql
+--   src/features/plugins/pointer-indexes.schema.sql
 --   src/features/trash/schema.sql
 -- ============================================================
 

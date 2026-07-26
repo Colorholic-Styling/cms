@@ -13,10 +13,10 @@
 // ============================================================
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../types';
-import { pluginById } from '../plugins/registry';
-import { pluginTenantId } from '../plugins/proxy';
-import { claimEnrollmentTicket, manifestAllowsAutoTenant } from '../plugins/enroll';
+import type { Env, Variables } from '../../../types';
+import { pluginById } from '../registry';
+import { pluginTenantId } from '../proxy';
+import { claimEnrollmentTicket, manifestAllowsAutoTenant } from '../enroll';
 
 export const cmsTenantRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

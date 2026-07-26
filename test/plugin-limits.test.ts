@@ -1,16 +1,16 @@
 import { env, exports } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
 import { signJWT } from '../src/core/auth/jwt';
 import {
   declaredLimits,
   limitsSettingKey,
   loadLimitValues,
   saveLimitValues,
-} from '../src/plugins/limits';
+} from '../src/features/plugins/limits';
 import type { JWTPayload } from '../src/types';
-import type { PluginManifest } from '../src/plugins/types';
+import type { PluginManifest } from '../src/features/plugins/types';
 
 // Plugin quota limits: manifest-declared, admin-configured, host-enforced on
 // every create path (/__cms API and the built-in admin editor).

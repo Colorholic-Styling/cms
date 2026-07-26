@@ -12,8 +12,9 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const usersRolesFeature: CmsFeature = {
   id: 'users-roles',
+  // The roles editor offers plugin-declared permissions.
+  requires: ['plugins', 'credits'],
   // The Users screen shows and adjusts credit balances, so it cannot be
   // installed without the credits feature that owns them.
-  requires: ['credits'],
   navKeys: ['users', 'roles'],
 };

@@ -11,5 +11,7 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const dbTypesFeature: CmsFeature = {
   id: 'db-types',
+  // Lists which page types a plugin owns, so its rows are read-only here.
+  requires: ['plugins'],
   navKeys: ['pageTypes', 'blockTypes'],
 };

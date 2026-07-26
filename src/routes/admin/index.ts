@@ -22,11 +22,9 @@ import { pagesRoutes } from './pages';
 import { tagsRoutes } from './tags';
 import { profileRoutes } from './profile';
 import { apiRoutes } from './api';
-import { pluginAdminRoutes } from './plugins';
-import { pluginsManageRoutes } from './plugins-manage';
 import { settingsRoutes } from './settings';
 import { i18nCatalogRoutes } from './i18n-catalog';
-import { viewsFor } from '../../plugins/views';
+import { viewsFor } from '../../features/plugins/views';
 import { featureRouters } from '../../features/routers';
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -53,7 +51,6 @@ adminRoutes.get('/views/*', async (c) => {
 });
 
 // Mount feature sub-routers. Order matters — see the note above.
-adminRoutes.route('/', pluginAdminRoutes);
 adminRoutes.route('/', profileRoutes);
 adminRoutes.route('/', pagesRoutes);
 // Installed optional features, mounted where their routers used to sit
@@ -62,7 +59,6 @@ for (const { router } of featureRouters) {
   adminRoutes.route('/', router);
 }
 adminRoutes.route('/', tagsRoutes);
-adminRoutes.route('/', pluginsManageRoutes);
 adminRoutes.route('/', i18nCatalogRoutes);
 adminRoutes.route('/', settingsRoutes);
 adminRoutes.route('/', apiRoutes);

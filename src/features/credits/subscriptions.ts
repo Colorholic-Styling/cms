@@ -38,8 +38,8 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { PluginCreditBilling } from '../../plugins/types';
-import { getPlugins } from '../../plugins/registry';
+import type { PluginCreditBilling } from '../plugins/types';
+import { getPlugins } from '../plugins/registry';
 import { type EffectiveCredit, effectiveCreditsForPlugin, spendCredits } from './service';
 
 /** Rows swept per cron tick — bounds sweep time and subrequests. */

@@ -14,7 +14,7 @@
 // ============================================================
 
 import type { ResolvedPlugin } from './types';
-import type { PublishAdapter, PublishSnapshot } from '../core/publish/adapter';
+import type { PublishAdapter, PublishSnapshot } from '../../core/publish/adapter';
 import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 
 async function post(plugin: ResolvedPlugin, secret: string, tenantId: string, path: string, body: unknown, optional = false): Promise<void> {

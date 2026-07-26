@@ -19,9 +19,9 @@
 // and stored hashed so a `settings` read never yields a usable one.
 // ============================================================
 
-import type { Env } from '../types';
+import type { Env } from '../../types';
 import type { PluginManifest, ResolvedPlugin } from './types';
-import { getSetting, saveSetting } from '../core/db/settings';
+import { getSetting, saveSetting } from '../../core/db/settings';
 import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { pluginTenantId, timingSafeEqualStr } from './proxy';
 

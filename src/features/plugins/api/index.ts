@@ -28,7 +28,7 @@
 // ============================================================
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
+import type { Env, Variables } from '../../../types';
 import { limitsApiRoutes } from './limits';
 import { creditsApiRoutes } from './credits';
 import { contentApiRoutes } from './content';

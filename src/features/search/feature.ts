@@ -10,5 +10,7 @@ import type { CmsFeature } from '../../core/feature';
  */
 export const searchFeature: CmsFeature = {
   id: 'search',
+  // The results export button deep-links into the import-export plugin.
+  requires: ['plugins'],
   navKeys: [],
 };

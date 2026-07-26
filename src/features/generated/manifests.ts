@@ -8,6 +8,7 @@ import { creditsFeature } from '../credits/feature';
 import { dbTypesFeature } from '../db-types/feature';
 import { i18nFeature } from '../i18n/feature';
 import { mediaFeature } from '../media/feature';
+import { pluginsFeature } from '../plugins/feature';
 import { searchFeature } from '../search/feature';
 import { trashFeature } from '../trash/feature';
 import { usersRolesFeature } from '../users-roles/feature';
@@ -18,6 +19,7 @@ export const featureManifests: readonly CmsFeature[] = [
   dbTypesFeature,
   i18nFeature,
   mediaFeature,
+  pluginsFeature,
   searchFeature,
   trashFeature,
   usersRolesFeature,

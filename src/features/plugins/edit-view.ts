@@ -20,18 +20,18 @@
 // markup through Liquid snippets / view files rather than inline scripts.
 // ============================================================
 
-import type { AppContext } from '../core/http/context';
+import type { AppContext } from '../../core/http/context';
 import type { ResolvedPlugin } from './types';
 import { pluginForEditView, pluginForNewView, pluginForReadView, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
-import { adminLayout, escHtml, type ApprovedPluginAssets } from '../core/render/layout';
-import { pluginClientView } from '../core/render/liquid';
-import { buildBaseProps } from '../core/render/chrome';
+import { adminLayout, escHtml, type ApprovedPluginAssets } from '../../core/render/layout';
+import { pluginClientView } from '../../core/render/liquid';
+import { buildBaseProps } from '../../core/render/chrome';
 import { viewsFor } from './views';
 import { sanitizePluginHtmlFragment } from './sanitize';
 import { isPluginClientViewResponse, pluginTenantId, readPluginClientViewData, setPluginAuthHeaders } from './proxy';
 import { listApprovals } from './assets';
-import { pluginViewRevision, pluginWorkerRevision } from '../core/http/view-revision';
-import { resolveUiLocale } from '../core/i18n';
+import { pluginViewRevision, pluginWorkerRevision } from '../../core/http/view-revision';
+import { resolveUiLocale } from '../../core/i18n';
 
 /** Editor context the CMS sends to a plugin's `/__plugin/edit` endpoint. */
 export interface EditViewContext {

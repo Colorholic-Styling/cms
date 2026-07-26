@@ -6,19 +6,19 @@
 // content-language list. `mis` remains the site-level default.
 // ============================================================
 
-import { cmsConfig } from '../cms-config';
-import type { CmsConfig } from '../cms-config';
-import { getPlugins } from './registry';
+import { cmsConfig } from '../../cms-config';
+import type { CmsConfig } from '../../cms-config';
+import { coreExtensions } from '../extensions';
 import {
   applyPageTypeExtensions,
   dbPageTypeToContentTypes,
   listDbPageTypes,
   loadPageTypeExtensions,
-} from '../core/db/page-type-store';
-import { dbBlockTypeToContentTypes, listDbBlockTypes } from '../core/db/block-type-store';
-import type { Env } from '../types';
-import type { PluginContentTypes } from './types';
-import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../core/i18n';
+} from './page-type-store';
+import { dbBlockTypeToContentTypes, listDbBlockTypes } from './block-type-store';
+import type { Env } from '../../types';
+import type { ContributedContentTypes as PluginContentTypes } from '../extensions';
+import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../i18n';
 
 const CONFIG_TTL_MS = 60_000;
 let cached: { config: CmsConfig; expires: number } | null = null;
@@ -49,7 +49,7 @@ function safeAssign<T>(target: Record<string, T>, source: Record<string, T> | un
 export async function resolveCmsConfig(env: Env): Promise<CmsConfig> {
   if (cached && cached.expires > Date.now()) return cached.config;
 
-  const plugins = await getPlugins(env);
+  const contributed = await coreExtensions().contentTypes?.(env) ?? [];
   const [dbPageTypes, dbBlockTypes, registry, extensions] = env.DB
     ? await Promise.all([
         listDbPageTypes(env.DB),
@@ -70,8 +70,8 @@ export async function resolveCmsConfig(env: Env): Promise<CmsConfig> {
     taxonomyLists: { ...cmsConfig.taxonomyLists },
   };
 
-  for (const plugin of plugins) {
-    mergeContentTypes(merged, plugin.manifest.contentTypes);
+  for (const fragment of contributed) {
+    mergeContentTypes(merged, fragment);
   }
 
   for (const pageType of dbPageTypes) {

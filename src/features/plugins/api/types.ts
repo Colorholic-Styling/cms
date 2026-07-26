@@ -1,8 +1,8 @@
 // Shared shapes for the /__cms plugin API modules. Types only: no runtime
 // code, so every module can import from here without creating a cycle.
 
-import type { ResolvedPlugin } from '../../plugins/types';
-import type { Lect } from '../../core/db/lect';
+import type { ResolvedPlugin } from '../types';
+import type { Lect } from '../../../core/db/lect';
 
 export interface ApiPage {
   id: number;

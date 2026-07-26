@@ -5,8 +5,8 @@
 // than half of it, and nothing outside the plugin platform and its admin
 // screens needs them.
 
-import type { BlueprintEntry } from '../cms-config';
-import type { PublishLectRule } from '../core/publish/projection';
+import type { BlueprintEntry } from '../../cms-config';
+import type { PublishLectRule } from '../../core/publish/projection';
 
 export type { PublishLectRule };
 

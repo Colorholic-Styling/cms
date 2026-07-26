@@ -1,9 +1,9 @@
 import { env, exports } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
 import { restoreTrashedPages } from '../src/core/db/admin-queries';
-import { approvePageTypeAccess } from '../src/plugins/page-types';
+import { approvePageTypeAccess } from '../src/features/plugins/page-types';
 
 // Plugin API — plugin write-back API (/__cms/*). Exercises the real Worker so the
 // global middleware (canonical host, cross-origin exemption, auth) is in play.

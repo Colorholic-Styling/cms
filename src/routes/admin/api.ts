@@ -7,7 +7,7 @@ import type { Env, Variables, Tag, Taxonomy } from '../../types';
 import { num } from '../../core/http/forms';
 import { requirePermission } from '../../core/auth/guards';
 import type { AppContext } from '../../core/http/context';
-import { resolveCmsConfig } from '../../plugins/config';
+import { resolveCmsConfig } from '../../core/db/content-config';
 
 export const apiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

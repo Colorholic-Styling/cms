@@ -20,6 +20,8 @@ export interface FeatureRouterEntry {
   /** Matches a CmsFeature id in ./index.ts. */
   readonly id: string;
   readonly router: FeatureRouter;
+  /** Mount prefix for root-mounted routers; defaults to '/'. */
+  readonly basePath?: string;
 }
 
 /** Mounted under /admin by routes/admin/index.ts. */

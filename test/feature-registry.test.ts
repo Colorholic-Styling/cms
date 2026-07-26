@@ -20,6 +20,7 @@ describe('feature registry', () => {
       'db-types',
       'i18n',
       'media',
+      'plugins',
       'search',
       'trash',
       'users-roles',

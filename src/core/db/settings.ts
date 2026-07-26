@@ -38,7 +38,7 @@ export const SIDEBAR_MENU_ITEMS = [
   { key: 'blockTypes', label: 'Block Types', description: 'Database-defined block settings link.', href: '/admin/block_types', icon: 'blocks', group: 'settings', defaultWeight: 30, feature: 'db-types' },
   { key: 'users', label: 'Users & Credits', description: 'User and credit management link for permitted roles.', href: '/admin/users', icon: 'users', group: 'settings', defaultWeight: 40, feature: 'users-roles' },
   { key: 'roles', label: 'Roles', description: 'Role and permission management link.', href: '/admin/roles', icon: 'shield-check', group: 'settings', defaultWeight: 50, feature: 'users-roles' },
-  { key: 'plugins', label: 'Plugins', description: 'Plugin registry settings link.', href: '/admin/plugins-manage', icon: 'beaker', group: 'settings', defaultWeight: 60 },
+  { key: 'plugins', label: 'Plugins', description: 'Plugin registry settings link.', href: '/admin/plugins-manage', icon: 'beaker', group: 'settings', defaultWeight: 60, feature: 'plugins' },
   { key: 'credits', label: 'Credit Summary', description: 'Chargeable actions and effective prices across plugins.', href: '/admin/settings/credits', icon: 'coins', group: 'settings', defaultWeight: 65, feature: 'credits' },
   { key: 'languages', label: 'Languages', description: 'Content languages and CMS interface translations.', href: '/admin/settings/languages', icon: 'globe', group: 'settings', defaultWeight: 67, feature: 'i18n' },
   { key: 'system', label: 'System', description: 'App branding, menu visibility, and menu order.', href: '/admin/settings/system', icon: 'settings', group: 'settings', defaultWeight: 70 },

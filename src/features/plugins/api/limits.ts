@@ -1,10 +1,10 @@
 // GET /limits — the calling plugin's effective creation limits and usage.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
+import type { Env, Variables } from '../../../types';
 import { authenticatePlugin } from './auth';
 import { asFiniteNumber } from './serialize';
-import { countLimitUsage, effectiveLimitsForPlugin } from '../../plugins/limits';
+import { countLimitUsage, effectiveLimitsForPlugin } from '../limits';
 
 export const limitsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

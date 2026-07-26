@@ -1,6 +1,6 @@
-import { timingSafeEqualStr } from '../core/http/crypto';
+import { timingSafeEqualStr } from '../../core/http/crypto';
 export { timingSafeEqualStr };
-import type { JWTPayload } from '../types';
+import type { JWTPayload } from '../../types';
 import { sanitizePluginHtmlResponse } from './sanitize';
 
 const FORWARD_HEADERS = [

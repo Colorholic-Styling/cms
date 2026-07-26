@@ -7,7 +7,7 @@
 // from the admin UI (plugin:manage) with no CMS redeploy.
 // ============================================================
 
-import type { Env } from '../types';
+import type { Env } from '../../types';
 import type { PluginHookEvent, PluginManifest, ResolvedPlugin, PluginRecord } from './types';
 import { listEnabledPlugins } from './store';
 

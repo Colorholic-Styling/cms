@@ -5,12 +5,12 @@
 // itself, so overdraft protection cannot be bypassed by a compromised plugin.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
+import type { Env, Variables } from '../../../types';
 import { authenticatePlugin } from './auth';
 import { asFiniteNumber } from './serialize';
 import { actingUserId } from './create';
-import { effectiveCreditsForPlugin, getCreditBalance, getSharedCreditBalance, spendCredits } from '../../features/credits/service';
-import { listSubscriptionsForPlugin, reportSubscriptionUsage, type CreditSubscriptionRow } from '../../features/credits/subscriptions';
+import { effectiveCreditsForPlugin, getCreditBalance, getSharedCreditBalance, spendCredits } from '../../credits/service';
+import { listSubscriptionsForPlugin, reportSubscriptionUsage, type CreditSubscriptionRow } from '../../credits/subscriptions';
 
 export const creditsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

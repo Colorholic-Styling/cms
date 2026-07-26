@@ -6,13 +6,13 @@ import {
   getAssetApproval,
   listApprovals,
   revokeAsset,
-} from '../src/plugins/assets';
+} from '../src/features/plugins/assets';
 import {
   approvePageTypeAccess,
   getPageTypeApproval,
   listPageTypeApprovals,
   revokePageTypeAccess,
-} from '../src/plugins/page-types';
+} from '../src/features/plugins/page-types';
 
 beforeEach(async () => {
   await env.DB.prepare('DELETE FROM plugin_asset_approvals').run();

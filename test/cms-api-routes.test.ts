@@ -11,7 +11,7 @@
 // that can reorder registrations without any other test noticing.
 
 import { describe, expect, it } from 'vitest';
-import { cmsApiRoutes } from '../src/routes/cms-api';
+import { cmsApiRoutes } from '../src/features/plugins/api';
 
 const EXPECTED = [
   'GET /limits',

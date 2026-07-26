@@ -3,14 +3,14 @@
 
 import { Hono } from 'hono';
 import { dashboardPage } from '../../../templates/dashboard';
-import { resolveCmsConfig } from '../../../plugins/config';
+import { resolveCmsConfig } from '../../../core/db/content-config';
 import { advancedSearchPageTypes } from '../../../core/db/search';
-import { dispatchHook } from '../../../plugins/hooks';
+import { dispatchHook } from '../../../features/plugins/hooks';
 import { blueprintToLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page } from '../../../types';
 import type { BlueprintEntry } from '../../../cms-config';
 import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
-import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../plugins/limits';
+import { checkCreateLimits, createCandidate, limitViolationMessage } from '../../../features/plugins/limits';
 import { pageCreateAction, pageCreateCostForType, refundCredits, spendCredits, type CreditSource } from '../../../features/credits/service';
 import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
 import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
@@ -18,7 +18,7 @@ import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
 import { userCan } from '../../../core/auth/permissions';
-import { importExportHrefs } from '../../../plugins/import-export';
+import { importExportHrefs } from '../../../features/plugins/import-export';
 import { loadAdminHomeSettings } from '../../../core/db/settings';
 import { requirePermission } from '../../../core/auth/guards';
 import type { AppContext } from '../../../core/http/context';

@@ -1,11 +1,11 @@
 // Wire format for /__cms: turning D1 rows into the JSON plugins receive, and
 // coercing the loosely-typed JSON they send back into something safe to store.
 
-import type { Page } from '../../types';
+import type { Page } from '../../../types';
 import type { ApiPage, ApiPageTag, AdvancedSearchInput } from './types';
-import { safeParseLect } from '../../core/db/lect';
-import type { Lect } from '../../core/db/lect';
-import type { AdvancedSearchCriterion } from '../../core/db/search';
+import { safeParseLect } from '../../../core/db/lect';
+import type { Lect } from '../../../core/db/lect';
+import type { AdvancedSearchCriterion } from '../../../core/db/search';
 
 // ── Serialization ─────────────────────────────────────────────────────────────
 

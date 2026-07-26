@@ -1,13 +1,13 @@
 import { env, exports } from 'cloudflare:workers';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveCmsConfig, clearConfigCache } from '../src/plugins/config';
-import { clearManifestCache, getPlugins, __injectPluginFetcher, __clearInjectedFetchers } from '../src/plugins/registry';
-import { deliverHook } from '../src/plugins/hooks';
-import { viewsFor } from '../src/plugins/views';
+import { resolveCmsConfig, clearConfigCache } from '../src/core/db/content-config';
+import { clearManifestCache, getPlugins, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
+import { deliverHook } from '../src/features/plugins/hooks';
+import { viewsFor } from '../src/features/plugins/views';
 import { cmsConfig } from '../src/cms-config';
 import { signJWT } from '../src/core/auth/jwt';
 import { CMS_ADMIN_JOB_KIND, type CmsAdminJobMessage } from '../src/core/jobs/queue';
-import { approveAsset, computeIntegrity } from '../src/plugins/assets';
+import { approveAsset, computeIntegrity } from '../src/features/plugins/assets';
 import { mintFormOnceToken } from '../src/core/auth/form-once';
 import type { Env, JWTPayload } from '../src/types';
 

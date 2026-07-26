@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
-import { resolveCmsConfig } from '../../plugins/config';
+import { resolveCmsConfig } from '../../core/db/content-config';
 import type { Env, Permission, Variables } from '../../types';
 import {
   cmsAdminJobMessage,

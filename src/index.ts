@@ -10,10 +10,7 @@
 import { Hono } from 'hono';
 import { authRoutes } from './routes/auth';
 import { adminRoutes } from './routes/admin';
-import { cmsApiRoutes } from './routes/cms-api';
-import { cmsTenantRoutes } from './routes/cms-tenant';
 import { publicRouters } from './features/routers';
-import './plugins/extensions';
 import { errorPage } from './core/render/errors';
 import {
   canonicalHostResponse,
@@ -88,15 +85,9 @@ app.route('/auth', authRoutes);
 // ── Admin UI (protected) ──────────────────────────────────────────────────────
 app.route('/admin', adminRoutes);
 
-// ── Plugin API — plugin page read/write, PLUGIN_SECRET-authenticated ──────────
-app.route('/__cms', cmsApiRoutes);
-
-// ── Plugin tenant enrollment — ticket-authenticated, pre-secret handshake ─────
-app.route('/__cms', cmsTenantRoutes);
-
 // ── Public routes contributed by installed features (media delivery) ─────────
-for (const { router } of publicRouters) {
-  app.route('/', router);
+for (const { router, basePath } of publicRouters) {
+  app.route(basePath ?? '/', router);
 }
 
 app.get('/views/*', async (c) => {

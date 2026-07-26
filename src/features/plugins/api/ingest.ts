@@ -2,9 +2,9 @@
 // on demand, the same bounded batch the cron tick runs.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
+import type { Env, Variables } from '../../../types';
 import { authenticatePlugin } from './auth';
-import { ingestSubmissions } from '../../core/db/submission-ingest';
+import { ingestSubmissions } from '../../../core/db/submission-ingest';
 
 export const ingestApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

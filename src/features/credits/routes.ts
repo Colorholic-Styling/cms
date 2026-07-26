@@ -8,10 +8,10 @@ import { Hono } from 'hono';
 import type { Env, Variables } from '../../types';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
-import { getPlugins } from '../../plugins/registry';
-import { listPlugins } from '../../plugins/store';
+import { getPlugins } from '../plugins/registry';
+import { listPlugins } from '../plugins/store';
 import { creditUnitLabel, effectiveCreditsForPlugin, type EffectiveCredit } from './service';
-import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../../plugins/limits';
+import { effectiveLimitsForPlugin, type NormalizedLimitDef } from '../plugins/limits';
 import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from './template';
 
 export const creditSettingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

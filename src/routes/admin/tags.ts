@@ -28,8 +28,8 @@ import { requirePermission } from '../../core/auth/guards';
 import { removeTagFromTargets } from '../../core/publish';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
-import { resolveCmsConfig } from '../../plugins/config';
-import { getPlugins } from '../../plugins/registry';
+import { resolveCmsConfig } from '../../core/db/content-config';
+import { getPlugins } from '../../features/plugins/registry';
 import { configOnlyTypes } from '../../core/db/type-admin';
 import type { AppContext } from '../../core/http/context';
 

@@ -4,7 +4,7 @@
 // Worker, so the host only needs to know where to point the buttons — and to
 // hide them when the plugin is not installed.
 
-import type { AppContext } from '../core/http/context';
+import type { AppContext } from '../../core/http/context';
 import { pluginById } from './registry';
 
 /** Manifest id of the plugin that owns CSV import/export since its extraction. */

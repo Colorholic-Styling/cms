@@ -1,5 +1,5 @@
 import type { Env } from '../../types';
-import type { PluginManifest } from '../../plugins/types';
+import type { PluginManifest } from '../../features/plugins/types';
 
 export function viewRevision(env: Pick<Env, 'CF_VERSION_METADATA' | 'VIEW_REVISION'>): string {
   const value = env.CF_VERSION_METADATA?.id

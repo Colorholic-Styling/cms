@@ -11,7 +11,7 @@
 //   2. each active plugin's GET /__plugin/views/<path>
 // ============================================================
 
-import type { Env } from '../types';
+import type { Env } from '../../types';
 import { getPlugins, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 
 /**

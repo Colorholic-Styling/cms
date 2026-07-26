@@ -58,6 +58,7 @@ describe('feature router mounting', () => {
     ['i18n', '/admin/settings/languages'],
     ['i18n', '/admin/settings/translations'],
     ['credits', '/admin/settings/credits'],
+    ['plugins', '/admin/plugins-manage'],
   ];
 
   for (const [feature, path] of entryPoints) {

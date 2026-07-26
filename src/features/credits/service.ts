@@ -33,9 +33,9 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { PluginCreditBilling, PluginCreditCharge, PluginCreditDef, PluginManifest, ResolvedPlugin } from '../../plugins/types';
-import { getPlugins } from '../../plugins/registry';
-import { limitScopeTypes } from '../../plugins/limits';
+import type { PluginCreditBilling, PluginCreditCharge, PluginCreditDef, PluginManifest, ResolvedPlugin } from '../plugins/types';
+import { getPlugins } from '../plugins/registry';
+import { limitScopeTypes } from '../plugins/limits';
 import { getSetting, saveSetting } from '../../core/db/settings';
 
 /** Cap on manifest-declared credit costs honored per plugin. */

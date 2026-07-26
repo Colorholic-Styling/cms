@@ -70,8 +70,12 @@ function routerExports(id) {
   }
   const out = [];
   for (const [specifier, file, isPublic] of candidates) {
-    const names = [...readFileSync(file, 'utf8').matchAll(/^export const (\w*Routes)\b/gm)].map((m) => m[1]).sort();
-    if (names.length) out.push({ specifier, names, isPublic });
+    const source = readFileSync(file, 'utf8');
+    const names = [...source.matchAll(/^export (?:const |\{[^}]*\bas\s+)(\w*Routes)\b/gm)].map((m) => m[1]).sort();
+    // A routes file may declare its own mount prefix (e.g. /__cms); doing so
+    // also takes it out of the admin stack.
+    const base = /^export const basePath = '([^']+)'/m.exec(source)?.[1];
+    if (names.length) out.push({ specifier, names, isPublic: isPublic || Boolean(base), basePath: base });
   }
   return out;
 }
@@ -103,10 +107,11 @@ function buildRouters(ids) {
   const admin = [];
   const publics = [];
   for (const id of ids) {
-    for (const { specifier, names, isPublic } of routerExports(id)) {
+    for (const { specifier, names, isPublic, basePath } of routerExports(id)) {
       imports.push(`import { ${names.join(', ')} } from '${specifier}';`);
+      const suffix = basePath ? `, basePath: '${basePath}'` : '';
       for (const name of names) {
-        (isPublic ? publics : admin).push(`  { id: '${id}', router: ${name} },`);
+        (isPublic ? publics : admin).push(`  { id: '${id}', router: ${name}${suffix} },`);
       }
     }
   }

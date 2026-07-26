@@ -7,12 +7,12 @@
 // rather than surfaced to the user.
 // ============================================================
 
-import type { AppContext } from '../core/http/context';
-import type { Env, JWTPayload } from '../types';
+import type { AppContext } from '../../core/http/context';
+import type { Env, JWTPayload } from '../../types';
 import type { PluginHookEvent } from './types';
 import { pluginsForHook, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { pluginTenantId } from './proxy';
-import { logAudit } from '../core/db/audit';
+import { logAudit } from '../../core/db/audit';
 
 /** A minimal page snapshot delivered to plugins. Plugins receive whatever the
  *  triggering handler has on hand — `id` is always present. */

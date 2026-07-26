@@ -4,11 +4,11 @@
 // does nothing when the platform is absent, which is what makes the platform
 // droppable: nothing in core/ names it.
 
-import { registerCoreExtensions, type ContributedNavItem } from '../core/extensions';
-import type { PublishAdapter } from '../core/publish/adapter';
-import type { PublishLectRule } from '../core/publish/projection';
-import { flattenMessages } from '../core/i18n';
-import type { Env, JWTPayload } from '../types';
+import { registerCoreExtensions, type ContributedContentTypes, type ContributedNavItem } from '../../core/extensions';
+import type { PublishAdapter } from '../../core/publish/adapter';
+import type { PublishLectRule } from '../../core/publish/projection';
+import { flattenMessages } from '../../core/i18n';
+import type { Env, JWTPayload } from '../../types';
 import { getPlugins, pluginById, pluginNav, PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 import { pluginTenantId, setPluginAuthHeaders } from './proxy';
 import { deliverHooks } from './hooks';
@@ -25,6 +25,12 @@ registerCoreExtensions({
       adapters.push(pluginAdapter(plugin, plugin.secret, pluginTenantId(env)));
     }
     return adapters;
+  },
+
+  async contentTypes(env: Env): Promise<ContributedContentTypes[]> {
+    return (await getPlugins(env))
+      .map((plugin) => plugin.manifest.contentTypes)
+      .filter((types): types is NonNullable<typeof types> => Boolean(types));
   },
 
   async sidebarNav(env: Env): Promise<ContributedNavItem[]> {

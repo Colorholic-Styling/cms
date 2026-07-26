@@ -10,6 +10,9 @@ import { i18nRoutes } from '../i18n/routes';
 import { mediaFilesRoutes } from '../media/routes/files';
 import { mediaPublicRoutes } from '../media/routes/public';
 import { mediaUploadRoutes } from '../media/routes/upload';
+import { pluginAdminRoutes } from '../plugins/routes/admin-proxy';
+import { pluginApiRoutes, pluginTenantRoutes } from '../plugins/routes/cms-api';
+import { pluginsManageRoutes } from '../plugins/routes/manage';
 import { searchRoutes } from '../search/routes';
 import { trashRoutes } from '../trash/routes';
 import { rolesRoutes } from '../users-roles/routes/roles';
@@ -23,6 +26,8 @@ export const adminRouterEntries: readonly FeatureRouterEntry[] = [
   { id: 'i18n', router: i18nRoutes },
   { id: 'media', router: mediaFilesRoutes },
   { id: 'media', router: mediaUploadRoutes },
+  { id: 'plugins', router: pluginAdminRoutes },
+  { id: 'plugins', router: pluginsManageRoutes },
   { id: 'search', router: searchRoutes },
   { id: 'trash', router: trashRoutes },
   { id: 'users-roles', router: rolesRoutes },
@@ -32,4 +37,6 @@ export const adminRouterEntries: readonly FeatureRouterEntry[] = [
 /** Mounted at the worker root, outside the auth stack. */
 export const publicRouterEntries: readonly FeatureRouterEntry[] = [
   { id: 'media', router: mediaPublicRoutes },
+  { id: 'plugins', router: pluginApiRoutes, basePath: '/__cms' },
+  { id: 'plugins', router: pluginTenantRoutes, basePath: '/__cms' },
 ];

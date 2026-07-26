@@ -2,7 +2,7 @@
 // published stores, and soft-deleting it to trash.
 
 import { Hono } from 'hono';
-import { dispatchHook } from '../../../plugins/hooks';
+import { dispatchHook } from '../../../features/plugins/hooks';
 import type { Env, Variables } from '../../../types';
 import { appendQuery, safeAdminReturnPath } from '../../../core/http/forms';
 import { trashDraftPage } from '../../../core/db/admin-queries';

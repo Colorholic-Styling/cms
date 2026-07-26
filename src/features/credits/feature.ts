@@ -14,6 +14,10 @@ import { userIdFromContext } from '../../core/http/forms';
  */
 export const creditsFeature: CmsFeature = {
   id: 'credits',
+  // Credit definitions come from plugin manifests, and the charge engine
+  // prices them per plugin, so credits cannot be installed without the
+  // platform that declares them.
+  requires: ['plugins'],
   navKeys: ['credits'],
   async baseProps(c) {
     const [userCredits, sharedCredits] = await Promise.all([

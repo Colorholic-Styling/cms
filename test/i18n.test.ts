@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { Env } from '../src/types';
-import { clearConfigCache, resolveCmsConfig } from '../src/plugins/config';
+import { clearConfigCache, resolveCmsConfig } from '../src/core/db/content-config';
 import {
   buildTranslationCatalog,
   deleteLocale,

@@ -12,14 +12,14 @@ import { typeFormPage, typeListPage } from './template';
 import type { TypeAdminCopy, TypeFormModel, TypeFormOption } from './template';
 import { cmsConfig, type CmsConfig } from '../../cms-config';
 import type { Env, Variables, Permission } from '../../types';
-import type { ResolvedPlugin } from '../../plugins/types';
+import type { ResolvedPlugin } from '../plugins/types';
 import { num, slugify, str } from '../../core/http/forms';
 import { logAudit } from '../../core/db/audit';
 import { requirePermission } from '../../core/auth/guards';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
-import { clearConfigCache, resolveCmsConfig } from '../../plugins/config';
-import { getPlugins } from '../../plugins/registry';
+import { clearConfigCache, resolveCmsConfig } from '../../core/db/content-config';
+import { getPlugins } from '../plugins/registry';
 import {
   listDbPageTypes,
   loadPageTypeExtensions,

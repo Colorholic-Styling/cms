@@ -2,13 +2,13 @@
 // import UI (page types, blueprint fields, taxonomies) plus tag upsert.
 
 import { Hono } from 'hono';
-import type { Env, Variables } from '../../types';
+import type { Env, Variables } from '../../../types';
 import { authenticatePlugin, forbiddenPageType } from './auth';
 import { stringList } from './serialize';
-import { resolveCmsConfig } from '../../plugins/config';
-import { editorTaxonomy, ensureTagByName } from '../../core/db/admin-queries';
-import { advancedSearchPathSpecs } from '../../core/db/search';
-import { pageTypeScopeAllows } from '../../plugins/page-types';
+import { resolveCmsConfig } from '../../../core/db/content-config';
+import { editorTaxonomy, ensureTagByName } from '../../../core/db/admin-queries';
+import { advancedSearchPathSpecs } from '../../../core/db/search';
+import { pageTypeScopeAllows } from '../page-types';
 
 export const contentApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

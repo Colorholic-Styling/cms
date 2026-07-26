@@ -1,10 +1,10 @@
 import { env, exports } from 'cloudflare:workers';
 import { Hono } from 'hono';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers, getPlugins } from '../src/plugins/registry';
-import { clearConfigCache } from '../src/plugins/config';
-import { cmsTenantRoutes } from '../src/routes/cms-tenant';
-import { claimEnrollmentTicket, enrollPluginTenant, revokePluginTenant } from '../src/plugins/enroll';
+import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers, getPlugins } from '../src/features/plugins/registry';
+import { clearConfigCache } from '../src/core/db/content-config';
+import { cmsTenantRoutes } from '../src/features/plugins/api/tenant';
+import { claimEnrollmentTicket, enrollPluginTenant, revokePluginTenant } from '../src/features/plugins/enroll';
 import { getSetting } from '../src/core/db/settings';
 import type { Env } from '../src/types';
 

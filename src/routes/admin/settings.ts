@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
-import { pluginNav } from '../../plugins/registry';
+import { pluginNav } from '../../features/plugins/registry';
 import { systemSettingsPage } from '../../templates/settings';
 import type { Env, Variables } from '../../types';
 import { logAudit } from '../../core/db/audit';

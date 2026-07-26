@@ -10,7 +10,7 @@ import { logAudit } from '../../../core/db/audit';
 import { requirePermission } from '../../../core/auth/guards';
 import { renderPage } from '../../../core/render/chrome';
 import { clearRolePermissionsCache, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
-import { allPluginPermissions } from '../../../plugins/registry';
+import { allPluginPermissions } from '../../plugins/registry';
 import {
   createCustomRole,
   deleteCustomRole,

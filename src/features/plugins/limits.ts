@@ -21,12 +21,12 @@
 // Trash restore is likewise not gated.
 // ============================================================
 
-import type { Env } from '../types';
+import type { Env } from '../../types';
 import type { PluginLimitDef, PluginLimitScope, PluginManifest, ResolvedPlugin } from './types';
 import { getPlugins } from './registry';
 import { listPageTypeApprovals } from './page-types';
-import { getSetting, saveSetting } from '../core/db/settings';
-import { safeParseLect } from '../core/db/lect';
+import { getSetting, saveSetting } from '../../core/db/settings';
+import { safeParseLect } from '../../core/db/lect';
 
 /** Cap on manifest-declared limits honored per plugin. */
 export const MAX_DECLARED_LIMITS = 20;
