@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
-import { availableFeatures, baselinePaths, buildCms, readManifest } from './scripts/build-migrations.mjs';
+import { availableFeatures, baselinePaths, buildCms, readManifest } from './tools/build-migrations.mjs';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 

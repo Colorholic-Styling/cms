@@ -1,7 +1,15 @@
-# Browser client source
+# Asset sources
 
-This directory contains browser-side JavaScript that must be bundled before it
-can be served by the CMS.
+Sources that need a build step before the CMS can serve them, compiled into
+`views/assets/`:
+
+| Source | Built by | Output |
+|---|---|---|
+| `admin.css` | `npm run build:css` (Tailwind) | `views/assets/admin.css` |
+| `richtext-md.js` | `npm run build:js` (esbuild) | `views/assets/richtext-md.js` |
+
+They live here rather than in `views/` because `wrangler.toml` serves that
+entire directory as public assets — sources placed there would be published.
 
 Most small CMS browser scripts can live directly in `views/assets`. The rich
 text editor is different because `richtext-md.js` imports the npm packages

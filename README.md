@@ -574,7 +574,7 @@ current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
 `npm run build` regenerates two things: the code registries a feature is
 mounted through, and the schema its tables come from.
 
-**Code.** `scripts/build-features.mjs` writes `src/features/generated/` from
+**Code.** `tools/build-features.mjs` writes `src/features/generated/` from
 the profile, discovering each slice by convention (`feature.ts` exports one
 `CmsFeature`; `routes.ts` / `routes/*.ts` export `*Routes`). Because those
 generated files are the only thing importing a slice, dropping a feature takes
@@ -582,7 +582,7 @@ its modules out of the bundle.
 
 **Schema.** Each feature keeps its SQL fragment next to its code —
 `src/features/trash/schema.sql`, `src/features/plugins/schema.sql`, and so on —
-and `scripts/build-migrations.mjs` concatenates the enabled ones into the flat
+and `tools/build-migrations.mjs` concatenates the enabled ones into the flat
 files Wrangler applies:
 
 ```
@@ -781,7 +781,7 @@ The codebase is split along one line: **`core/` is what every deployment has,
 `features/` is what a deployment chooses.** Nothing in `core/` may import a
 feature — where core needs something a feature provides, it declares an
 extension point in `core/extensions.ts` and the feature registers an
-implementation. `scripts/check-boundaries.mjs` enforces this and fails the
+implementation. `tools/check-boundaries.mjs` enforces this and fails the
 build when it is violated; see [Feature profiles](#feature-profiles) for the
 switch that turns features on and off.
 
@@ -790,11 +790,12 @@ switch that turns features on and off.
 ├── migrations/            # GENERATED from the schema.sql fragments; do not edit
 │   ├── 0001_initial_schema.sql
 │   └── published/0001_published_schema.sql
-├── scripts/
+├── tools/                 # Node-side generators and guards; never shipped
 │   ├── build-features.mjs     # cms.features.json -> src/features/generated/*
 │   ├── build-migrations.mjs   # schema.sql fragments -> migrations/*
 │   ├── check-boundaries.mjs   # import-layering rules
-│   └── check-profiles.mjs     # every feature profile executes and is removable
+│   ├── check-profiles.mjs     # every feature profile executes and is removable
+│   └── install.mjs            # `npm run setup` wizard
 ├── src/
 │   ├── index.ts           # Worker entry: fetch, queue, scheduled, DO exports
 │   ├── types.ts           # Env bindings and shared content types
@@ -832,8 +833,10 @@ switch that turns features on and off.
 │   ├── templates/         # Section composition maps
 │   ├── locales/           # UI string catalogs
 │   └── assets/            # Compiled Tailwind CSS and browser scripts
+├── assets-source/         # Sources compiled into views/assets/ — kept OUT of
+│   ├── admin.css          #   views/ because wrangler serves that whole
+│   └── richtext-md.js     #   directory publicly
 ├── dictionary/            # Generated OpenCC tables for Chinese search
-├── styles/admin.css       # Tailwind source stylesheet
 ├── package.json
 ├── tsconfig.json
 └── wrangler.toml

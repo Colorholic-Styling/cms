@@ -1,4 +1,5 @@
 /* Admin UI stylesheet – compiled by `npm run build:css` into views/assets/admin.css.
+   Lives outside views/ because wrangler serves that whole directory as public assets.
    Replaces the Tailwind Play CDN so the CSP can drop remote and inline script sources.
 
    Theme: a dark "sports-TV / scoreboard" skin — near-black navy canvas, a single
@@ -48,8 +49,7 @@
 
 /* Scan templates and the TS files that emit HTML markup. */
 @source "../views";
-@source "../src/templates";
-@source "../src/utils";
+@source "../src";
 
 @theme {
   /* ---- Typography ------------------------------------------------------- */
