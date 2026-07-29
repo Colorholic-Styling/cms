@@ -9,8 +9,11 @@
 
 import {
   registerCoreExtensions,
+  CREDIT_CURRENCIES,
   type AdminScreen,
   type CreditChargeOutcome,
+  type CreditChargeTotals,
+  type CreditCurrency,
   type CreditPricingRow,
   type PageCreateChargeResult,
 } from '../../core/extensions';
@@ -27,16 +30,22 @@ import {
 import {
   countCreditLedger,
   creditUnitLabel,
+  currencyAmounts,
+  currencyLabel,
+  currencyLabelKey,
+  currencyUnitKey,
   declaredCredits,
   effectiveCreditsForId,
-  getSharedCreditBalance,
+  emptyCurrencyTotals,
+  getCreditBalances,
+  getSharedCreditBalances,
   listCreditLedger,
   listSharedCreditLedger,
   pageCreateAction,
   pageCreateCostForType,
-  refundCredits,
+  refundCurrencies,
   saveCreditValues,
-  spendCredits,
+  spendCurrencies,
   type NormalizedCreditDef,
   type PluginCreditValues,
 } from './service';
@@ -63,32 +72,29 @@ registerCoreExtensions({
 
     const userId = Number(c.get('user').sub);
     const action = pageCreateAction(pageType, cost);
-    const charge = await spendCredits(c.env, {
+    // A page type may be priced in more than one wallet (one plugin charges
+    // credits for it, another diamonds); every part is spent or none is.
+    const charge = await spendCurrencies(c.env, {
       userId,
-      amount: cost.total,
+      amounts: currencyAmounts(cost.totals),
       action,
       entityType: pageType,
       createdBy: String(userId),
     });
     if (!charge.ok) {
+      const money = currencyLabel(charge.currency);
       return {
         ok: false,
         error: charge.error === 'unknown_user'
-          ? 'Your user account could not be charged credits.'
-          : `Not enough credits: creating this needs ${charge.required} credits and you have ${charge.balance} (shared pool: ${charge.sharedBalance}).`,
+          ? `Your user account could not be charged ${money}.`
+          : `Not enough ${money}: creating this needs ${charge.required} ${money} and you have ${charge.balance} (shared pool: ${charge.sharedBalance}).`,
       };
     }
 
-    const source = charge.source;
+    const spent = charge.spent;
     return {
       ok: true,
-      refund: () => refundCredits(c.env, {
-        userId,
-        amount: cost.total,
-        action,
-        source,
-        createdBy: String(userId),
-      }),
+      refund: () => refundCurrencies(c.env, { userId, action, createdBy: String(userId), spent }),
     };
   },
 
@@ -104,14 +110,14 @@ registerCoreExtensions({
    * message-formatted: the caller turns a refusal into its own 402 payload.
    */
   async chargePageCreates(env: Env, input): Promise<CreditChargeOutcome> {
-    let total = 0;
+    const totals = emptyCurrencyTotals();
     const breakdown: Record<string, number> = {};
     let action = 'page_create:batch';
     let singleType: string | undefined;
     for (const { pageType, count } of input.pageTypes) {
       const cost = await pageCreateCostForType(env, pageType);
       if (cost.total > 0) {
-        total += cost.total * count;
+        for (const currency of CREDIT_CURRENCIES) totals[currency] += cost.totals[currency] * count;
         breakdown[pageType] = cost.total * count;
       }
       if (input.pageTypes.length === 1 && count === 1) {
@@ -120,13 +126,16 @@ registerCoreExtensions({
       }
     }
 
+    const amounts = currencyAmounts(totals);
     const payer = input.payerUserId;
-    if (total <= 0 || payer === null) return { ok: true, charged: 0, refund: async () => {} };
+    if (!amounts.length || payer === null) {
+      return { ok: true, charged: 0, totals: {}, refund: async () => {} };
+    }
 
     const createdBy = input.contributorId ? `plugin:${input.contributorId}` : String(payer);
-    const charge = await spendCredits(env, {
+    const charge = await spendCurrencies(env, {
       userId: payer,
-      amount: total,
+      amounts,
       action,
       entityType: singleType,
       pluginId: input.contributorId,
@@ -139,23 +148,27 @@ registerCoreExtensions({
         : {
           ok: false,
           reason: 'insufficient',
+          currency: charge.currency,
           required: charge.required,
           balance: charge.balance,
           sharedBalance: charge.sharedBalance,
         };
     }
 
-    const source = charge.source;
+    const spent = charge.spent;
+    const charged: CreditChargeTotals = {};
+    for (const part of spent) charged[part.currency] = (charged[part.currency] ?? 0) + part.amount;
     return {
       ok: true,
-      charged: total,
-      refund: (amount?: number) => refundCredits(env, {
+      charged: spent.reduce((sum, part) => sum + part.amount, 0),
+      totals: charged,
+      refund: (portion?: number) => refundCurrencies(env, {
         userId: payer,
-        amount: amount ?? total,
         action,
-        source,
         pluginId: input.contributorId,
         createdBy,
+        spent,
+        portion,
       }),
     };
   },
@@ -166,6 +179,8 @@ registerCoreExtensions({
       key: credit.def.key,
       label: credit.def.label,
       description: credit.def.description,
+      currency: credit.def.currency,
+      currencyKey: currencyUnitKey(credit.def.currency),
       chargeLabel: chargeLabel(credit.def),
       chargeKey: chargeKey(credit.def),
       defaultValue: credit.def.defaultValue,
@@ -199,69 +214,84 @@ registerCoreExtensions({
   },
 });
 
-/** The profile page's own balance, transfer form and paginated ledger. */
+/**
+ * The profile page's wallets: one card per currency, each with its own
+ * balance, transfer and donate forms, and independently paginated ledger.
+ * The view walks `creditWallets`, so adding a currency adds a card without
+ * touching the markup.
+ */
 async function profileCreditProps(c: AppContext): Promise<Record<string, unknown>> {
   const userId = Number(c.get('user').sub);
-  const requestedPage = positivePage(c.req.query('credit_page'));
-  const [balanceRow, total, sharedCreditBalance] = await Promise.all([
-    c.env.DB.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first<{ credits: number }>(),
-    countCreditLedger(c.env, userId),
-    getSharedCreditBalance(c.env),
+  const [balances, sharedBalances] = await Promise.all([
+    getCreditBalances(c.env, userId),
+    getSharedCreditBalances(c.env),
   ]);
 
-  const pageCount = Math.max(1, Math.ceil(total / PROFILE_LEDGER_PAGE_SIZE));
-  const page = Math.min(requestedPage, pageCount);
-  const ledger = await listCreditLedger(c.env, userId, {
-    limit: PROFILE_LEDGER_PAGE_SIZE,
-    offset: (page - 1) * PROFILE_LEDGER_PAGE_SIZE,
-  });
+  const wallets = await Promise.all(CREDIT_CURRENCIES.map(async (currency) => {
+    const requestedPage = positivePage(c.req.query(ledgerPageParam(currency)));
+    const total = await countCreditLedger(c.env, userId, currency);
+    const pageCount = Math.max(1, Math.ceil(total / PROFILE_LEDGER_PAGE_SIZE));
+    const page = Math.min(requestedPage, pageCount);
+    const ledger = await listCreditLedger(c.env, userId, {
+      currency,
+      limit: PROFILE_LEDGER_PAGE_SIZE,
+      offset: (page - 1) * PROFILE_LEDGER_PAGE_SIZE,
+    });
+    return {
+      ...walletIdentity(currency),
+      balance: balances?.[currency] ?? 0,
+      sharedBalance: sharedBalances[currency],
+      transferAction: CREDIT_TRANSFER_ACTION,
+      donateAction: SHARED_DONATE_ACTION,
+      ledger: ledger.map(creditLedgerRowForView),
+      hasLedger: ledger.length > 0,
+      showPagination: pageCount > 1,
+      pagination: {
+        page,
+        pageCount,
+        total,
+        from: total === 0 ? 0 : ((page - 1) * PROFILE_LEDGER_PAGE_SIZE) + 1,
+        to: Math.min(page * PROFILE_LEDGER_PAGE_SIZE, total),
+        hasPrevious: page > 1,
+        previousHref: profileCreditPageHref(currency, page - 1),
+        hasNext: page < pageCount,
+        nextHref: profileCreditPageHref(currency, page + 1),
+      },
+    };
+  }));
 
   return {
     // Gates the whole panel in the view: absent when this feature is not
     // installed, so the markup renders nothing rather than an empty card.
     showCreditsPanel: true,
-    creditBalance: balanceRow?.credits ?? 0,
-    creditTransferAction: CREDIT_TRANSFER_ACTION,
-    sharedCreditBalance,
-    sharedDonateAction: SHARED_DONATE_ACTION,
-    creditLedger: ledger.map(creditLedgerRowForView),
-    hasCreditLedger: ledger.length > 0,
-    showCreditLedgerPagination: pageCount > 1,
-    creditLedgerPagination: {
-      page,
-      pageCount,
-      total,
-      from: total === 0 ? 0 : ((page - 1) * PROFILE_LEDGER_PAGE_SIZE) + 1,
-      to: Math.min(page * PROFILE_LEDGER_PAGE_SIZE, total),
-      hasPrevious: page > 1,
-      previousHref: profileCreditPageHref(page - 1),
-      hasNext: page < pageCount,
-      nextHref: profileCreditPageHref(page + 1),
-    },
+    creditWallets: wallets,
   };
 }
 
-/** The shared-pool card on the users list. */
+/** The shared-pool cards on the users list — one per currency. */
 async function sharedPoolProps(env: Env): Promise<Record<string, unknown>> {
-  const [sharedCreditBalance, sharedLedger] = await Promise.all([
-    getSharedCreditBalance(env),
-    listSharedCreditLedger(env, { limit: USERS_LEDGER_PAGE_SIZE }),
-  ]);
+  const balances = await getSharedCreditBalances(env);
+  const wallets = await Promise.all(CREDIT_CURRENCIES.map(async (currency) => {
+    const ledger = await listSharedCreditLedger(env, { currency, limit: USERS_LEDGER_PAGE_SIZE });
+    return {
+      ...walletIdentity(currency),
+      balance: balances[currency],
+      adjustAction: SHARED_POOL_ACTION,
+      ledger: ledger.map(creditLedgerRowForView),
+      hasLedger: ledger.length > 0,
+    };
+  }));
   return {
     showCreditsPanel: true,
-    sharedCreditBalance,
-    sharedCreditAction: SHARED_POOL_ACTION,
-    sharedCreditLedger: sharedLedger.map(creditLedgerRowForView),
-    hasSharedCreditLedger: sharedLedger.length > 0,
+    sharedWallets: wallets,
   };
 }
 
-/** One user's balance, adjust/grant forms and recent ledger. */
+/** One user's balances, adjust/grant forms and recent ledger, per currency. */
 async function userCreditProps(c: AppContext, userId: number): Promise<Record<string, unknown>> {
-  const [balanceRow, ledger, sharedCreditBalance, rolePermissions] = await Promise.all([
-    c.env.DB.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first<{ credits: number }>(),
-    listCreditLedger(c.env, userId, { limit: USERS_LEDGER_PAGE_SIZE }),
-    getSharedCreditBalance(c.env),
+  const [balances, sharedBalances, rolePermissions] = await Promise.all([
+    getCreditBalances(c.env, userId),
+    getSharedCreditBalances(c.env),
     resolveRolePermissions(c.env),
   ]);
   // The grant-from-pool form is only useful to viewers who can actually POST
@@ -269,16 +299,42 @@ async function userCreditProps(c: AppContext, userId: number): Promise<Record<st
   const viewerRole = c.get('user').role;
   const canShareCredits = splitRoles(viewerRole).includes('admin')
     || effectivePermissions(rolePermissions, viewerRole).has('credits:share');
+
+  const wallets = await Promise.all(CREDIT_CURRENCIES.map(async (currency) => {
+    const ledger = await listCreditLedger(c.env, userId, { currency, limit: USERS_LEDGER_PAGE_SIZE });
+    return {
+      ...walletIdentity(currency),
+      balance: balances?.[currency] ?? 0,
+      sharedBalance: sharedBalances[currency],
+      adjustAction: `/admin/users/${userId}/credits`,
+      grantAction: `/admin/users/${userId}/credits/shared`,
+      ledger: ledger.map(creditLedgerRowForView),
+      hasLedger: ledger.length > 0,
+    };
+  }));
+
   return {
     showCreditsPanel: true,
-    creditBalance: balanceRow?.credits ?? 0,
-    creditAdjustAction: `/admin/users/${userId}/credits`,
     canShareCredits,
-    sharedCreditBalance,
-    sharedGrantAction: `/admin/users/${userId}/credits/shared`,
-    creditLedger: ledger.map(creditLedgerRowForView),
-    hasCreditLedger: ledger.length > 0,
+    creditWallets: wallets,
   };
+}
+
+/** The currency fields every wallet card renders from: the hidden form value
+ *  and the translation keys for its name and description. */
+function walletIdentity(currency: CreditCurrency): {
+  currency: CreditCurrency; nameKey: string; descriptionKey: string;
+} {
+  return {
+    currency,
+    nameKey: currencyLabelKey(currency),
+    descriptionKey: `credits.currency_description.${currency}`,
+  };
+}
+
+/** Query parameter paging one wallet's ledger on the profile page. */
+function ledgerPageParam(currency: CreditCurrency): string {
+  return `${currency}_page`;
 }
 
 function positivePage(value: string | undefined): number {
@@ -286,8 +342,8 @@ function positivePage(value: string | undefined): number {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
-function profileCreditPageHref(page: number): string {
-  return page <= 1 ? '/admin/profile' : `/admin/profile?credit_page=${page}`;
+function profileCreditPageHref(currency: CreditCurrency, page: number): string {
+  return page <= 1 ? '/admin/profile' : `/admin/profile?${ledgerPageParam(currency)}=${page}`;
 }
 
 /** Human charge description for a pricing row. */

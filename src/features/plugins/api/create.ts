@@ -296,13 +296,21 @@ export async function createPages(c: AppContext, auth: PluginAuth, items: PageIn
     pageTypes: [...typeCounts].map(([pageType, count]) => ({ pageType, count })),
     payerUserId: payer,
     contributorId: auth.pluginId,
-  }) ?? { ok: true, charged: 0, refund: async () => {} };
+  }) ?? { ok: true, charged: 0, totals: {}, refund: async () => {} };
   if (!charge.ok) {
     if (charge.reason === 'unknown_user') return { ok: false, status: 400, body: { error: 'unknown_acting_user' } };
     return {
       ok: false,
       status: 402,
-      body: { error: 'insufficient_credits', credit: { required: charge.required, balance: charge.balance, shared_balance: charge.sharedBalance } },
+      body: {
+        error: 'insufficient_credits',
+        credit: {
+          currency: charge.currency,
+          required: charge.required,
+          balance: charge.balance,
+          shared_balance: charge.sharedBalance,
+        },
+      },
     };
   }
   const charged = charge.charged;

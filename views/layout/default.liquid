@@ -13,6 +13,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }} - {{ siteTitle }}</title>
   <script nonce="{{ nonce }}">
+    {% if admin %}
+    (function() {
+      try {
+        if (window.localStorage.getItem('worker-cms-sidebar-collapsed') === 'true') {
+          document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
+        }
+      } catch (error) {
+        /* ignore */
+      }
+    })();
+    {% endif %}
+
     (function() {
       var key = 'worker-cms-theme';
       var root = document.documentElement;
@@ -44,6 +56,9 @@
           var switchToDark = toggle.getAttribute('data-theme-switch-dark') || 'Switch to dark theme';
           toggle.setAttribute('aria-pressed', isLight ? 'true' : 'false');
           toggle.setAttribute('aria-label', isLight ? switchToDark : switchToLight);
+          if (toggle.hasAttribute('data-sidebar-tooltip')) {
+            toggle.setAttribute('data-sidebar-label', isLight ? switchToDark : switchToLight);
+          }
           toggle.querySelectorAll('[data-theme-icon]').forEach(function(icon) {
             icon.classList.toggle('hidden', icon.getAttribute('data-theme-icon') !== theme);
           });
@@ -350,14 +365,112 @@
         setHidden(false);
       }
 
+      function bindDesktopSidebar() {
+        var root = document.documentElement;
+        var menu = document.querySelector('[data-admin-sidebar]');
+        var button = document.querySelector('[data-sidebar-toggle]');
+        var tooltip = document.querySelector('[data-sidebar-tooltip-layer]');
+        if (!(menu instanceof HTMLElement) || !(button instanceof HTMLButtonElement)) return;
+        if (button.dataset.sidebarBound === '1') return;
+        button.dataset.sidebarBound = '1';
+
+        var storageKey = 'worker-cms-sidebar-collapsed';
+        var collapseLabel = button.getAttribute('data-collapse-label') || 'Collapse sidebar';
+        var expandLabel = button.getAttribute('data-expand-label') || 'Expand sidebar';
+
+        function isDesktop() {
+          return window.matchMedia && window.matchMedia('(min-width: 768px)').matches;
+        }
+
+        function isCollapsed() {
+          return root.getAttribute('data-sidebar-collapsed') === 'true';
+        }
+
+        function hideTooltip() {
+          if (!(tooltip instanceof HTMLElement)) return;
+          tooltip.hidden = true;
+        }
+
+        function renderState() {
+          var collapsed = isCollapsed();
+          var label = collapsed ? expandLabel : collapseLabel;
+          button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+          button.setAttribute('aria-label', label);
+          button.setAttribute('data-sidebar-label', label);
+          if (!collapsed) hideTooltip();
+        }
+
+        function setCollapsed(collapsed, persist) {
+          root.setAttribute('data-sidebar-collapsed', collapsed ? 'true' : 'false');
+          if (persist) {
+            try {
+              window.localStorage.setItem(storageKey, collapsed ? 'true' : 'false');
+            } catch (error) {
+              /* ignore */
+            }
+          }
+          renderState();
+        }
+
+        function tooltipTarget(node) {
+          if (!(node instanceof Element)) return null;
+          return node.closest('[data-sidebar-tooltip]');
+        }
+
+        function showTooltip(target) {
+          if (!(tooltip instanceof HTMLElement) || !isDesktop() || !isCollapsed()) return;
+          var label = target.getAttribute('data-sidebar-label');
+          if (!label) return;
+          var rect = target.getBoundingClientRect();
+          tooltip.textContent = label;
+          tooltip.style.left = Math.round(rect.right + 12) + 'px';
+          tooltip.style.top = Math.round(rect.top + (rect.height / 2)) + 'px';
+          tooltip.hidden = false;
+        }
+
+        button.addEventListener('click', function() {
+          if (isDesktop()) setCollapsed(!isCollapsed(), true);
+        });
+        menu.addEventListener('mouseover', function(event) {
+          var target = tooltipTarget(event.target);
+          if (target) showTooltip(target);
+        });
+        menu.addEventListener('mouseout', function(event) {
+          var target = tooltipTarget(event.target);
+          var related = tooltipTarget(event.relatedTarget);
+          if (target !== related) hideTooltip();
+        });
+        menu.addEventListener('focusin', function(event) {
+          var target = tooltipTarget(event.target);
+          if (target) showTooltip(target);
+        });
+        menu.addEventListener('focusout', hideTooltip);
+        menu.querySelectorAll('[data-sidebar-settings-summary]').forEach(function(summary) {
+          summary.addEventListener('click', function(event) {
+            if (!isDesktop() || !isCollapsed()) return;
+            event.preventDefault();
+            setCollapsed(false, true);
+            var details = summary.closest('details');
+            if (details instanceof HTMLDetailsElement) details.open = true;
+          });
+        });
+        window.addEventListener('resize', function() {
+          hideTooltip();
+          renderState();
+        });
+        renderState();
+      }
+
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
           bindMobileMenu();
           bindMobileHeaderAutoHide();
+          bindDesktopSidebar();
         });
       } else {
         bindMobileMenu();
         bindMobileHeaderAutoHide();
+        bindDesktopSidebar();
       }
     })();
   </script>
@@ -391,10 +504,26 @@
            class="fixed inset-0 z-50 hidden max-h-screen min-h-screen flex-col overflow-hidden bg-gray-900 text-white shadow-xl md:fixed md:inset-y-0 md:left-0 md:flex md:min-h-0 md:w-64"
            data-admin-sidebar>
       <div class="flex items-center justify-between gap-3 border-b border-gray-700 px-4 py-3 md:px-6 md:py-5">
-        <a href="/admin" aria-label="{{ "shell.go_to_dashboard" | t }}" class="flex min-w-0 items-center gap-3">
+        <a href="/admin"
+           aria-label="{{ "shell.go_to_dashboard" | t }}"
+           class="flex min-w-0 items-center gap-3"
+           data-sidebar-tooltip
+           data-sidebar-label="{{ "shell.go_to_dashboard" | t }}">
           <svg class="h-7 w-7 shrink-0 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ appIcon }}"></use></svg>
-          <span class="min-w-0 truncate text-lg font-bold tracking-tight">{{ siteTitle }}</span>
+          <span class="min-w-0 truncate text-lg font-bold tracking-tight" data-sidebar-text>{{ siteTitle }}</span>
         </a>
+        <button type="button"
+                class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white md:inline-flex"
+                data-sidebar-toggle
+                data-sidebar-tooltip
+                data-sidebar-label="{{ "shell.collapse_sidebar" | t }}"
+                data-collapse-label="{{ "shell.collapse_sidebar" | t }}"
+                data-expand-label="{{ "shell.expand_sidebar" | t }}"
+                aria-controls="admin-mobile-menu"
+                aria-expanded="true"
+                aria-label="{{ "shell.collapse_sidebar" | t }}">
+          <svg class="h-5 w-5 transition-transform" data-sidebar-toggle-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
+        </button>
         <button type="button"
                 class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white md:hidden"
                 data-mobile-menu-close
@@ -406,17 +535,22 @@
         {% for item in sidebarNav %}
           {% if item.isSettingsGroup %}
             <details class="group overflow-hidden"{% if item.isActive %} open{% endif %}>
-              <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-700 hover:text-white [&::-webkit-details-marker]:hidden {% if item.isActive %}font-semibold text-white{% else %}text-gray-300{% endif %}">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ item.icon }}"></use></svg>
-                <span>{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}</span>
-                <svg class="ml-auto h-4 w-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
+              <summary class="flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-gray-700 hover:text-white [&::-webkit-details-marker]:hidden {% if item.isActive %}font-semibold text-white{% else %}text-gray-300{% endif %}"
+                       data-sidebar-settings-summary
+                       data-sidebar-tooltip
+                       data-sidebar-label="{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}"
+                       aria-label="{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}">
+                <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ item.icon }}"></use></svg>
+                <span data-sidebar-text>{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}</span>
+                <svg class="ml-auto h-4 w-4 transition-transform group-open:rotate-90" data-sidebar-chevron fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
               </summary>
-              <div class="mt-1 ml-3 space-y-1 border-l border-gray-700 pl-3">
+              <div class="mt-1 ml-3 space-y-1 border-l border-gray-700 pl-3" data-sidebar-settings-list>
                 {% for settingItem in sidebarSettingsNav %}
                   <a href="{{ settingItem.href }}"
                      {% if settingItem.isActive %}aria-current="page"{% endif %}
+                     aria-label="{% if settingItem.translationKey %}{{ settingItem.translationKey | t: settingItem.label }}{% else %}{{ settingItem.label }}{% endif %}"
                      class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {% if settingItem.isActive %}bg-indigo-600 font-semibold text-white shadow-sm hover:bg-indigo-700{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ settingItem.icon }}"></use></svg>
+                    <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ settingItem.icon }}"></use></svg>
                     {% if settingItem.translationKey %}{{ settingItem.translationKey | t: settingItem.label }}{% else %}{{ settingItem.label }}{% endif %}
                   </a>
                 {% endfor %}
@@ -425,15 +559,23 @@
           {% else %}
             <a href="{{ item.href }}"
                {% if item.isActive %}aria-current="page"{% endif %}
+               data-sidebar-tooltip
+               data-sidebar-label="{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}"
+               aria-label="{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}"
                class="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors {% if item.isActive %}bg-indigo-600 font-semibold text-white shadow-sm hover:bg-indigo-700{% else %}text-gray-300 hover:bg-gray-700 hover:text-white{% endif %}">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ item.icon }}"></use></svg>
-              {% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}
+              <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#{{ item.icon }}"></use></svg>
+              <span data-sidebar-text>{% if item.translationKey %}{{ item.translationKey | t: item.label }}{% else %}{{ item.label }}{% endif %}</span>
             </a>
           {% endif %}
         {% endfor %}
       </nav>
       <div class="border-t border-gray-700 px-4 py-3 md:py-4" data-admin-sidebar-footer>
-        <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2">
+        <a href="/admin/profile"
+           class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2 hover:bg-gray-700"
+           data-sidebar-footer-profile
+           data-sidebar-tooltip
+           data-sidebar-label="{{ userName }}"
+           aria-label="{{ userName }}">
           {% if hasUserAvatar %}
             <div class="relative w-8 h-8 shrink-0">
               <img src="{{ userAvatar }}"
@@ -447,11 +589,11 @@
             <div class="w-8 h-8 shrink-0 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold"
                  data-avatar-fallback>{{ userInitial }}</div>
           {% endif %}
-          <div class="min-w-0 flex-1">
-            <a href="/admin/profile" class="flex justify-between min-w-0 items-center gap-1.5 text-sm font-medium text-white hover:text-indigo-200" data-mobile-menu-close>
+          <div class="min-w-0 flex-1" data-sidebar-text>
+            <span class="flex justify-between min-w-0 items-center gap-1.5 text-sm font-medium text-white">
               <span class="min-w-0 truncate">{{ userName }}</span>
               <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
-            </a>
+            </span>
 
             <p class="text-xs text-gray-400">{% for role in userRoleItems %}{% if role.labelKey %}{{ role.labelKey | t }}{% else %}{{ role.label }}{% endif %}{% unless forloop.last %}, {% endunless %}{% endfor %}</p>
             {% if showCredits %}
@@ -469,22 +611,36 @@
               </svg>
               <span>{{ sharedCredits }} {{ "shell.shared" | t }}</span>
             </p>
+            {% if showDiamonds %}
+            <p class="mt-0.5 flex items-center gap-1 text-xs font-medium text-violet-400">
+              <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-width="2" stroke-linejoin="round" d="M6 4h12l3 5-9 11L3 9l3-5z"></path>
+              </svg>
+              <span>{{ userDiamonds }} {% if userDiamonds == 1 %}{{ "shell.diamond" | t }}{% else %}{{ "shell.diamonds" | t }}{% endif %} · {{ sharedDiamonds }} {{ "shell.shared" | t }}</span>
+            </p>
+            {% endif %}
             {% endif %}
           </div>
-        </div>
+        </a>
 
-        <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2 mb-3">
+        <div class="flex min-w-0 items-start gap-3 rounded-lg px-2 py-2 mb-3" data-sidebar-footer-action>
         <form method="POST" action="/auth/logout" class="inline">
         <button type="submit"
-        class="flex shrink-0 items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+        class="flex shrink-0 items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+        data-sidebar-tooltip
+        data-sidebar-label="{{ "shell.sign_out" | t }}"
+        aria-label="{{ "shell.sign_out" | t }}">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="{{ iconHrefPrefix }}#logout"></use></svg>
-        {{ "shell.sign_out" | t }}
+        <span data-sidebar-text>{{ "shell.sign_out" | t }}</span>
         </button>
         </form>
         </div>
 
-        <div class="flex shrink-0 items-center gap-3 mb-3">
-          <form method="post" action="{{ uiLocaleAction }}" class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-1.5 text-sm text-gray-300 transition-colors hover:bg-gray-700 hover:text-white">
+        <div class="flex shrink-0 items-center gap-3 mb-3" data-sidebar-footer-controls>
+          <form method="post" action="{{ uiLocaleAction }}" class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-1.5 text-sm text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
+                data-sidebar-locale
+                data-sidebar-tooltip
+                data-sidebar-label="{{ "profile.interface_language" | t }}">
           <input type="hidden" name="return_to" value="{{ uiLocaleReturnTo }}">
           <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#globe"></use></svg>
           <label class="sr-only" for="admin_sidebar_locale">{{ "profile.interface_language" | t }}</label>
@@ -500,6 +656,8 @@
           <button type="button"
                   class="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-700 px-2.5 py-1.5 text-sm text-gray-300 transition-colors hover:bg-gray-700 hover:text-white"
                   data-theme-toggle
+                  data-sidebar-tooltip
+                  data-sidebar-label="{{ "shell.theme.switch_to_light" | t }}"
                   data-theme-light-label="{{ "shell.theme.light" | t }}"
                   data-theme-dark-label="{{ "shell.theme.dark" | t }}"
                   data-theme-switch-light="{{ "shell.theme.switch_to_light" | t }}"
@@ -514,9 +672,13 @@
       </div>
     </aside>
   {% endif %}
-  <div class="{{ contentClass }} min-h-full min-w-0">
+  <div class="{{ contentClass }} min-h-full min-w-0" data-admin-content>
     {{ body | raw }}
   </div>
+  {% if admin %}<div class="fixed z-50 rounded-md bg-gray-900 px-2.5 py-1.5 text-sm font-medium text-white shadow-xl"
+                          data-sidebar-tooltip-layer
+                          role="tooltip"
+                          hidden></div>{% endif %}
   <script nonce="{{ nonce }}">
   // Drag-and-drop reorder for tables with [data-reorder].
   // Rows carry data-id (weight mode) or data-index (order mode).

@@ -4,7 +4,7 @@ import type { CmsFeature } from '../../core/feature';
 // screens, the subscription sweep). Core calls whatever is registered and does
 // nothing when this feature is not installed — see src/core/extensions.ts.
 import './extensions';
-import { getCreditBalance, getSharedCreditBalance } from './service';
+import { getCreditBalances, getSharedCreditBalances } from './service';
 import { userIdFromContext } from '../../core/http/forms';
 
 /**
@@ -25,14 +25,20 @@ export const creditsFeature: CmsFeature = {
   // empty — balances, transfers and the shared pool still work.
   navKeys: ['credits'],
   async baseProps(c) {
-    const [userCredits, sharedCredits] = await Promise.all([
-      getCreditBalance(c.env, userIdFromContext(c)),
-      getSharedCreditBalance(c.env),
+    const [balances, shared] = await Promise.all([
+      getCreditBalances(c.env, userIdFromContext(c)),
+      getSharedCreditBalances(c.env),
     ]);
+    const userDiamonds = balances?.diamond ?? 0;
     return {
-      userCredits: userCredits ?? 0,
-      sharedCredits,
+      userCredits: balances?.credit ?? 0,
+      sharedCredits: shared.credit,
       showCredits: true,
+      userDiamonds,
+      sharedDiamonds: shared.diamond,
+      // The premium wallet only earns sidebar space once it is in play —
+      // an install that prices nothing in diamonds never shows an empty row.
+      showDiamonds: userDiamonds > 0 || shared.diamond > 0,
     };
   },
 };

@@ -235,6 +235,9 @@ export interface PluginCreditRow {
   key: string;
   label: string;
   description: string;
+  /** Wallet the price is denominated in, and the key naming it. */
+  currency: string;
+  currencyKey: string;
   chargeLabel: string;
   chargeKey: string;
   chargeDetail: string;

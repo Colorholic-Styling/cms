@@ -12,7 +12,7 @@ Content management system on Workers
 - **Tailwind CSS + VanillaJS** admin UI with inline HTML toolbar for content editing
 - **Plugins** – extend the CMS with separate Worker plugins (lifecycle hooks, content types, fields/blocks, admin pages, publish targets). See [Plugins](#plugins).
 - **Pluggable publish targets** – publishing fans out to one or more adapters: the published D1 database (default), static JSON in an R2 bucket, or any plugin Worker (IPFS, webhooks, search indexes). See [Publish targets](#publish-targets).
-- **Credits** – per-user balances that meter chargeable plugin actions; atomic, overdraft-proof, ledger-audited, with admin grants, user-to-user transfers, and a shared site-wide pool that covers users who run out. See [Credits](#credits).
+- **Credits & diamonds** – two independent per-user currencies that meter chargeable plugin actions; atomic, overdraft-proof, ledger-audited, each with admin grants, user-to-user transfers, and a shared site-wide pool that covers users who run out. See [Credits](#credits).
 
 ---
 
@@ -531,8 +531,8 @@ and overdraft-guarded, and writes a paired ledger row on each side
 yourself, and you cannot send to an administrator — admins manage credits
 through the users admin above rather than by receiving transfers.
 
-**Shared credit pool.** Besides per-user balances there is one site-wide pool
-(`shared_credits`) with its own append-only ledger — it belongs to all users.
+**Shared pool.** Besides per-user balances each currency has one site-wide
+pool (`shared_credits`) with its own append-only ledger — it belongs to all users.
 When a charged action costs more than the acting user's own balance, the pool
 pays the **full** amount instead (all-or-nothing per pool, never split),
 recorded in the shared ledger with that user as beneficiary; a spend fails
@@ -547,6 +547,49 @@ pool credits into that user's balance (`shared:send` / `shared:receive`) —
 users can never pull pool credits into their own account themselves. Admins
 always hold the permission, and it can be granted to any custom role under
 **Roles**.
+
+### Currencies: credits and diamonds
+
+There are two wallets, and they never convert into one another:
+
+| Currency | Balance | Shared pool | For |
+|---|---|---|---|
+| `credit` | `users.credits` | `shared_credits` row 1 | ordinary metered actions — page creates, EDM sends |
+| `diamond` | `users.diamonds` | `shared_credits` row 2 | premium actions the operator pays real money for — SMS and WhatsApp delivery |
+
+A cost picks its wallet in the manifest with `"currency": "diamond"`; omitting
+the field means credits, so every existing manifest keeps its meaning. An
+unrecognised currency **drops** the cost rather than defaulting, so a typo can
+never silently bill the wrong wallet.
+
+Everything else is per currency and symmetric: balances, the shared pool and
+its fallback, transfers, donations, admin adjustments, the ledger (each row
+carries its `currency`), and recurring subscriptions (billed in whatever
+currency the cost declares at sweep time). A diamond charge is refused when
+the diamond balance and the diamond pool are both short — however many credits
+the payer holds, and vice versa. The plugin API reports which wallet fell
+short: a 402 carries `credit.currency`, so a plugin can say "buy diamonds"
+rather than "buy credits". A single page type priced by two plugins in two
+currencies costs both at once, all-or-nothing: if the second wallet is short,
+the first is refunded before the create is refused.
+
+The profile, the user edit screen and the users admin render one card per
+currency from the same markup, so the admin UI grows a wallet without new
+templates. The sidebar shows the diamond line only once diamonds are in play
+(a non-zero personal or pool balance).
+
+**Upgrading an existing database.** The diamond wallet adds `users.diamonds`,
+a `currency` column on both ledgers, and a second `shared_credits` row. Fresh
+installs get all of it from the regenerated baseline; a database that already
+applied the baseline needs the one-off script instead:
+
+```bash
+wrangler d1 execute cms --remote --file migrations/upgrades/diamond-currency.sql
+```
+
+Run it before deploying the Worker that reads these columns. It is not a
+wrangler migration (nothing under `migrations/upgrades/` is applied
+automatically) and it is not idempotent — run it once per database.
 
 ---
 
@@ -601,7 +644,7 @@ A feature may own code, tables, or both. Ten are switchable:
 | Feature | Owns |
 |---|---|
 | `plugins` | The plugin platform: registry, hooks, proxy, manage UI, `/__cms` API — plus `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals` (+3 indexes) |
-| `credits` | Metered billing and the credit summary screen — plus `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+3 indexes) |
+| `credits` | Metered billing (credits and diamonds) and the credit summary screen — plus `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+4 indexes) |
 | `search` | The advanced-search screen and bulk actions (code only; the query builder is core) |
 | `users-roles` | The user and role admin screens (code only; the tables and permission resolver are core) |
 | `i18n` | The languages and translations screens (code only; see the note below) |
@@ -669,9 +712,9 @@ without them. The optional part is the `i18n` *code* feature — the screens for
 editing locales and translations. Serving the UI's own catalog
 (`GET /admin/i18n/catalog/:locale`) stays core too.
 
-One coupling remains: the per-user balance is `users.credits`, a column on a
-core table, so disabling `credits` leaves that column in place (unused, always
-0).
+One coupling remains: the per-user balances are `users.credits` and
+`users.diamonds`, columns on a core table, so disabling `credits` leaves them
+in place (unused, always 0).
 
 #### Deleting a feature's source
 

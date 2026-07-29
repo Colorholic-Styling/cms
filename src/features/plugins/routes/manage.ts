@@ -575,6 +575,8 @@ pluginsManageRoutes.get('/plugins-manage/:id/credits', async (c) => {
     key: row.key,
     label: row.label,
     description: row.description,
+    currency: row.currency,
+    currencyKey: row.currencyKey,
     chargeLabel: row.chargeLabel,
     chargeKey: row.chargeKey,
     chargeDetail: row.chargeLabel,

@@ -59,16 +59,19 @@
   </div>
 
   {% if showCreditsPanel %}
+  {# One pool card per currency; the wallet supplies its own name key. #}
+  {% for wallet in sharedWallets %}
   <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-5 sm:p-6">
     <div class="mb-4">
-      <h3 class="text-lg font-semibold text-gray-900">{{ "view_strings.sections_users.shared_credits" | t }}</h3>
+      <h3 class="text-lg font-semibold text-gray-900">{{ "credits.wallet.shared_pool_title" | t }} · {{ wallet.nameKey | t }}</h3>
       <p class="mt-1 text-sm text-gray-500">{{ "users.shared_pool_description" | t }}</p>
     </div>
-    <p class="text-2xl font-bold text-gray-900">{{ sharedCreditBalance }}</p>
+    <p class="text-2xl font-bold text-gray-900">{{ wallet.balance }}</p>
 
-    <form method="POST" action="{{ sharedCreditAction }}"
+    <form method="POST" action="{{ wallet.adjustAction }}"
           data-confirm="{{ "view_strings.sections_users.apply_this_shared_pool_adjustment" | t }}"
           class="mt-5 max-w-md space-y-3 border-t border-gray-100 pt-5">
+      <input type="hidden" name="currency" value="{{ wallet.currency }}">
       <h4 class="text-sm font-semibold text-gray-900">{{ "view_strings.sections_users.adjust_pool" | t }}</h4>
       <p class="text-xs text-gray-500">{{ "view_strings.sections_users.positive_grants_negative_deducts_the_pool_can_never_go_below_zero" | t }}</p>
       <label class="block">
@@ -84,7 +87,7 @@
       <button type="submit" class="px-3 py-1 rounded-lg bg-indigo-600 text-xs font-semibold text-white hover:bg-indigo-700">{{ "view_strings.sections_users.adjust_pool" | t }}</button>
     </form>
 
-    {% if hasSharedCreditLedger %}
+    {% if wallet.hasLedger %}
       <div class="mt-4 overflow-x-auto">
         <table class="w-full min-w-[560px] text-left text-sm">
           <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
@@ -96,7 +99,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for entry in sharedCreditLedger %}
+            {% for entry in wallet.ledger %}
               <tr class="border-t border-gray-100">
                 <td class="px-4 py-3 text-xs text-gray-500">{{ entry.createdAt | l10n_date }}</td>
                 <td class="px-4 py-3">
@@ -111,9 +114,10 @@
         </table>
       </div>
     {% else %}
-      <p class="mt-3 text-sm text-gray-500">{{ "view_strings.sections_users.no_shared_credit_activity_yet" | t }}</p>
+      <p class="mt-3 text-sm text-gray-500">{{ "credits.wallet.no_pool_activity" | t }}</p>
     {% endif %}
   </div>
+  {% endfor %}
   {% endif %}
 </div>
 

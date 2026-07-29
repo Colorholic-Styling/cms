@@ -103,8 +103,15 @@ describe('database locale registry', () => {
       ...['enable', 'disable'].map((action) => `plugins.actions.${action}`),
       ...USER_ROLES.map((role) => `roles.names.${role}`),
       ...['admin', 'builtin', 'custom'].map((type) => `roles.types.${type}`),
-      ...['on_create', 'metered_per', 'free', 'credits', 'per_second', 'per_parent_page', 'per', 'total', 'unlimited']
+      ...['on_create', 'metered_per', 'free', 'per_second', 'per_parent_page', 'per', 'total', 'unlimited']
         .map((key) => `credits.summary.${key}`),
+      // Wallet strings are chosen per currency in src/features/credits/, so
+      // the views reference them through variables rather than literals.
+      ...['credit', 'diamond'].flatMap((currency) => [
+        `credits.currency.${currency}`,
+        `credits.unit.${currency}`,
+        `credits.currency_description.${currency}`,
+      ]),
     ];
     expect(generatedKeys.filter((key) => !(key in english))).toEqual([]);
   });

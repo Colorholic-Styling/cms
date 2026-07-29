@@ -7,6 +7,9 @@ export interface CreditSummaryRow {
   key: string;
   label: string;
   description: string;
+  /** Wallet the price is denominated in, and its translation key. */
+  currency: string;
+  currencyKey: string;
   chargeLabel: string;
   chargeKey: string;
   chargeValue: string;

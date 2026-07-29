@@ -185,7 +185,12 @@ export interface PluginManifest {
    * plugin only *declares* which chargeable actions exist; the CMS stores the
    * configured prices in the `settings` table, deducts from the acting user's
    * balance, and records every change in the credit ledger. See
-   * utils/credits.ts.
+   * src/features/credits/service.ts.
+   *
+   * Each cost may name the wallet it is paid from (`currency`): omitted means
+   * ordinary credits, `"diamond"` the premium wallet for actions the operator
+   * pays real money for (SMS and WhatsApp delivery). The wallets never convert
+   * into each other, and an unrecognised currency drops the cost.
    */
   credits?: ContributedCreditDef[];
   /**
@@ -243,6 +248,7 @@ export interface PluginLimitDef {
 // manifest code keeps reading in plugin vocabulary.
 export type { CreditChargeKind as PluginCreditCharge } from '../../core/extensions';
 export type { CreditBillingMode as PluginCreditBilling } from '../../core/extensions';
+export type { CreditCurrency as PluginCreditCurrency } from '../../core/extensions';
 export type { ContributedCreditDef as PluginCreditDef } from '../../core/extensions';
 
 /** An admin-approved plugin asset (see PluginManifest.assets), stored in the

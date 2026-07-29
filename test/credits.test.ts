@@ -294,7 +294,7 @@ describe('/__cms page-create charging', () => {
     expect(res.status).toBe(402);
     const body = await res.json() as { error: string; credit: { required: number; balance: number } };
     expect(body.error).toBe('insufficient_credits');
-    expect(body.credit).toEqual({ required: 100, balance: 99, shared_balance: 0 });
+    expect(body.credit).toEqual({ currency: 'credit', required: 100, balance: 99, shared_balance: 0 });
 
     const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'event'")
       .first<{ n: number }>();
@@ -385,7 +385,8 @@ describe('/__cms credits endpoints', () => {
     await seedUser(PAYER_ID, 5);
     const res = await cmsApiAs(PAYER_ID, 'POST', '/__cms/credits/charge', { key: 'send_edm', quantity: 10 });
     expect(res.status).toBe(402);
-    expect((await res.json() as { credit: unknown }).credit).toEqual({ required: 20, balance: 5, shared_balance: 0 });
+    expect((await res.json() as { credit: unknown }).credit)
+      .toEqual({ currency: 'credit', required: 20, balance: 5, shared_balance: 0 });
   });
 });
 
@@ -468,7 +469,7 @@ describe('admin credit management', () => {
     // The admin shell renders liquid client-side; assert on the embedded
     // view data rather than the final markup.
     const html = await res.text();
-    expect(html).toContain('creditBalance');
+    expect(html).toContain('creditWallets');
     expect(html).toContain('events:create_guest_list');
   });
 });
@@ -563,7 +564,7 @@ describe('credit transfers', () => {
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ recipient: RECIPIENT_EMAIL, amount: '50' }),
     });
-    expect(res.headers.get('location')).toContain('error=Not+enough+credits');
+    expect(res.headers.get('location')).toContain('error=Not%20enough%20credits');
     expect(await balance(ADMIN_ID)).toBe(5);
     expect(await balance(RECIPIENT_ID)).toBe(0);
   });
@@ -584,7 +585,7 @@ describe('profile and plugins-manage pages', () => {
     const res = await adminFetch('/admin/profile');
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('creditBalance');
+    expect(html).toContain('creditWallets');
     expect(html).toContain('events:create_event');
   });
 
@@ -600,7 +601,7 @@ describe('profile and plugins-manage pages', () => {
     expect(firstHtml).toContain('profile:entry-25');
     expect(firstHtml).toContain('profile:entry-6');
     expect(firstHtml).not.toContain('profile:entry-5');
-    expect(firstHtml).toContain('"showCreditLedgerPagination":true');
+    expect(firstHtml).toContain('"showPagination":true');
     expect(firstHtml).toContain('"nextHref":"/admin/profile?credit_page=2"');
     expect(firstHtml).toContain('"from":1');
     expect(firstHtml).toContain('"to":20');
@@ -803,7 +804,7 @@ describe('shared pool at charge sites', () => {
     const res = await cmsApiAs(PAYER_ID, 'POST', '/__cms/pages', { page_type: 'event', name: 'Broke' });
     expect(res.status).toBe(402);
     const body = await res.json() as { credit: unknown };
-    expect(body.credit).toEqual({ required: 100, balance: 40, shared_balance: 60 });
+    expect(body.credit).toEqual({ currency: 'credit', required: 100, balance: 40, shared_balance: 60 });
     expect(await getSharedCreditBalance(env)).toBe(60);
   });
 
@@ -872,7 +873,7 @@ describe('shared credit administration', () => {
     const res = await adminFetch('/admin/users');
     expect(res.status).toBe(200);
     const html = await res.text();
-    expect(html).toContain('sharedCreditBalance');
+    expect(html).toContain('sharedWallets');
     expect(html).toContain('/admin/users/shared-credits');
     expect(html.indexOf('data-privacy-table')).toBeLessThan(html.indexOf('/admin/users/shared-credits'));
   });

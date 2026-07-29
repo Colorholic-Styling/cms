@@ -9,7 +9,14 @@ import type { Env, Variables } from '../../../types';
 import { renderPage } from '../../../core/render/chrome';
 import { userCan } from '../../../core/auth/permissions';
 import { coreExtensions, type ContributedLimitSummary } from '../../../core/extensions';
-import { creditContributors, creditUnitLabel, effectiveCreditsFor, type EffectiveCredit } from '../service';
+import {
+  creditContributors,
+  creditUnitLabel,
+  currencyLabel,
+  currencyUnitKey,
+  effectiveCreditsFor,
+  type EffectiveCredit,
+} from '../service';
 import { creditSummaryPage, type CreditSummaryRow, type LimitSummaryRow } from '../template';
 
 export const creditSettingsRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -64,7 +71,9 @@ creditSettingsRoutes.get('/settings/credits', async (c) => {
       chargeLabel: creditSummaryChargeLabel(credit),
       chargeKey: creditSummaryChargeKey(credit),
       chargeValue: (credit.def.charge === 'page_create' ? credit.def.pageType : creditUnitLabel(credit.def)) ?? '',
-      effectiveLabel: credit.value === 0 ? 'Free' : `${credit.value} credits`,
+      currency: credit.def.currency,
+      currencyKey: currencyUnitKey(credit.def.currency),
+      effectiveLabel: credit.value === 0 ? 'Free' : `${credit.value} ${currencyLabel(credit.def.currency)}`,
       effectiveFree: credit.value === 0,
       effectiveValue: credit.value,
       manageHref: contributor.manageHref ?? '',
@@ -93,7 +102,7 @@ creditSettingsRoutes.get('/settings/credits', async (c) => {
   })).sort(bySummaryOrder);
 
   const pluginCount = new Set([...rows, ...limitRows].map((row) => row.pluginId)).size;
-  const paidCount = rows.filter((row) => row.effectiveLabel !== 'Free').length;
+  const paidCount = rows.filter((row) => !row.effectiveFree).length;
 
   return renderPage(c, creditSummaryPage, {
     rows,

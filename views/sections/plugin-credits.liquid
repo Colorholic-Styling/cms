@@ -38,12 +38,13 @@
                   </td>
                   <td class="px-4 py-3 text-sm text-gray-700">{{ credit.chargeKey | t }} {{ credit.chargeDetail }}</td>
                   <td class="px-4 py-3">
-                    <div class="text-sm text-gray-700">{% if credit.effectiveKey != '' %}{{ credit.effectiveKey | t }}{% else %}{{ credit.effectiveLabel }}{% endif %}{% if credit.usesDefault %} ({{ "view_strings.sections_plugin_credits.default" | t }}){% endif %}</div>
-                    <div class="text-xs text-gray-400 mt-0.5">{{ "view_strings.sections_plugin_credits.default" | t }}: {% if credit.defaultKey != '' %}{{ credit.defaultKey | t }}{% else %}{{ credit.defaultLabel }}{% endif %}</div>
+                    <div class="text-sm text-gray-700">{% if credit.effectiveKey != '' %}{{ credit.effectiveKey | t }}{% else %}{{ credit.effectiveLabel }} {{ credit.currencyKey | t }}{% endif %}{% if credit.usesDefault %} ({{ "view_strings.sections_plugin_credits.default" | t }}){% endif %}</div>
+                    <div class="text-xs text-gray-400 mt-0.5">{{ "view_strings.sections_plugin_credits.default" | t }}: {% if credit.defaultKey != '' %}{{ credit.defaultKey | t }}{% else %}{{ credit.defaultLabel }} {{ credit.currencyKey | t }}{% endif %}</div>
                   </td>
                   <td class="px-4 py-3">
-                    <input name="value_{{ credit.key }}" type="number" min="0" step="1" value="{{ credit.value }}" placeholder="{{ "view_strings.sections_plugin_credits.default" | t }}"
+                    <input name="value_{{ credit.key }}" type="number" min="0" step="1" value="{{ credit.value }}" placeholder="{{ "view_strings.sections_plugin_credits.default" | t }}" aria-describedby="currency_{{ credit.key }}"
                            class="block w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                    <div id="currency_{{ credit.key }}" class="text-xs text-gray-500 mt-1">{{ credit.currencyKey | t }}</div>
                   </td>
                 </tr>
               {% endfor %}

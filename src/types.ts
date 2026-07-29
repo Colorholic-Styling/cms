@@ -34,7 +34,7 @@ export const PERMISSIONS = [
   'blocktype:write',  // create / edit / delete database-defined block types
   'users:manage',     // view users and assign their roles
   'roles:manage',     // create / edit / delete roles and their permissions
-  'credits:share',    // transfer credits from the shared pool to a user
+  'credits:share',    // transfer credits/diamonds from a shared pool to a user
 ] as const;
 
 export type Permission = typeof PERMISSIONS[number];
@@ -58,7 +58,7 @@ export const PERMISSION_DESCRIPTIONS: Record<Permission, string> = {
   'blocktype:write': 'Manage block types',
   'users:manage': 'Manage users and their roles',
   'roles:manage': 'Manage roles and permissions',
-  'credits:share': 'Transfer shared credits to a user',
+  'credits:share': 'Transfer shared credits or diamonds to a user',
 };
 
 export interface User {
@@ -68,8 +68,10 @@ export interface User {
   name: string;
   avatar_url: string | null;
   role: string;
-  /** Credit balance (see utils/credits.ts). Optional on partial SELECTs. */
+  /** Credit balance (see src/features/credits/). Optional on partial SELECTs. */
   credits?: number;
+  /** Diamond balance — the premium currency. Optional on partial SELECTs. */
+  diamonds?: number;
 }
 
 // Access token – short-lived (15 min)

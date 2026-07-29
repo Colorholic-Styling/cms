@@ -15,7 +15,14 @@ import { Hono } from 'hono';
 import type { Env, Variables } from '../../../types';
 import type { AppContext } from '../../../core/http/context';
 import { coreExtensions, type ApiCallerIdentity } from '../../../core/extensions';
-import { effectiveCreditsForId, getCreditBalance, getSharedCreditBalance, spendCredits } from '../service';
+import {
+  effectiveCreditsForId,
+  getCreditBalance,
+  getCreditBalances,
+  getSharedCreditBalance,
+  getSharedCreditBalances,
+  spendCredits,
+} from '../service';
 import { listSubscriptionsForPlugin, reportSubscriptionUsage, type CreditSubscriptionRow } from '../subscriptions';
 
 export const creditApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -54,14 +61,22 @@ creditApiRoutes.get('/credits', async (c) => {
 
   const payer = actingUserId(c);
   const credits = await effectiveCreditsForId(c.env, auth.callerId);
+  const balances = payer !== null ? await getCreditBalances(c.env, payer) : null;
+  const sharedBalances = await getSharedCreditBalances(c.env);
   return c.json({
-    balance: payer !== null ? await getCreditBalance(c.env, payer) : null,
-    shared_balance: await getSharedCreditBalance(c.env),
+    // `balance` / `shared_balance` stay the ordinary credit wallet, which is
+    // what callers written before diamonds existed read; `balances` /
+    // `shared_balances` carry every wallet, keyed by currency.
+    balance: balances?.credit ?? null,
+    shared_balance: sharedBalances.credit,
+    balances,
+    shared_balances: sharedBalances,
     credits: credits.map((credit) => ({
       key: credit.def.key,
       label: credit.def.label,
       description: credit.def.description,
       charge: credit.def.charge,
+      currency: credit.def.currency,
       page_type: credit.def.pageType,
       unit: credit.def.unit,
       value: credit.value,
@@ -89,11 +104,15 @@ creditApiRoutes.get('/credits/quote', async (c) => {
   if (!credit) return c.json({ error: 'unknown_credit_key' }, 400);
 
   const payer = actingUserId(c);
-  const balance = payer !== null ? await getCreditBalance(c.env, payer) : null;
-  const sharedBalance = await getSharedCreditBalance(c.env);
+  // Both balances are the ones for THIS cost's currency: a diamond cost is
+  // quoted against the diamond wallet, never the credit one.
+  const currency = credit.def.currency;
+  const balance = payer !== null ? await getCreditBalance(c.env, payer, currency) : null;
+  const sharedBalance = await getSharedCreditBalance(c.env, currency);
   const total = credit.value * quantity;
   return c.json({
     key,
+    currency,
     unit_cost: credit.value,
     quantity,
     total,
@@ -130,14 +149,16 @@ creditApiRoutes.post('/credits/charge', async (c) => {
   const payer = actingUserId(c);
   if (payer === null) return c.json({ error: 'acting_user_required' }, 400);
 
+  const currency = credit.def.currency;
   const total = credit.value * quantity;
   if (total === 0) {
-    return c.json({ ok: true, charged: 0, balance: await getCreditBalance(c.env, payer) });
+    return c.json({ ok: true, charged: 0, currency, balance: await getCreditBalance(c.env, payer, currency) });
   }
 
   const charge = await spendCredits(c.env, {
     userId: payer,
     amount: total,
+    currency,
     action: `${auth.callerId}:${key}`,
     entityType: typeof body.entity_type === 'string' ? body.entity_type.slice(0, 60) : undefined,
     entityId: typeof body.entity_id === 'string' || typeof body.entity_id === 'number' ? String(body.entity_id).slice(0, 60) : undefined,
@@ -147,15 +168,25 @@ creditApiRoutes.post('/credits/charge', async (c) => {
   });
   if (!charge.ok) {
     if (charge.error === 'unknown_user') return c.json({ error: 'unknown_acting_user' }, 400);
+    // The error code is the same for every wallet — `currency` says which one
+    // fell short, so a caller can tell "buy diamonds" from "buy credits".
     return c.json(
-      { error: 'insufficient_credits', credit: { required: charge.required, balance: charge.balance, shared_balance: charge.sharedBalance } },
+      {
+        error: 'insufficient_credits',
+        credit: {
+          currency,
+          required: charge.required,
+          balance: charge.balance,
+          shared_balance: charge.sharedBalance,
+        },
+      },
       402,
     );
   }
   // `balance` stays the user's own balance either way; when the shared pool
   // paid, the user's balance is unchanged and must be re-read.
-  const balance = charge.source === 'user' ? charge.balanceAfter : await getCreditBalance(c.env, payer);
-  return c.json({ ok: true, charged: total, balance, source: charge.source });
+  const balance = charge.source === 'user' ? charge.balanceAfter : await getCreditBalance(c.env, payer, currency);
+  return c.json({ ok: true, charged: total, currency, balance, source: charge.source });
 });
 
 /** The subscription fields exposed to plugins (host bookkeeping omitted). */
@@ -202,7 +233,11 @@ creditApiRoutes.post('/credits/usage', async (c) => {
 
   const report = await reportSubscriptionUsage(c.env, { userId, credit, quantity });
   if (!report.ok) return c.json({ error: 'unknown_user' }, 400);
-  return c.json({ ok: true, subscription: report.subscription ? subscriptionJson(report.subscription) : null });
+  return c.json({
+    ok: true,
+    currency: credit.def.currency,
+    subscription: report.subscription ? subscriptionJson(report.subscription) : null,
+  });
 });
 
 // The calling plugin's recurring subscriptions — for enforcement (a plugin

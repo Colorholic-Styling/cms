@@ -154,6 +154,27 @@ export interface ContributedPermission {
 /** How a declared cost is charged. */
 export type CreditChargeKind = 'page_create' | 'metered' | 'recurring';
 
+/**
+ * Which wallet a cost is paid from. Every wallet is a full currency of its
+ * own — its own per-user balance, its own shared pool, its own ledger rows —
+ * and they never convert into one another. 'credit' is the ordinary metered
+ * currency and the default for anything that does not say otherwise;
+ * 'diamond' is the premium currency reserved for costs an operator pays real
+ * money for (SMS and WhatsApp delivery, for example).
+ */
+export type CreditCurrency = 'credit' | 'diamond';
+
+/** The currencies, in display order. Adding one means adding its balance
+ *  column on `users` and its shared-pool row — see the credits feature. */
+export const CREDIT_CURRENCIES: readonly CreditCurrency[] = ['credit', 'diamond'];
+
+/** The default currency for a cost that declares none. */
+export const DEFAULT_CREDIT_CURRENCY: CreditCurrency = 'credit';
+
+export function isCreditCurrency(value: unknown): value is CreditCurrency {
+  return typeof value === 'string' && (CREDIT_CURRENCIES as readonly string[]).includes(value);
+}
+
 /** When a recurring cost bills: 'advance' charges the current usage snapshot
  *  for the coming period; 'arrears' charges the period's high-water mark once
  *  the period has elapsed. */
@@ -172,6 +193,10 @@ export interface ContributedCreditDef {
   /** Optional longer description shown in the credits admin. */
   description?: string;
   charge: CreditChargeKind;
+  /** Wallet this cost is paid from. Omitted → 'credit'. An unrecognised
+   *  currency drops the cost rather than falling back, so a typo can never
+   *  silently bill the wrong wallet. */
+  currency?: CreditCurrency;
   /** Required when charge is 'page_create': the page type whose creation is
    *  charged. Must be one of `pricablePageTypes`. */
   page_type?: string;
@@ -223,21 +248,34 @@ export interface ContributedLimitSummary {
   manageHref: string;
 }
 
+/** What a charge took, per wallet. Absent currencies were not touched. */
+export type CreditChargeTotals = Partial<Record<CreditCurrency, number>>;
+
 /**
- * The result of charging for one or more page creates. `refund()` compensates
- * a charge whose write then failed — in full by default, or `amount` of it
- * when only some of the batch was written.
+ * The result of charging for one or more page creates. A single create can
+ * cost several currencies at once (one plugin prices the type in credits,
+ * another in diamonds), so the amounts are per wallet and `charged` is their
+ * sum — enough to tell "something was charged" from "this was free".
+ *
+ * `refund()` compensates a charge whose write then failed: the whole charge by
+ * default, or `portion` of it (0..1) when only some of the batch was written.
+ * A portion applies to every wallet the charge touched, so partial refunds
+ * cannot drift between currencies.
  */
 export type CreditChargeOutcome =
-  | { ok: true; charged: number; refund(amount?: number): Promise<void> }
+  | { ok: true; charged: number; totals: CreditChargeTotals; refund(portion?: number): Promise<void> }
   | { ok: false; reason: 'unknown_user' }
-  | { ok: false; reason: 'insufficient'; required: number; balance: number; sharedBalance: number };
+  | { ok: false; reason: 'insufficient'; currency: CreditCurrency; required: number; balance: number; sharedBalance: number };
 
 /** One editable price on a contributor's pricing screen. */
 export interface CreditPricingRow {
   key: string;
   label: string;
   description: string;
+  /** Wallet the price is denominated in. */
+  currency: CreditCurrency;
+  /** Translation key for the currency name. */
+  currencyKey: string;
   /** Human charge description, e.g. the page type or the metered unit. */
   chargeLabel: string;
   /** Translation key for chargeLabel. */

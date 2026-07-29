@@ -39,7 +39,7 @@
 
 import type { Env } from '../../types';
 import type { CreditBillingMode } from '../../core/extensions';
-import { type EffectiveCredit, creditContributors, effectiveCreditsFor, spendCredits } from './service';
+import { type EffectiveCredit, creditContributors, currencyLabel, effectiveCreditsFor, spendCredits } from './service';
 
 /** Rows swept per cron tick — bounds sweep time and subrequests. */
 const SWEEP_BATCH = 25;
@@ -222,6 +222,7 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
 
     const mode = credit.def.billing ?? 'advance';
     const { per, unit } = credit.def;
+    const money = currencyLabel(credit.def.currency);
     const price = credit.value;
 
     // What this boundary owes (see module header for the mode-switch rules).
@@ -229,7 +230,7 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
     let note: string;
     if (mode === 'advance') {
       amount = blockCost(row.quantity, per, price);
-      note = `advance: ${row.quantity} ${unit} @ ${price}/${per}/month`;
+      note = `advance: ${row.quantity} ${unit} @ ${price} ${money}/${per}/month`;
       if (row.last_mode === 'arrears') {
         const owed = blockCost(row.peak_quantity, per, price);
         amount += owed;
@@ -240,7 +241,7 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
       note = 'billing switch: advance → arrears, period pre-paid';
     } else {
       amount = blockCost(row.peak_quantity, per, price);
-      note = `arrears: peak ${row.peak_quantity} ${unit} @ ${price}/${per}/month`;
+      note = `arrears: peak ${row.peak_quantity} ${unit} @ ${price} ${money}/${per}/month`;
     }
 
     // Claim before spending (see module header). The anchor advances from the
@@ -261,6 +262,9 @@ export async function sweepCreditSubscriptions(env: Env, opts: { now?: Date } = 
       const charge = await spendCredits(env, {
         userId: row.user_id,
         amount,
+        // The wallet comes from the cost as declared NOW, so re-denominating a
+        // recurring cost takes effect from the next period.
+        currency: credit.def.currency,
         action: `${row.plugin_id}:${row.credit_key}`,
         entityType: 'subscription',
         entityId: String(row.id),

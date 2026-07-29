@@ -482,19 +482,26 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
       pageTypes: [{ pageType, count: remaining }],
       payerUserId: payer,
       contributorId: auth.pluginId,
-    }) ?? { ok: true, charged: 0, refund: async () => {} }
-    : { ok: true, charged: 0, refund: async () => {} };
+    }) ?? { ok: true, charged: 0, totals: {}, refund: async () => {} }
+    : { ok: true, charged: 0, totals: {}, refund: async () => {} };
   if (!cloneCharge.ok) {
     if (cloneCharge.reason === 'unknown_user') return c.json({ error: 'unknown_acting_user' }, 400);
     return c.json(
-      { error: 'insufficient_credits', credit: { required: cloneCharge.required, balance: cloneCharge.balance, shared_balance: cloneCharge.sharedBalance } },
+      {
+        error: 'insufficient_credits',
+        credit: {
+          currency: cloneCharge.currency,
+          required: cloneCharge.required,
+          balance: cloneCharge.balance,
+          shared_balance: cloneCharge.sharedBalance,
+        },
+      },
       402,
     );
   }
-  // Charged up front for `remaining` clones; whatever is not written gets
-  // refunded at the same per-clone price below.
+  // Charged up front for `remaining` clones; whatever is not written is
+  // refunded below as that fraction of the charge, in every currency it took.
   const chargedClones = cloneCharge.charged > 0 ? remaining : 0;
-  const perClone = chargedClones > 0 ? cloneCharge.charged / chargedClones : 0;
   let copied = 0;
   let done = false;
   try {
@@ -550,12 +557,12 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
     if (!hasMore) { done = true; break; }
   }
   } catch (error) {
-    if (chargedClones > copied) await cloneCharge.refund(perClone * (chargedClones - copied));
+    if (chargedClones > copied) await cloneCharge.refund((chargedClones - copied) / chargedClones);
     throw error;
   }
 
   // Sources trashed concurrently → fewer clones than were charged for.
-  if (chargedClones > copied) await cloneCharge.refund(perClone * (chargedClones - copied));
+  if (chargedClones > copied) await cloneCharge.refund((chargedClones - copied) / chargedClones);
 
   return c.json({ count: copied, next_cursor: done ? null : cursor, done });
 });

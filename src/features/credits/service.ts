@@ -22,28 +22,84 @@
 // transaction), so concurrent spends can never take a balance below zero and
 // the ledger can never disagree with the balance.
 //
-// Shared pool: besides per-user balances there is one site-wide pool
-// (`shared_credits`, single row) with its own append-only ledger
+// Shared pool: besides per-user balances there is one site-wide pool per
+// currency (`shared_credits`, one row each) with its own append-only ledger
 // (`shared_credit_ledger`). spendCredits() tries the user's balance first and
 // falls back to the pool for the FULL amount when the user can't cover it
 // (all-or-nothing per pool — never split). Pool movements are recorded only in
 // the shared ledger, with user_id as the beneficiary. Users holding the
 // 'credits:share' permission may move pool credits to a user's balance
 // (transferSharedCredits); admins top the pool up via adjustSharedCredits.
+//
+// Currencies: every function here takes a CreditCurrency, defaulting to
+// 'credit'. A currency is a wallet of its own — its own column on `users`, its
+// own shared pool row, its own ledger lines — and nothing converts between
+// them: a diamond cost is refused when the diamond balance is short, however
+// many credits the user holds. 'diamond' is the premium wallet for costs an
+// operator pays real money for (SMS and WhatsApp delivery). Adding a currency
+// means adding its entry to WALLETS below, its `users` column and its
+// shared_credits row (see ./schema.sql).
 // ============================================================
 
 import type { Env } from '../../types';
 import {
   coreExtensions,
+  CREDIT_CURRENCIES,
+  DEFAULT_CREDIT_CURRENCY,
+  isCreditCurrency,
   type ContributedCreditDef,
   type CreditBillingMode,
   type CreditChargeKind,
   type CreditContributor,
+  type CreditCurrency,
 } from '../../core/extensions';
 import { getSetting, saveSetting } from '../../core/db/settings';
 
-/** Cap on manifest-declared credit costs honored per plugin. */
-export const MAX_DECLARED_CREDITS = 20;
+/**
+ * Where each currency's balances live. The balance column is interpolated
+ * into SQL, so it may only ever come from this frozen table — never from a
+ * request, a manifest or a form field.
+ */
+const WALLETS: Record<CreditCurrency, { column: 'credits' | 'diamonds'; sharedId: number }> = {
+  credit: { column: 'credits', sharedId: 1 },
+  diamond: { column: 'diamonds', sharedId: 2 },
+};
+
+/** The currency named by `value`, or 'credit' when it names none. Use for
+ *  form fields and manifest input where the default is the sane fallback;
+ *  declaredCredits() drops an unknown currency instead. */
+export function asCreditCurrency(value: unknown): CreditCurrency {
+  return isCreditCurrency(value) ? value : DEFAULT_CREDIT_CURRENCY;
+}
+
+/** Translation key for a currency's name as a heading: "Credits" / "Diamonds". */
+export function currencyLabelKey(currency: CreditCurrency): string {
+  return `credits.currency.${currency}`;
+}
+
+/** Translation key for a currency after a number: "25 credits" / "25 diamonds". */
+export function currencyUnitKey(currency: CreditCurrency): string {
+  return `credits.unit.${currency}`;
+}
+
+/** English fallback name, for log lines and non-translated surfaces. */
+export function currencyLabel(currency: CreditCurrency): string {
+  return currency === 'diamond' ? 'diamonds' : 'credits';
+}
+
+/** A zero-filled per-currency map, so callers can total without presence checks. */
+export function emptyCurrencyTotals(): Record<CreditCurrency, number> {
+  return Object.fromEntries(CREDIT_CURRENCIES.map((currency) => [currency, 0])) as Record<CreditCurrency, number>;
+}
+
+/**
+ * Cap on manifest-declared credit costs honored per plugin — remote input, so
+ * it is bounded. Costs past the cap are dropped silently, which is why the
+ * limit sits well above what a large plugin declares: the events suite alone
+ * declares 26 across two currencies, and a dropped cost is an action that
+ * quietly stops being charged.
+ */
+export const MAX_DECLARED_CREDITS = 40;
 
 const CREDIT_KEY_RE = /^[a-z0-9_]{1,64}$/;
 const CHARGES = new Set<CreditChargeKind>(['page_create', 'metered', 'recurring']);
@@ -61,6 +117,8 @@ export interface NormalizedCreditDef {
   label: string;
   description: string;
   charge: CreditChargeKind;
+  /** Wallet this cost is paid from. */
+  currency: CreditCurrency;
   /** Set exactly when charge is 'page_create'. */
   pageType: string | null;
   /** Display unit for metered/recurring costs. */
@@ -88,6 +146,8 @@ export interface CreditChargeInput {
   userId: number;
   /** Credits to deduct; must be > 0 (0 is a caller-side no-op). */
   amount: number;
+  /** Wallet to deduct from. Omitted → 'credit'. */
+  currency?: CreditCurrency;
   /** Ledger action, e.g. 'events:create_guest_list' or 'admin:adjust'. */
   action: string;
   entityType?: string;
@@ -105,6 +165,7 @@ export type CreditChargeResult =
 export interface CreditLedgerRow {
   id: number;
   user_id: number;
+  currency: CreditCurrency;
   delta: number;
   balance_after: number;
   action: string;
@@ -144,6 +205,9 @@ export function declaredCredits(contributor: CreditContributor): NormalizedCredi
     // at the wrong cadence, so anything but 'month' (or omitted) is dropped.
     if (def.charge === 'recurring' && def.period !== undefined && def.period !== 'month') continue;
     if (def.charge === 'recurring' && def.billing !== undefined && !BILLINGS.has(def.billing as CreditBillingMode)) continue;
+    // An unrecognised currency drops the cost rather than defaulting: a typo
+    // must never silently bill the wrong wallet.
+    if (def.currency !== undefined && !isCreditCurrency(def.currency)) continue;
     const per = typeof def.per === 'number' && Number.isFinite(def.per)
       ? Math.min(Math.max(Math.trunc(def.per), 1), MAX_RECURRING_PER)
       : 1;
@@ -154,6 +218,7 @@ export function declaredCredits(contributor: CreditContributor): NormalizedCredi
       label: typeof def.label === 'string' && def.label.trim() ? def.label.trim().slice(0, 120) : def.key,
       description: typeof def.description === 'string' ? def.description.trim().slice(0, 500) : '',
       charge: def.charge,
+      currency: def.currency ?? DEFAULT_CREDIT_CURRENCY,
       pageType: def.charge === 'page_create' ? pageType : null,
       unit: typeof def.unit === 'string' && def.unit.trim() ? def.unit.trim().slice(0, 40) : 'action',
       defaultValue: coercePrice(def.default),
@@ -213,10 +278,14 @@ export async function creditContributors(env: Env): Promise<CreditContributor[]>
 }
 
 export interface PageCreateCost {
-  /** Sum of every contributor's effective price for creating one page of the type. */
+  /** Sum of every contributor's effective price for creating one page of the
+   *  type, per currency. Two plugins may price the same type in different
+   *  wallets, so this is a map and not one number. */
+  totals: Record<CreditCurrency, number>;
+  /** Sum across every currency — enough to tell "priced" from "free". */
   total: number;
   /** The priced parts (value > 0 only). */
-  parts: Array<{ pluginId: string; key: string; label: string; value: number }>;
+  parts: Array<{ pluginId: string; key: string; label: string; currency: CreditCurrency; value: number }>;
 }
 
 /** The effective cost of creating one page of `pageType`, across all plugins. */
@@ -229,11 +298,19 @@ export async function pageCreateCostForType(env: Env, pageType: string): Promise
     if (!mentions) continue;
     for (const credit of await effectiveCreditsFor(env, contributor)) {
       if (credit.def.charge === 'page_create' && credit.def.pageType === pageType && credit.value > 0) {
-        parts.push({ pluginId: credit.pluginId, key: credit.def.key, label: credit.def.label, value: credit.value });
+        parts.push({
+          pluginId: credit.pluginId,
+          key: credit.def.key,
+          label: credit.def.label,
+          currency: credit.def.currency,
+          value: credit.value,
+        });
       }
     }
   }
-  return { total: parts.reduce((sum, part) => sum + part.value, 0), parts };
+  const totals = emptyCurrencyTotals();
+  for (const part of parts) totals[part.currency] += part.value;
+  return { totals, total: parts.reduce((sum, part) => sum + part.value, 0), parts };
 }
 
 /** Ledger action for a page-create charge: the declaring plugin's key when
@@ -244,9 +321,29 @@ export function pageCreateAction(pageType: string, cost: PageCreateCost): string
     : `page_create:${pageType}`;
 }
 
-export async function getCreditBalance(env: Env, userId: number): Promise<number | null> {
-  const row = await env.DB.prepare('SELECT credits FROM users WHERE id = ?').bind(userId).first<{ credits: number }>();
-  return row ? row.credits : null;
+export async function getCreditBalance(
+  env: Env,
+  userId: number,
+  currency: CreditCurrency = DEFAULT_CREDIT_CURRENCY,
+): Promise<number | null> {
+  const { column } = WALLETS[currency];
+  const row = await env.DB.prepare(`SELECT ${column} AS balance FROM users WHERE id = ?`)
+    .bind(userId).first<{ balance: number }>();
+  return row ? row.balance : null;
+}
+
+/** Every wallet's balance for one user, or null when there is no such user. */
+export async function getCreditBalances(
+  env: Env,
+  userId: number,
+): Promise<Record<CreditCurrency, number> | null> {
+  const columns = CREDIT_CURRENCIES.map((currency) => `${WALLETS[currency].column} AS ${currency}`).join(', ');
+  const row = await env.DB.prepare(`SELECT ${columns} FROM users WHERE id = ?`)
+    .bind(userId).first<Record<CreditCurrency, number>>();
+  if (!row) return null;
+  const balances = emptyCurrencyTotals();
+  for (const currency of CREDIT_CURRENCIES) balances[currency] = row[currency] ?? 0;
+  return balances;
 }
 
 /**
@@ -258,28 +355,30 @@ export async function getCreditBalance(env: Env, userId: number): Promise<number
 export async function chargeCredits(env: Env, input: CreditChargeInput): Promise<CreditChargeResult> {
   const amount = Math.trunc(input.amount);
   if (amount <= 0) throw new Error(`chargeCredits amount must be > 0, got ${input.amount}`);
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
+  const { column } = WALLETS[currency];
 
   // Success is detected via RETURNING, not meta.changes: production D1
   // reports `changes` from internal row writes (indexes included), so a
   // one-row UPDATE can report changes > 1 there while local D1 reports 1.
-  const results = await env.DB.batch<{ credits: number }>([
+  const results = await env.DB.batch<{ balance: number }>([
     env.DB.prepare(
-      `INSERT INTO credit_ledger (user_id, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
-       SELECT id, ?, credits - ?, ?, ?, ?, ?, ?, ?
-         FROM users WHERE id = ? AND credits >= ?`,
+      `INSERT INTO credit_ledger (user_id, currency, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
+       SELECT id, ?, ?, ${column} - ?, ?, ?, ?, ?, ?, ?
+         FROM users WHERE id = ? AND ${column} >= ?`,
     ).bind(
-      -amount, amount, input.action, input.entityType ?? null, input.entityId ?? null,
+      currency, -amount, amount, input.action, input.entityType ?? null, input.entityId ?? null,
       input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId, amount,
     ),
-    env.DB.prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ? RETURNING credits')
+    env.DB.prepare(`UPDATE users SET ${column} = ${column} - ? WHERE id = ? AND ${column} >= ? RETURNING ${column} AS balance`)
       .bind(amount, input.userId, amount),
   ]);
 
   const updated = results[1].results;
   if (updated.length === 1) {
-    return { ok: true, balanceAfter: updated[0].credits };
+    return { ok: true, balanceAfter: updated[0].balance };
   }
-  const balance = await getCreditBalance(env, input.userId);
+  const balance = await getCreditBalance(env, input.userId, currency);
   if (balance === null) return { ok: false, error: 'unknown_user', balance: 0, required: amount };
   return { ok: false, error: 'insufficient_credits', balance, required: amount };
 }
@@ -291,14 +390,16 @@ export async function chargeCredits(env: Env, input: CreditChargeInput): Promise
  */
 export async function adjustCredits(
   env: Env,
-  input: { userId: number; delta: number; action: string; note?: string; pluginId?: string; entityType?: string; entityId?: string; createdBy: string },
+  input: { userId: number; delta: number; currency?: CreditCurrency; action: string; note?: string; pluginId?: string; entityType?: string; entityId?: string; createdBy: string },
 ): Promise<CreditChargeResult> {
   const delta = Math.trunc(input.delta);
   if (delta === 0) throw new Error('adjustCredits delta must be non-zero');
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
   if (delta < 0) {
     return chargeCredits(env, {
       userId: input.userId,
       amount: -delta,
+      currency,
       action: input.action,
       entityType: input.entityType,
       entityId: input.entityId,
@@ -307,18 +408,19 @@ export async function adjustCredits(
       createdBy: input.createdBy,
     });
   }
+  const { column } = WALLETS[currency];
 
   // RETURNING instead of meta.changes for the same reason as chargeCredits.
-  const results = await env.DB.batch<{ credits: number }>([
+  const results = await env.DB.batch<{ balance: number }>([
     env.DB.prepare(
-      `INSERT INTO credit_ledger (user_id, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
-       SELECT id, ?, credits + ?, ?, ?, ?, ?, ?, ?
+      `INSERT INTO credit_ledger (user_id, currency, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
+       SELECT id, ?, ?, ${column} + ?, ?, ?, ?, ?, ?, ?
          FROM users WHERE id = ?`,
     ).bind(
-      delta, delta, input.action, input.entityType ?? null, input.entityId ?? null,
+      currency, delta, delta, input.action, input.entityType ?? null, input.entityId ?? null,
       input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId,
     ),
-    env.DB.prepare('UPDATE users SET credits = credits + ? WHERE id = ? RETURNING credits')
+    env.DB.prepare(`UPDATE users SET ${column} = ${column} + ? WHERE id = ? RETURNING ${column} AS balance`)
       .bind(delta, input.userId),
   ]);
 
@@ -326,7 +428,7 @@ export async function adjustCredits(
   if (updated.length !== 1) {
     return { ok: false, error: 'unknown_user', balance: 0, required: 0 };
   }
-  return { ok: true, balanceAfter: updated[0].credits };
+  return { ok: true, balanceAfter: updated[0].balance };
 }
 
 /**
@@ -338,13 +440,15 @@ export async function adjustCredits(
  */
 export async function refundCredits(
   env: Env,
-  input: { userId: number; amount: number; action: string; note?: string; pluginId?: string; createdBy: string; source?: CreditSource },
+  input: { userId: number; amount: number; currency?: CreditCurrency; action: string; note?: string; pluginId?: string; createdBy: string; source?: CreditSource },
 ): Promise<void> {
   if (Math.trunc(input.amount) <= 0) return;
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
   try {
     if (input.source === 'shared') {
       await adjustSharedCredits(env, {
         delta: Math.trunc(input.amount),
+        currency,
         action: `${input.action}:refund`,
         userId: input.userId,
         note: input.note,
@@ -356,6 +460,7 @@ export async function refundCredits(
     await adjustCredits(env, {
       userId: input.userId,
       delta: Math.trunc(input.amount),
+      currency,
       action: `${input.action}:refund`,
       note: input.note,
       pluginId: input.pluginId,
@@ -382,15 +487,17 @@ export type CreditTransferResult =
  */
 export async function transferCredits(
   env: Env,
-  input: { fromUserId: number; toUserId: number; amount: number; note?: string; createdBy: string },
+  input: { fromUserId: number; toUserId: number; amount: number; currency?: CreditCurrency; note?: string; createdBy: string },
 ): Promise<CreditTransferResult> {
   const amount = Math.trunc(input.amount);
   if (amount <= 0) throw new Error(`transferCredits amount must be > 0, got ${input.amount}`);
   if (input.fromUserId === input.toUserId) throw new Error('transferCredits cannot target the same user');
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
 
   const debit = await chargeCredits(env, {
     userId: input.fromUserId,
     amount,
+    currency,
     action: 'transfer:send',
     entityType: 'user',
     entityId: String(input.toUserId),
@@ -406,6 +513,7 @@ export async function transferCredits(
   const credit = await adjustCredits(env, {
     userId: input.toUserId,
     delta: amount,
+    currency,
     action: 'transfer:receive',
     entityType: 'user',
     entityId: String(input.fromUserId),
@@ -416,6 +524,7 @@ export async function transferCredits(
     await refundCredits(env, {
       userId: input.fromUserId,
       amount,
+      currency,
       action: 'transfer:send',
       note: 'auto-refund: recipient credit failed',
       createdBy: input.createdBy,
@@ -429,20 +538,25 @@ export async function transferCredits(
 export async function listCreditLedger(
   env: Env,
   userId: number,
-  opts: { limit?: number; offset?: number } = {},
+  opts: { limit?: number; offset?: number; currency?: CreditCurrency } = {},
 ): Promise<CreditLedgerRow[]> {
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
+  const currency = opts.currency ?? DEFAULT_CREDIT_CURRENCY;
   const rows = await env.DB.prepare(
-    'SELECT * FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
-  ).bind(userId, limit, offset).all<CreditLedgerRow>();
+    'SELECT * FROM credit_ledger WHERE user_id = ? AND currency = ? ORDER BY id DESC LIMIT ? OFFSET ?',
+  ).bind(userId, currency, limit, offset).all<CreditLedgerRow>();
   return rows.results;
 }
 
-export async function countCreditLedger(env: Env, userId: number): Promise<number> {
+export async function countCreditLedger(
+  env: Env,
+  userId: number,
+  currency: CreditCurrency = DEFAULT_CREDIT_CURRENCY,
+): Promise<number> {
   const row = await env.DB.prepare(
-    'SELECT COUNT(*) AS total FROM credit_ledger WHERE user_id = ?',
-  ).bind(userId).first<{ total: number }>();
+    'SELECT COUNT(*) AS total FROM credit_ledger WHERE user_id = ? AND currency = ?',
+  ).bind(userId, currency).first<{ total: number }>();
   return Math.max(0, row?.total ?? 0);
 }
 
@@ -453,6 +567,7 @@ export type CreditSource = 'user' | 'shared';
 
 export interface SharedCreditLedgerRow {
   id: number;
+  currency: CreditCurrency;
   delta: number;
   balance_after: number;
   action: string;
@@ -470,14 +585,31 @@ export type SharedCreditResult =
   | { ok: true; balanceAfter: number }
   | { ok: false; error: 'insufficient_credits'; balance: number; required: number };
 
-export async function getSharedCreditBalance(env: Env): Promise<number> {
-  const row = await env.DB.prepare('SELECT balance FROM shared_credits WHERE id = 1').first<{ balance: number }>();
+export async function getSharedCreditBalance(
+  env: Env,
+  currency: CreditCurrency = DEFAULT_CREDIT_CURRENCY,
+): Promise<number> {
+  const row = await env.DB.prepare('SELECT balance FROM shared_credits WHERE currency = ?')
+    .bind(currency).first<{ balance: number }>();
   return row?.balance ?? 0;
+}
+
+/** Every shared pool's balance, keyed by currency. */
+export async function getSharedCreditBalances(env: Env): Promise<Record<CreditCurrency, number>> {
+  const rows = await env.DB.prepare('SELECT currency, balance FROM shared_credits')
+    .all<{ currency: string; balance: number }>();
+  const balances = emptyCurrencyTotals();
+  for (const row of rows.results) {
+    if (isCreditCurrency(row.currency)) balances[row.currency] = row.balance;
+  }
+  return balances;
 }
 
 interface SharedCreditChangeInput {
   /** The beneficiary recorded on the ledger row; null for pool top-ups. */
   userId?: number | null;
+  /** Which pool to move. Omitted → 'credit'. */
+  currency?: CreditCurrency;
   action: string;
   entityType?: string;
   entityId?: string;
@@ -495,25 +627,33 @@ async function writeSharedCredits(
   guarded: boolean,
   input: SharedCreditChangeInput,
 ): Promise<SharedCreditResult> {
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
+  const { sharedId } = WALLETS[currency];
   const guardSql = guarded ? ' AND balance >= ?' : '';
   const guardArgs = guarded ? [-delta] : [];
   const results = await env.DB.batch<{ balance: number }>([
-    env.DB.prepare('INSERT OR IGNORE INTO shared_credits (id, balance) VALUES (1, 0)'),
+    env.DB.prepare('INSERT OR IGNORE INTO shared_credits (id, currency, balance) VALUES (?, ?, 0)')
+      .bind(sharedId, currency),
     env.DB.prepare(
-      `INSERT INTO shared_credit_ledger (delta, balance_after, action, user_id, entity_type, entity_id, plugin_id, note, created_by)
-       SELECT ?, balance + ?, ?, ?, ?, ?, ?, ?, ?
-         FROM shared_credits WHERE id = 1${guardSql}`,
+      `INSERT INTO shared_credit_ledger (currency, delta, balance_after, action, user_id, entity_type, entity_id, plugin_id, note, created_by)
+       SELECT ?, ?, balance + ?, ?, ?, ?, ?, ?, ?, ?
+         FROM shared_credits WHERE currency = ?${guardSql}`,
     ).bind(
-      delta, delta, input.action, input.userId ?? null, input.entityType ?? null,
-      input.entityId ?? null, input.pluginId ?? null, input.note ?? null, input.createdBy, ...guardArgs,
+      currency, delta, delta, input.action, input.userId ?? null, input.entityType ?? null,
+      input.entityId ?? null, input.pluginId ?? null, input.note ?? null, input.createdBy, currency, ...guardArgs,
     ),
-    env.DB.prepare(`UPDATE shared_credits SET balance = balance + ? WHERE id = 1${guardSql} RETURNING balance`)
-      .bind(delta, ...guardArgs),
+    env.DB.prepare(`UPDATE shared_credits SET balance = balance + ? WHERE currency = ?${guardSql} RETURNING balance`)
+      .bind(delta, currency, ...guardArgs),
   ]);
 
   const updated = results[2].results;
   if (updated.length === 1) return { ok: true, balanceAfter: updated[0].balance };
-  return { ok: false, error: 'insufficient_credits', balance: await getSharedCreditBalance(env), required: -delta };
+  return {
+    ok: false,
+    error: 'insufficient_credits',
+    balance: await getSharedCreditBalance(env, currency),
+    required: -delta,
+  };
 }
 
 /** Atomically deducts from the shared pool; fails closed when the pool can't
@@ -553,14 +693,24 @@ export type CreditSpendResult =
  */
 export async function spendCredits(env: Env, input: CreditChargeInput): Promise<CreditSpendResult> {
   const amount = Math.trunc(input.amount);
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
   const charge = await chargeCredits(env, input);
   if (charge.ok) return { ok: true, source: 'user', balanceAfter: charge.balanceAfter };
   if (charge.error === 'unknown_user') {
-    return { ok: false, error: 'unknown_user', balance: 0, sharedBalance: await getSharedCreditBalance(env), required: amount };
+    return {
+      ok: false,
+      error: 'unknown_user',
+      balance: 0,
+      sharedBalance: await getSharedCreditBalance(env, currency),
+      required: amount,
+    };
   }
 
+  // Only the SAME currency's pool can cover the spend — a full diamond pool
+  // never pays a credit charge, and vice versa.
   const shared = await chargeSharedCredits(env, {
     amount,
+    currency,
     action: input.action,
     userId: input.userId,
     entityType: input.entityType,
@@ -571,6 +721,100 @@ export async function spendCredits(env: Env, input: CreditChargeInput): Promise<
   });
   if (shared.ok) return { ok: true, source: 'shared', balanceAfter: shared.balanceAfter };
   return { ok: false, error: 'insufficient_credits', balance: charge.balance, sharedBalance: shared.balance, required: amount };
+}
+
+/** One currency's part of a multi-currency charge. */
+export interface CurrencyAmount {
+  currency: CreditCurrency;
+  amount: number;
+}
+
+export type MultiSpendResult =
+  | { ok: true; spent: Array<CurrencyAmount & { source: CreditSource }> }
+  | { ok: false; error: 'unknown_user'; currency: CreditCurrency; balance: number; sharedBalance: number; required: number }
+  | { ok: false; error: 'insufficient_credits'; currency: CreditCurrency; balance: number; sharedBalance: number; required: number };
+
+/**
+ * Spends several currencies for one action — a page type priced in credits by
+ * one plugin and in diamonds by another costs both at once.
+ *
+ * All-or-nothing across wallets: the amounts are spent in order and, if any
+ * one of them is refused, every wallet already debited is refunded before the
+ * refusal is returned. A caller therefore never has to unwind a partial
+ * charge, and never half-charges a create it then rejects.
+ */
+export async function spendCurrencies(
+  env: Env,
+  input: Omit<CreditChargeInput, 'amount' | 'currency'> & { amounts: readonly CurrencyAmount[] },
+): Promise<MultiSpendResult> {
+  const spent: Array<CurrencyAmount & { source: CreditSource }> = [];
+  for (const { currency, amount } of input.amounts) {
+    if (Math.trunc(amount) <= 0) continue;
+    const charge = await spendCredits(env, { ...input, amount, currency });
+    if (charge.ok) {
+      spent.push({ currency, amount: Math.trunc(amount), source: charge.source });
+      continue;
+    }
+    await refundCurrencies(env, {
+      userId: input.userId,
+      action: input.action,
+      pluginId: input.pluginId,
+      note: 'auto-refund: another currency in the same charge was refused',
+      createdBy: input.createdBy,
+      spent,
+    });
+    return {
+      ok: false,
+      error: charge.error,
+      currency,
+      balance: charge.balance,
+      sharedBalance: charge.sharedBalance,
+      required: charge.required,
+    };
+  }
+  return { ok: true, spent };
+}
+
+/** The non-zero parts of a per-currency total, in display order — the shape
+ *  spendCurrencies() takes. */
+export function currencyAmounts(totals: Record<CreditCurrency, number>): CurrencyAmount[] {
+  return CREDIT_CURRENCIES
+    .map((currency) => ({ currency, amount: Math.trunc(totals[currency] ?? 0) }))
+    .filter((part) => part.amount > 0);
+}
+
+/**
+ * Reverses what spendCurrencies() took, each part back to the balance that
+ * paid it. `portion` (0..1) refunds only part of the charge — for a batch
+ * where some of the rows were written after all. Never throws, like
+ * refundCredits().
+ */
+export async function refundCurrencies(
+  env: Env,
+  input: {
+    userId: number;
+    action: string;
+    pluginId?: string;
+    note?: string;
+    createdBy: string;
+    spent: ReadonlyArray<CurrencyAmount & { source: CreditSource }>;
+    portion?: number;
+  },
+): Promise<void> {
+  const portion = Math.min(Math.max(input.portion ?? 1, 0), 1);
+  if (portion <= 0) return;
+  for (const part of input.spent) {
+    await refundCredits(env, {
+      userId: input.userId,
+      amount: Math.round(part.amount * portion),
+      currency: part.currency,
+      source: part.source,
+      action: input.action,
+      pluginId: input.pluginId,
+      note: input.note,
+      createdBy: input.createdBy,
+    });
+  }
 }
 
 export type SharedDonationResult =
@@ -588,14 +832,16 @@ export type SharedDonationResult =
  */
 export async function donateSharedCredits(
   env: Env,
-  input: { fromUserId: number; amount: number; note?: string; createdBy: string },
+  input: { fromUserId: number; amount: number; currency?: CreditCurrency; note?: string; createdBy: string },
 ): Promise<SharedDonationResult> {
   const amount = Math.trunc(input.amount);
   if (amount <= 0) throw new Error(`donateSharedCredits amount must be > 0, got ${input.amount}`);
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
 
   const debit = await chargeCredits(env, {
     userId: input.fromUserId,
     amount,
+    currency,
     action: 'shared:donate',
     entityType: 'shared',
     note: input.note,
@@ -610,6 +856,7 @@ export async function donateSharedCredits(
   try {
     const credit = await adjustSharedCredits(env, {
       delta: amount,
+      currency,
       action: 'shared:donate',
       userId: input.fromUserId,
       note: input.note,
@@ -622,6 +869,7 @@ export async function donateSharedCredits(
   await refundCredits(env, {
     userId: input.fromUserId,
     amount,
+    currency,
     action: 'shared:donate',
     note: 'auto-refund: pool credit failed',
     createdBy: input.createdBy,
@@ -644,10 +892,11 @@ export type SharedTransferResult =
  */
 export async function transferSharedCredits(
   env: Env,
-  input: { toUserId: number; amount: number; note?: string; createdBy: string },
+  input: { toUserId: number; amount: number; currency?: CreditCurrency; note?: string; createdBy: string },
 ): Promise<SharedTransferResult> {
   const amount = Math.trunc(input.amount);
   if (amount <= 0) throw new Error(`transferSharedCredits amount must be > 0, got ${input.amount}`);
+  const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
 
   // The shared ledger's beneficiary column is a foreign key — debiting with a
   // nonexistent recipient would abort on the constraint, so check first.
@@ -656,6 +905,7 @@ export async function transferSharedCredits(
 
   const debit = await chargeSharedCredits(env, {
     amount,
+    currency,
     action: 'shared:send',
     userId: input.toUserId,
     note: input.note,
@@ -666,6 +916,7 @@ export async function transferSharedCredits(
   const credit = await adjustCredits(env, {
     userId: input.toUserId,
     delta: amount,
+    currency,
     action: 'shared:receive',
     entityType: 'shared',
     note: input.note,
@@ -674,6 +925,7 @@ export async function transferSharedCredits(
   if (!credit.ok) {
     await adjustSharedCredits(env, {
       delta: amount,
+      currency,
       action: 'shared:send:refund',
       userId: input.toUserId,
       note: 'auto-refund: recipient credit failed',
@@ -687,12 +939,13 @@ export async function transferSharedCredits(
 
 export async function listSharedCreditLedger(
   env: Env,
-  opts: { limit?: number; offset?: number } = {},
+  opts: { limit?: number; offset?: number; currency?: CreditCurrency } = {},
 ): Promise<SharedCreditLedgerRow[]> {
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 200);
   const offset = Math.max(opts.offset ?? 0, 0);
+  const currency = opts.currency ?? DEFAULT_CREDIT_CURRENCY;
   const rows = await env.DB.prepare(
-    'SELECT * FROM shared_credit_ledger ORDER BY id DESC LIMIT ? OFFSET ?',
-  ).bind(limit, offset).all<SharedCreditLedgerRow>();
+    'SELECT * FROM shared_credit_ledger WHERE currency = ? ORDER BY id DESC LIMIT ? OFFSET ?',
+  ).bind(currency, limit, offset).all<SharedCreditLedgerRow>();
   return rows.results;
 }
