@@ -6,6 +6,7 @@ import { clearConfigCache } from '../src/core/db/content-config';
 import { cmsTenantRoutes } from '../src/features/plugins/api/tenant';
 import { claimEnrollmentTicket, enrollPluginTenant, revokePluginTenant } from '../src/features/plugins/enroll';
 import { getSetting } from '../src/core/db/settings';
+import { signJWT } from '../src/core/auth/jwt';
 import type { Env } from '../src/types';
 
 const CMS_ORIGIN = 'https://cms.example.com';
@@ -41,6 +42,8 @@ function makePlugin(options: {
   /** Origin the plugin dials instead of the one it was told (attack simulation). */
   claimOrigin?: string;
   cms: (request: Request) => Promise<Response>;
+  /** Test seam for connection-state changes made during enrollment. */
+  afterEnroll?: () => void;
 }): FakePlugin {
   const tenants = new Map<string, { cmsUrl: string; secret: string }>();
   const enrollCalls: Array<Record<string, unknown>> = [];
@@ -63,6 +66,7 @@ function makePlugin(options: {
       if (!claim.ok) return new Response('enrollment_rejected', { status: 403 });
       const granted = await claim.json() as { tenant: string; cms_url: string; secret: string };
       tenants.set(granted.tenant, { cmsUrl: granted.cms_url, secret: granted.secret });
+      options.afterEnroll?.();
       return Response.json({ ok: true, tenant: granted.tenant });
     }
 
@@ -128,6 +132,60 @@ describe('plugin tenant enrollment', () => {
     await enrollPluginTenant(testEnv, await resolvedPlugin(testEnv, url), 'admin@example.com');
 
     expect(await getSetting(testEnv, 'plugin.enrollment.events')).toBeNull();
+  });
+
+  it('revalidates cached plugin state after a successful Connect action', async () => {
+    const manifest = { ...MANIFEST };
+    let manifestFetches = 0;
+    const plugin = makePlugin({
+      manifest,
+      cms: cmsApp({ DB: env.DB, CANONICAL_ORIGIN: CMS_ORIGIN } as unknown as Env),
+      afterEnroll: () => { manifest.version = '2.0.0'; },
+    });
+    const originalFetch = plugin.fetcher.fetch.bind(plugin.fetcher);
+    plugin.fetcher = {
+      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        if (new URL(url).pathname === '/__plugin/manifest') manifestFetches += 1;
+        return originalFetch(input, init);
+      },
+    } as unknown as Fetcher;
+    const { testEnv, url } = await register(plugin);
+    const row = await env.DB.prepare('SELECT id FROM plugins WHERE url = ?').bind(url).first<{ id: number }>();
+    expect(row).not.toBeNull();
+
+    // Prime the manifest/registry cache with the pre-enrollment state.
+    expect((await getPlugins(testEnv))[0]?.manifest.version).toBe('1.0.0');
+    expect(manifestFetches).toBe(1);
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+      sub: '1',
+      email: 'admin@example.com',
+      name: 'Admin User',
+      role: 'admin',
+      type: 'access',
+      exp: now + 900,
+      iat: now,
+    }, env.JWT_SECRET);
+    const worker = (exports as unknown as { default: Fetcher }).default;
+    const response = await worker.fetch(new Request(
+      `http://localhost/admin/plugins-manage/${row!.id}/connect`,
+      {
+        method: 'POST',
+        headers: {
+          Cookie: `access_token=${token}`,
+          'Sec-Fetch-Site': 'same-origin',
+        },
+        redirect: 'manual',
+      },
+    ));
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('location')).toContain('flash=connect-ok');
+    expect(manifestFetches).toBe(2);
+    expect((await getPlugins(testEnv))[0]?.manifest.version).toBe('2.0.0');
+    expect(manifestFetches).toBe(2);
   });
 
   it('refuses a ticket that is replayed', async () => {

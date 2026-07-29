@@ -250,6 +250,14 @@ pluginsManageRoutes.post('/plugins-manage/:id/connect', async (c) => {
   if (!resolved) return c.redirect(`/admin/plugins-manage/${id}/edit?flash=connect-unreachable`);
 
   const result = await enrollPluginTenant(c.env, resolved, c.get('user').email);
+  if (result.ok) {
+    // Enrollment changes the plugin's effective connection state outside D1.
+    // Treat it like enable/disable: discard the resolved registry/config
+    // snapshots, then eagerly resolve once so the redirect lands on freshly
+    // validated plugin state instead of waiting for cache expiry.
+    invalidate();
+    await getPlugins(c.env);
+  }
   logAudit(c, 'plugin.tenant.connect', 'plugin', row.url, {
     ok: result.ok,
     code: result.code,
