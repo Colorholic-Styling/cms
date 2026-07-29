@@ -38,7 +38,7 @@
 // ============================================================
 
 import type { Env } from '../../types';
-import type { CreditBillingMode } from '../../core/extensions';
+import type { CreditBillingMode } from './contracts';
 import { type EffectiveCredit, creditContributors, currencyLabel, effectiveCreditsFor, spendCredits } from './service';
 
 /** Rows swept per cron tick — bounds sweep time and subrequests. */

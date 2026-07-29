@@ -20,7 +20,11 @@ const FEATURE_MARKERS: Record<string, string[]> = {
   'plugins': ['CREATE TABLE IF NOT EXISTS plugins(', 'CREATE TABLE IF NOT EXISTS plugin_asset_approvals('],
   'plugin-pointer-indexes': ['idx_draft_pages_pointer_event'],
   'jobs': ['CREATE TABLE IF NOT EXISTS admin_jobs('],
-  'credits': ['CREATE TABLE IF NOT EXISTS credit_ledger(', 'CREATE TABLE IF NOT EXISTS credit_subscriptions('],
+  'credits': [
+    'CREATE TABLE IF NOT EXISTS credit_wallets(',
+    'CREATE TABLE IF NOT EXISTS credit_ledger(',
+    'CREATE TABLE IF NOT EXISTS credit_subscriptions(',
+  ],
 };
 
 const availableFeatures = env.TEST_AVAILABLE_FEATURES.split(',').filter(Boolean);

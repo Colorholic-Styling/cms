@@ -8,12 +8,6 @@
 -- ============================================================
 
 -- 1. Users – populated on first OAuth login
---
--- NOTE: `credits` and `diamonds` are owned by the `credits` feature but
--- declared here because they are columns on a core table. Until they move to a
--- table owned by that fragment, disabling the feature still leaves them behind
--- (unused, always 0). One column per currency: see CREDIT_CURRENCIES in
--- src/core/extensions.ts.
 CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     oauth_id TEXT UNIQUE NOT NULL,
@@ -23,9 +17,7 @@ CREATE TABLE IF NOT EXISTS users(
     -- role: comma-separated list of admin | editor | moderator | viewer
     role TEXT NOT NULL DEFAULT 'viewer',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    credits INTEGER NOT NULL DEFAULT 0,
-    diamonds INTEGER NOT NULL DEFAULT 0
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 -- 2. Sessions – stores hashed refresh tokens for revocation support

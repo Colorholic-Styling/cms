@@ -59,16 +59,6 @@ export interface PageCreateCandidate {
   lect?: unknown;
 }
 
-/**
- * The outcome of charging for a page create. `ok: false` carries a
- * ready-to-show message the editor adds to its validation errors; `ok: true`
- * carries the compensating action to run if the insert then fails, which is a
- * no-op for a free page type.
- */
-export type PageCreateChargeResult =
-  | { ok: true; refund(): Promise<void> }
-  | { ok: false; error: string };
-
 /** Data a plugin-owned editor view is rendered from. */
 export interface EditViewContext {
   /** 'new' for the create form, 'edit' for an existing page. */
@@ -126,17 +116,6 @@ export interface ReadViewContext {
   versions: EditViewContext['versions'];
 }
 
-/**
- * An admin screen that lets another feature contribute template props — the
- * profile page and the users admin both host a credits panel they must not
- * have to import. The screen keys are the contract; a contributor that does
- * not recognise one returns nothing.
- */
-export type AdminScreen =
-  | { screen: 'profile' }
-  | { screen: 'users' }
-  | { screen: 'user'; userId: number };
-
 /** Deep links into whoever owns CSV import/export. Empty strings hide the control. */
 export interface ImportExportHrefs {
   importHref: string;
@@ -149,86 +128,6 @@ export interface ImportExportHrefs {
 export interface ContributedPermission {
   value: string;
   label: string;
-}
-
-/** How a declared cost is charged. */
-export type CreditChargeKind = 'page_create' | 'metered' | 'recurring';
-
-/**
- * Which wallet a cost is paid from. Every wallet is a full currency of its
- * own — its own per-user balance, its own shared pool, its own ledger rows —
- * and they never convert into one another. 'credit' is the ordinary metered
- * currency and the default for anything that does not say otherwise;
- * 'diamond' is the premium currency reserved for costs an operator pays real
- * money for (SMS and WhatsApp delivery, for example).
- */
-export type CreditCurrency = 'credit' | 'diamond';
-
-/** The currencies, in display order. Adding one means adding its balance
- *  column on `users` and its shared-pool row — see the credits feature. */
-export const CREDIT_CURRENCIES: readonly CreditCurrency[] = ['credit', 'diamond'];
-
-/** The default currency for a cost that declares none. */
-export const DEFAULT_CREDIT_CURRENCY: CreditCurrency = 'credit';
-
-export function isCreditCurrency(value: unknown): value is CreditCurrency {
-  return typeof value === 'string' && (CREDIT_CURRENCIES as readonly string[]).includes(value);
-}
-
-/** When a recurring cost bills: 'advance' charges the current usage snapshot
- *  for the coming period; 'arrears' charges the period's high-water mark once
- *  the period has elapsed. */
-export type CreditBillingMode = 'advance' | 'arrears';
-
-/**
- * A cost declared by a contributor (today, in a plugin manifest). Remote
- * input: whoever prices it validates and normalises every field, so this is
- * the wire shape, not a guarantee.
- */
-export interface ContributedCreditDef {
-  /** Identifier unique within the contributor, e.g. "create_guest_list". */
-  key: string;
-  /** Human label shown in the credits admin and the ledger. */
-  label?: string;
-  /** Optional longer description shown in the credits admin. */
-  description?: string;
-  charge: CreditChargeKind;
-  /** Wallet this cost is paid from. Omitted → 'credit'. An unrecognised
-   *  currency drops the cost rather than falling back, so a typo can never
-   *  silently bill the wrong wallet. */
-  currency?: CreditCurrency;
-  /** Required when charge is 'page_create': the page type whose creation is
-   *  charged. Must be one of `pricablePageTypes`. */
-  page_type?: string;
-  /** Display unit for metered/recurring costs (e.g. "recipient", "record");
-   *  defaults to "action". */
-  unit?: string;
-  /** Cost in credits until an admin configures a value. Omitted or 0 = free —
-   *  a freshly deployed manifest never silently starts charging. */
-  default?: number;
-  /** Recurring only: usage block size the price applies to. Omitted → 1. */
-  per?: number;
-  /** Recurring only: billing period. Only 'month' is supported. */
-  period?: 'month';
-  /** Recurring only: 'advance' (default) or 'arrears'. */
-  billing?: CreditBillingMode;
-}
-
-/** Someone who declares priced actions. The plugin platform contributes one
- *  per installed plugin; a build without it contributes none, so everything
- *  is free. */
-export interface CreditContributor {
-  /** Stable id — used in the ledger and in the per-contributor price setting. */
-  id: string;
-  /** Display name for the credits admin. */
-  name: string;
-  /** Declared costs, as written. */
-  credits: readonly ContributedCreditDef[];
-  /** Page types this contributor may attach a page_create price to. Anything
-   *  outside it is dropped, so nobody can price another's content. */
-  pricablePageTypes: ReadonlySet<string>;
-  /** Where an admin configures these prices, for the summary's edit links. */
-  manageHref?: string;
 }
 
 /** A quota a contributor declares, resolved to its effective value. For the
@@ -246,46 +145,6 @@ export interface ContributedLimitSummary {
   value: number | null;
   /** Where an admin configures this quota. */
   manageHref: string;
-}
-
-/** What a charge took, per wallet. Absent currencies were not touched. */
-export type CreditChargeTotals = Partial<Record<CreditCurrency, number>>;
-
-/**
- * The result of charging for one or more page creates. A single create can
- * cost several currencies at once (one plugin prices the type in credits,
- * another in diamonds), so the amounts are per wallet and `charged` is their
- * sum — enough to tell "something was charged" from "this was free".
- *
- * `refund()` compensates a charge whose write then failed: the whole charge by
- * default, or `portion` of it (0..1) when only some of the batch was written.
- * A portion applies to every wallet the charge touched, so partial refunds
- * cannot drift between currencies.
- */
-export type CreditChargeOutcome =
-  | { ok: true; charged: number; totals: CreditChargeTotals; refund(portion?: number): Promise<void> }
-  | { ok: false; reason: 'unknown_user' }
-  | { ok: false; reason: 'insufficient'; currency: CreditCurrency; required: number; balance: number; sharedBalance: number };
-
-/** One editable price on a contributor's pricing screen. */
-export interface CreditPricingRow {
-  key: string;
-  label: string;
-  description: string;
-  /** Wallet the price is denominated in. */
-  currency: CreditCurrency;
-  /** Translation key for the currency name. */
-  currencyKey: string;
-  /** Human charge description, e.g. the page type or the metered unit. */
-  chargeLabel: string;
-  /** Translation key for chargeLabel. */
-  chargeKey: string;
-  /** Price that applies until an admin configures one. */
-  defaultValue: number;
-  /** Price in force now. */
-  effectiveValue: number;
-  /** False when effectiveValue is just the default. */
-  configured: boolean;
 }
 
 /**
@@ -393,59 +252,16 @@ export interface CoreExtensions {
    */
   importExportHrefs?(env: Env, pageType?: string): Promise<ImportExportHrefs>;
   /**
-   * Charge the signed-in user for creating `pageType`, before the row is
-   * inserted. Core treats an unregistered extension as "free".
-   */
-  chargePageCreate?(c: AppContext, pageType: string): Promise<PageCreateChargeResult>;
-  /**
    * Render the create/edit form through whoever owns this page type. Null
    * means core should render its own editor.
    */
   pageEditView?(c: AppContext, context: EditViewContext): Promise<Response | null>;
   /** As pageEditView, for the read-only view. */
   pageReadView?(c: AppContext, context: ReadViewContext): Promise<Response | null>;
-  /**
-   * Cron work owned by a feature, run from the Worker's scheduled handler.
-   * Returns a line to log, or null when there was nothing to do.
-   */
-  runScheduled?(env: Env): Promise<string | null>;
-  /** Extra template props for an admin screen owned by someone else. */
-  adminScreenProps?(c: AppContext, target: AdminScreen): Promise<Record<string, unknown>>;
   /** Permissions declared outside the built-in set, for the role editor. */
   contributedPermissions?(env: Env): Promise<ContributedPermission[]>;
-  /**
-   * Everyone declaring priced actions. Whoever prices them reads this instead
-   * of the platform that hosts them, so the two install independently.
-   */
-  creditContributors?(env: Env): Promise<CreditContributor[]>;
-  /** One contributor by id, or null when it is not installed. */
-  creditContributor?(env: Env, id: string): Promise<CreditContributor | null>;
   /** Declared quotas with their effective values, for the summary screen. */
   limitSummaries?(env: Env): Promise<ContributedLimitSummary[]>;
-  /**
-   * One contributor's declared costs and their configured prices, for a
-   * pricing screen hosted by whoever manages that contributor. Unregistered
-   * means nothing prices anything, so the screen should not be offered.
-   */
-  creditPricing?(env: Env, contributorId: string): Promise<CreditPricingRow[]>;
-  /**
-   * Saves prices from that screen. `submitted` is keyed by credit key, with
-   * raw form values; anything unrecognised or blank is ignored (blank unsets,
-   * so the default applies). Resolves with what was actually stored.
-   */
-  saveCreditPricing?(env: Env, contributorId: string, submitted: Record<string, string>): Promise<Record<string, number>>;
-  /**
-   * Charge `payerUserId` for creating these page types, before the rows are
-   * written. Unregistered means every page is free.
-   */
-  chargePageCreates?(env: Env, input: {
-    /** Page types being created, with how many of each. */
-    pageTypes: ReadonlyArray<{ pageType: string; count: number }>;
-    /** Who pays; null when the request has no acting user (nothing is charged). */
-    payerUserId: number | null;
-    /** Attributed in the ledger when a contributor acts for the user. */
-    contributorId?: string;
-  }): Promise<CreditChargeOutcome>;
   /**
    * Authenticate an inbound contributor API request. Returns the caller, or a
    * Response to send back verbatim when authentication fails. Unregistered

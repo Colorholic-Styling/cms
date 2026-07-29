@@ -24,6 +24,7 @@ const quiet = process.argv.includes('--quiet');
 const CHROME = 'src/core/render/chrome.ts';
 const REGISTRY = 'src/features/index.ts';
 const ROUTERS = 'src/features/routers.ts';
+const SERVICES = 'src/features/services.ts';
 
 // Feature machinery the chrome must never pull in directly: every admin page
 // render would pay for it, and no admin page except one needs it.
@@ -117,41 +118,45 @@ for (const forbidden of FORBIDDEN_IN_CHROME) {
   if (full.has(forbidden)) failures.push(`${CHROME} reaches ${forbidden}; every admin render would pay for it`);
 }
 
-// 3. Nothing outside src/features/ may reach into it — not core, not the
-//    routers, not the shared templates, not the entrypoint — except the
-//    generated registries and the chrome reading the manifest registry.
+// 3. Nothing outside src/features/ may reach into it — not core, routes,
+//    templates or the entrypoint — except the generated registries.
 //
 //    This is what makes a feature droppable: `rm -rf src/features/<id>` plus
 //    its key in cms.features.json has to leave a tree that still compiles.
 //    Type-only imports count here, because tsc fails on those too — that is
 //    exactly how the plugin platform stayed undroppable while looking clean.
-//    Everything a host screen needs from a feature goes through
-//    core/extensions.ts, which core declares and the feature fills in.
+//    Feature-owned runtime behavior goes through features/services.ts, whose
+//    implementations are selected by the generated service registry.
 const OUTSIDE_FEATURES = (file) => (
-  (file.startsWith('src/core/') || file.startsWith('src/routes/') || file.startsWith('src/templates/') || file === 'src/index.ts')
+  (
+    file.startsWith('src/core/')
+    || file.startsWith('src/routes/')
+    || file.startsWith('src/templates/')
+    || file === 'src/index.ts'
+  )
 );
-// The two registries are the sanctioned doors: both are generated from
+// These registries are the sanctioned doors. They are generated from
 // cms.features.json and survive any feature being dropped.
-const FEATURE_REGISTRIES = new Set([REGISTRY, ROUTERS]);
+const FEATURE_REGISTRIES = new Set([REGISTRY, ROUTERS, SERVICES]);
 for (const file of files.filter(OUTSIDE_FEATURES)) {
   for (const target of typeGraph.get(file) ?? []) {
     if (!target.startsWith('src/features/')) continue;
     if (FEATURE_REGISTRIES.has(target)) continue;
     failures.push(
       `${file} imports ${target}; nothing outside src/features may depend on a feature `
-      + `(only the ${REGISTRY} / ${ROUTERS} registries). `
-      + 'Add an extension point in src/core/extensions.ts instead.',
+      + `(only the ${REGISTRY} / ${ROUTERS} / ${SERVICES} registries).`,
     );
   }
 }
 
 // 4. A feature may not import a sibling feature unless it declares the
-//    dependency in its manifest's `requires`. Shared code belongs in core/; a
-//    genuine dependency should be stated, not implied by an import, so the
+//    dependency in its manifest's `requires`. Feature-to-feature calls use the
+//    generated service registry; each feature owns its local wire shapes.
+//    A genuine dependency should be stated, not implied by an import, so the
 //    registry can refuse a profile that breaks it (assertFeatureRegistry) and
 //    the reader can see it. As rule 3, type-only imports count: a declared
 //    dependency is also a compile-time one, and no feature declares any today
-//    — they cooperate through core/extensions.ts, which is what lets each be
+//    — they cooperate through features/services.ts, which is what lets each be
 //    dropped on its own.
 const declaredRequires = (feature) => {
   const file = path.join(rootDir, 'src', 'features', feature, 'feature.ts');
@@ -190,12 +195,13 @@ for (const file of closure(GENERATED_MANIFESTS)) {
   }
 }
 
-// 6. Routers are registered separately precisely so the chrome never sees
-//    them: a router reaches back into the chrome via renderPage, so importing
-//    one from the manifest registry would re-bloat the chrome and make the
-//    graph cyclic.
+// 6. Routers and feature services are registered separately precisely so the
+//    chrome never sees them: both can reach heavy feature implementation code.
 if (full.has(ROUTERS)) {
   failures.push(`${CHROME} reaches ${ROUTERS}; feature routers must stay out of the manifest registry`);
+}
+if (full.has(SERVICES)) {
+  failures.push(`${CHROME} reaches ${SERVICES}; feature services must stay out of the manifest registry`);
 }
 for (const file of full) {
   if (/^src\/features\/[^/]+\/routes\.ts$/.test(file)) {

@@ -11,7 +11,6 @@ import {
   type ContributedNavItem,
   type ContributedLimitSummary,
   type ContributedPermission,
-  type CreditContributor,
   type ImportExportHrefs,
   type ApiCallerIdentity,
   type EditViewContext,
@@ -27,14 +26,13 @@ import { allPluginPermissions, getPlugins, pluginAutoPublishesPageType, pluginBy
 import { pluginTenantId, setPluginAuthHeaders } from './proxy';
 import { deliverHooks } from './hooks';
 import { pluginAdapter } from './publish-adapter';
-import { checkCreateLimits, createCandidate, effectiveLimitsForPlugin, limitScopeTypes, limitViolationMessage } from './limits';
+import { checkCreateLimits, createCandidate, effectiveLimitsForPlugin, limitViolationMessage } from './limits';
 import { importExportHrefs } from './import-export';
 import { pluginEditView, pluginNewView, pluginReadView } from './edit-view';
 import { viewsFor } from './views';
 import { listPlugins } from './store';
 import { authenticatePlugin } from './api/auth';
 import { actingUserId } from './api/create';
-import type { ResolvedPlugin } from './types';
 
 registerCoreExtensions({
   async publishAdapters(env: Env): Promise<PublishAdapter[]> {
@@ -162,20 +160,13 @@ registerCoreExtensions({
     return pluginReadView(c, context.pageType, context);
   },
 
-  /** Every installed plugin's declared costs, for whoever prices them. */
-  async creditContributors(env: Env): Promise<CreditContributor[]> {
-    const [plugins, hrefs] = await Promise.all([getPlugins(env), manageHrefs(env)]);
-    return Promise.all(plugins.map((plugin) => asCreditContributor(env, plugin, hrefs)));
-  },
-
-  async creditContributor(env: Env, id: string): Promise<CreditContributor | null> {
-    const plugin = await pluginById(env, id);
-    if (!plugin) return null;
-    return asCreditContributor(env, plugin, await manageHrefs(env));
-  },
-
   async limitSummaries(env: Env): Promise<ContributedLimitSummary[]> {
-    const [plugins, hrefs] = await Promise.all([getPlugins(env), manageHrefs(env)]);
+    const [plugins, records] = await Promise.all([getPlugins(env), listPlugins(env.DB)]);
+    const idByUrl = new Map(records.map((record) => [record.url, record.id]));
+    const hrefs = (binding: string, section: 'credits' | 'limits') => {
+      const id = idByUrl.get(binding);
+      return id ? `/admin/plugins-manage/${id}/${section}` : '/admin/plugins-manage';
+    };
     const summaries = await Promise.all(plugins.map(async (plugin) => {
       const limits = await effectiveLimitsForPlugin(env, plugin);
       const contributorLabel = plugin.manifest.name || plugin.label || plugin.manifest.id;
@@ -203,31 +194,6 @@ registerCoreExtensions({
     return actingUserId(c);
   },
 });
-
-/** Deep links into the manage screen, resolved once per request. */
-async function manageHrefs(env: Env): Promise<(binding: string, section: 'credits' | 'limits') => string> {
-  const records = await listPlugins(env.DB);
-  const idByUrl = new Map(records.map((record) => [record.url, record.id]));
-  return (binding, section) => {
-    const id = idByUrl.get(binding);
-    return id ? `/admin/plugins-manage/${id}/${section}` : '/admin/plugins-manage';
-  };
-}
-
-async function asCreditContributor(
-  env: Env,
-  plugin: ResolvedPlugin,
-  hrefs: (binding: string, section: 'credits' | 'limits') => string,
-): Promise<CreditContributor> {
-  return {
-    id: plugin.manifest.id,
-    name: plugin.manifest.name || plugin.label || plugin.manifest.id,
-    credits: plugin.manifest.credits ?? [],
-    // Only types the plugin owns or has approval to write may carry a price.
-    pricablePageTypes: await limitScopeTypes(env.DB, plugin.manifest),
-    manageHref: hrefs(plugin.binding, 'credits'),
-  };
-}
 
 async function pluginBundledCatalog(plugins: Fetcher[], code: string): Promise<Record<string, string>> {
   const catalogs = await Promise.all(plugins.map(async (plugin) => {

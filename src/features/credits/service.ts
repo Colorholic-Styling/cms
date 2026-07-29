@@ -8,7 +8,7 @@
 // built-in admin editor); 'metered' costs are reported by the plugin via
 // POST /__cms/credits/charge for actions the host can't observe. The CMS
 // stores configured prices in the `settings` table (`plugin.credits.<id>`),
-// keeps each user's balance on users.credits, and appends every change to
+// keeps each user's balances in credit_wallets, and appends every change to
 // credit_ledger.
 //
 // Pricing semantics:
@@ -32,38 +32,30 @@
 // (transferSharedCredits); admins top the pool up via adjustSharedCredits.
 //
 // Currencies: every function here takes a CreditCurrency, defaulting to
-// 'credit'. A currency is a wallet of its own — its own column on `users`, its
-// own shared pool row, its own ledger lines — and nothing converts between
+// 'credit'. A currency is a wallet of its own — its own credit_wallets row,
+// shared pool row and ledger lines — and nothing converts between
 // them: a diamond cost is refused when the diamond balance is short, however
 // many credits the user holds. 'diamond' is the premium wallet for costs an
-// operator pays real money for (SMS and WhatsApp delivery). Adding a currency
-// means adding its entry to WALLETS below, its `users` column and its
-// shared_credits row (see ./schema.sql).
+// operator pays real money for (SMS and WhatsApp delivery). Supported
+// currencies live only in ./currencies.ts; storage is row-based and needs no
+// schema change when one is added.
 // ============================================================
 
 import type { Env } from '../../types';
+import type {
+  ContributedCreditDef,
+  CreditBillingMode,
+  CreditChargeKind,
+  CreditContributor,
+} from './contracts';
+import { getSetting, saveSetting } from '../../core/db/settings';
 import {
-  coreExtensions,
   CREDIT_CURRENCIES,
   DEFAULT_CREDIT_CURRENCY,
+  creditCurrencyDefinition,
   isCreditCurrency,
-  type ContributedCreditDef,
-  type CreditBillingMode,
-  type CreditChargeKind,
-  type CreditContributor,
   type CreditCurrency,
-} from '../../core/extensions';
-import { getSetting, saveSetting } from '../../core/db/settings';
-
-/**
- * Where each currency's balances live. The balance column is interpolated
- * into SQL, so it may only ever come from this frozen table — never from a
- * request, a manifest or a form field.
- */
-const WALLETS: Record<CreditCurrency, { column: 'credits' | 'diamonds'; sharedId: number }> = {
-  credit: { column: 'credits', sharedId: 1 },
-  diamond: { column: 'diamonds', sharedId: 2 },
-};
+} from './currencies';
 
 /** The currency named by `value`, or 'credit' when it names none. Use for
  *  form fields and manifest input where the default is the sane fallback;
@@ -84,7 +76,7 @@ export function currencyUnitKey(currency: CreditCurrency): string {
 
 /** English fallback name, for log lines and non-translated surfaces. */
 export function currencyLabel(currency: CreditCurrency): string {
-  return currency === 'diamond' ? 'diamonds' : 'credits';
+  return creditCurrencyDefinition(currency).fallbackLabel;
 }
 
 /** A zero-filled per-currency map, so callers can total without presence checks. */
@@ -268,13 +260,30 @@ export async function effectiveCreditsFor(env: Env, contributor: CreditContribut
 
 /** As effectiveCreditsFor, by id — empty when nobody by that id contributes. */
 export async function effectiveCreditsForId(env: Env, contributorId: string): Promise<EffectiveCredit[]> {
-  const contributor = await coreExtensions().creditContributor?.(env, contributorId);
+  const contributor = await creditContributor(env, contributorId);
   return contributor ? effectiveCreditsFor(env, contributor) : [];
+}
+
+/** One contributor supplied through the generated feature-service registry. */
+export async function creditContributor(env: Env, contributorId: string): Promise<CreditContributor | null> {
+  const { callFeatureService } = await import('../services');
+  return await callFeatureService<CreditContributor | null>(
+    'plugins',
+    'credit-contributor',
+    env,
+    { id: contributorId },
+  ) ?? null;
 }
 
 /** Everyone declaring priced actions; empty when no feature contributes. */
 export async function creditContributors(env: Env): Promise<CreditContributor[]> {
-  return coreExtensions().creditContributors?.(env) ?? [];
+  const { callFeatureService } = await import('../services');
+  return await callFeatureService<CreditContributor[]>(
+    'plugins',
+    'credit-contributors',
+    env,
+    {},
+  ) ?? [];
 }
 
 export interface PageCreateCost {
@@ -326,10 +335,14 @@ export async function getCreditBalance(
   userId: number,
   currency: CreditCurrency = DEFAULT_CREDIT_CURRENCY,
 ): Promise<number | null> {
-  const { column } = WALLETS[currency];
-  const row = await env.DB.prepare(`SELECT ${column} AS balance FROM users WHERE id = ?`)
-    .bind(userId).first<{ balance: number }>();
-  return row ? row.balance : null;
+  const row = await env.DB.prepare(
+    `SELECT COALESCE(wallet.balance, 0) AS balance
+       FROM users
+       LEFT JOIN credit_wallets AS wallet
+         ON wallet.user_id = users.id AND wallet.currency = ?
+      WHERE users.id = ?`,
+  ).bind(currency, userId).first<{ balance: number }>();
+  return row?.balance ?? null;
 }
 
 /** Every wallet's balance for one user, or null when there is no such user. */
@@ -337,18 +350,23 @@ export async function getCreditBalances(
   env: Env,
   userId: number,
 ): Promise<Record<CreditCurrency, number> | null> {
-  const columns = CREDIT_CURRENCIES.map((currency) => `${WALLETS[currency].column} AS ${currency}`).join(', ');
-  const row = await env.DB.prepare(`SELECT ${columns} FROM users WHERE id = ?`)
-    .bind(userId).first<Record<CreditCurrency, number>>();
-  if (!row) return null;
+  const rows = await env.DB.prepare(
+    `SELECT users.id AS user_id, wallet.currency, wallet.balance
+       FROM users
+       LEFT JOIN credit_wallets AS wallet ON wallet.user_id = users.id
+      WHERE users.id = ?`,
+  ).bind(userId).all<{ user_id: number; currency: string | null; balance: number | null }>();
+  if (!rows.results.length) return null;
   const balances = emptyCurrencyTotals();
-  for (const currency of CREDIT_CURRENCIES) balances[currency] = row[currency] ?? 0;
+  for (const row of rows.results) {
+    if (isCreditCurrency(row.currency)) balances[row.currency] = row.balance ?? 0;
+  }
   return balances;
 }
 
 /**
  * Atomically deducts `amount` credits and appends the ledger row. Both
- * statements share the `credits >= amount` guard and run in one DB.batch, so
+ * statements share the `balance >= amount` guard and run in one DB.batch, so
  * a concurrent spend can never overdraw and the ledger stays consistent with
  * the balance. Fails closed with `insufficient_credits` (or `unknown_user`).
  */
@@ -356,25 +374,33 @@ export async function chargeCredits(env: Env, input: CreditChargeInput): Promise
   const amount = Math.trunc(input.amount);
   if (amount <= 0) throw new Error(`chargeCredits amount must be > 0, got ${input.amount}`);
   const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
-  const { column } = WALLETS[currency];
 
   // Success is detected via RETURNING, not meta.changes: production D1
   // reports `changes` from internal row writes (indexes included), so a
   // one-row UPDATE can report changes > 1 there while local D1 reports 1.
   const results = await env.DB.batch<{ balance: number }>([
     env.DB.prepare(
+      `INSERT OR IGNORE INTO credit_wallets (user_id, currency, balance)
+       SELECT id, ?, 0 FROM users WHERE id = ?`,
+    ).bind(currency, input.userId),
+    env.DB.prepare(
       `INSERT INTO credit_ledger (user_id, currency, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
-       SELECT id, ?, ?, ${column} - ?, ?, ?, ?, ?, ?, ?
-         FROM users WHERE id = ? AND ${column} >= ?`,
+       SELECT user_id, currency, ?, balance - ?, ?, ?, ?, ?, ?, ?
+         FROM credit_wallets
+        WHERE user_id = ? AND currency = ? AND balance >= ?`,
     ).bind(
-      currency, -amount, amount, input.action, input.entityType ?? null, input.entityId ?? null,
-      input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId, amount,
+      -amount, amount, input.action, input.entityType ?? null, input.entityId ?? null,
+      input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId, currency, amount,
     ),
-    env.DB.prepare(`UPDATE users SET ${column} = ${column} - ? WHERE id = ? AND ${column} >= ? RETURNING ${column} AS balance`)
-      .bind(amount, input.userId, amount),
+    env.DB.prepare(
+      `UPDATE credit_wallets
+          SET balance = balance - ?
+        WHERE user_id = ? AND currency = ? AND balance >= ?
+        RETURNING balance`,
+    ).bind(amount, input.userId, currency, amount),
   ]);
 
-  const updated = results[1].results;
+  const updated = results[2].results;
   if (updated.length === 1) {
     return { ok: true, balanceAfter: updated[0].balance };
   }
@@ -408,23 +434,30 @@ export async function adjustCredits(
       createdBy: input.createdBy,
     });
   }
-  const { column } = WALLETS[currency];
 
   // RETURNING instead of meta.changes for the same reason as chargeCredits.
   const results = await env.DB.batch<{ balance: number }>([
     env.DB.prepare(
+      `INSERT OR IGNORE INTO credit_wallets (user_id, currency, balance)
+       SELECT id, ?, 0 FROM users WHERE id = ?`,
+    ).bind(currency, input.userId),
+    env.DB.prepare(
       `INSERT INTO credit_ledger (user_id, currency, delta, balance_after, action, entity_type, entity_id, plugin_id, note, created_by)
-       SELECT id, ?, ?, ${column} + ?, ?, ?, ?, ?, ?, ?
-         FROM users WHERE id = ?`,
+       SELECT user_id, currency, ?, balance + ?, ?, ?, ?, ?, ?, ?
+         FROM credit_wallets WHERE user_id = ? AND currency = ?`,
     ).bind(
-      currency, delta, delta, input.action, input.entityType ?? null, input.entityId ?? null,
-      input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId,
+      delta, delta, input.action, input.entityType ?? null, input.entityId ?? null,
+      input.pluginId ?? null, input.note ?? null, input.createdBy, input.userId, currency,
     ),
-    env.DB.prepare(`UPDATE users SET ${column} = ${column} + ? WHERE id = ? RETURNING ${column} AS balance`)
-      .bind(delta, input.userId),
+    env.DB.prepare(
+      `UPDATE credit_wallets
+          SET balance = balance + ?
+        WHERE user_id = ? AND currency = ?
+        RETURNING balance`,
+    ).bind(delta, input.userId, currency),
   ]);
 
-  const updated = results[1].results;
+  const updated = results[2].results;
   if (updated.length !== 1) {
     return { ok: false, error: 'unknown_user', balance: 0, required: 0 };
   }
@@ -619,8 +652,8 @@ interface SharedCreditChangeInput {
 }
 
 /** Atomic pool write: ledger INSERT + balance UPDATE sharing one guard, like
- *  chargeCredits. The INSERT OR IGNORE makes the singleton row's existence a
- *  non-issue (fresh databases, tests). Success detected via RETURNING. */
+ *  chargeCredits. The row is created lazily. Success is detected via
+ *  RETURNING. */
 async function writeSharedCredits(
   env: Env,
   delta: number,
@@ -628,12 +661,11 @@ async function writeSharedCredits(
   input: SharedCreditChangeInput,
 ): Promise<SharedCreditResult> {
   const currency = input.currency ?? DEFAULT_CREDIT_CURRENCY;
-  const { sharedId } = WALLETS[currency];
   const guardSql = guarded ? ' AND balance >= ?' : '';
   const guardArgs = guarded ? [-delta] : [];
   const results = await env.DB.batch<{ balance: number }>([
-    env.DB.prepare('INSERT OR IGNORE INTO shared_credits (id, currency, balance) VALUES (?, ?, 0)')
-      .bind(sharedId, currency),
+    env.DB.prepare('INSERT OR IGNORE INTO shared_credits (currency, balance) VALUES (?, 0)')
+      .bind(currency),
     env.DB.prepare(
       `INSERT INTO shared_credit_ledger (currency, delta, balance_after, action, user_id, entity_type, entity_id, plugin_id, note, created_by)
        SELECT ?, ?, balance + ?, ?, ?, ?, ?, ?, ?, ?

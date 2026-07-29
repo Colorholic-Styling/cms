@@ -46,7 +46,7 @@ import {
   type NormalizedLimitDef,
   type PluginLimitValues,
 } from '../limits';
-import { coreExtensions, type CreditPricingRow } from '../../../core/extensions';
+import { callFeatureService } from '../../services';
 import {
   pluginsManagePage,
   pluginFormPage,
@@ -552,6 +552,19 @@ function priceLabel(value: number): string {
   return value === 0 ? '' : String(value);
 }
 
+interface CreditPricingPayload {
+  key: string;
+  label: string;
+  description: string;
+  currency: string;
+  currencyKey: string;
+  chargeLabel: string;
+  chargeKey: string;
+  defaultValue: number;
+  effectiveValue: number;
+  configured: boolean;
+}
+
 pluginsManageRoutes.get('/plugins-manage/:id/credits', async (c) => {
   const id = Number(c.req.param('id'));
   const found = await resolvedPluginFor(c.env, id);
@@ -570,8 +583,13 @@ pluginsManageRoutes.get('/plugins-manage/:id/credits', async (c) => {
 
   // Prices come from whoever meters them; with no such feature installed the
   // list is empty and the screen shows a plugin with nothing chargeable.
-  const pricing = await (coreExtensions().creditPricing?.(c.env, resolved.manifest.id) ?? []);
-  const credits: PluginCreditRow[] = pricing.map((row: CreditPricingRow) => ({
+  const pricing = await callFeatureService<CreditPricingPayload[]>(
+    'credits',
+    'pricing',
+    c.env,
+    { contributorId: resolved.manifest.id },
+  ) ?? [];
+  const credits: PluginCreditRow[] = pricing.map((row) => ({
     key: row.key,
     label: row.label,
     description: row.description,
@@ -612,7 +630,12 @@ pluginsManageRoutes.post('/plugins-manage/:id/credits', async (c) => {
     if (field.startsWith('value_')) submitted[field.slice('value_'.length)] = str(value);
   }
 
-  const values = await (coreExtensions().saveCreditPricing?.(c.env, resolved.manifest.id, submitted) ?? {});
+  const values = await callFeatureService<Record<string, number>>(
+    'credits',
+    'save-pricing',
+    c.env,
+    { contributorId: resolved.manifest.id, submitted },
+  ) ?? {};
   logAudit(c, 'plugin.credits.update', 'plugin', resolved.manifest.id, values);
   return c.redirect(`/admin/plugins-manage/${id}/credits?flash=saved`);
 });

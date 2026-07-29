@@ -20,7 +20,7 @@ import {
 import { clearRolePermissionsCache } from '../src/core/auth/roles';
 import type { JWTPayload } from '../src/types';
 import type { PluginManifest } from '../src/features/plugins/types';
-import type { CreditContributor } from '../src/core/extensions';
+import type { CreditContributor } from '../src/features/credits/contracts';
 
 // Credit system: manifest-declared costs, admin-configured prices, charged by
 // the host on page creates (both doors) and plugin-reported metered usage,
@@ -121,19 +121,31 @@ async function adminFetch(path: string, init: RequestInit = {}): Promise<Respons
 }
 
 async function seedUser(id: number, credits: number): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO users (id, oauth_id, email, name, role, credits)
-     VALUES (?, ?, ?, 'Test User', 'admin', ?)
-     ON CONFLICT(id) DO UPDATE SET credits = excluded.credits`,
-  ).bind(id, `test:${id}`, `user${id}@example.com`, credits).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (id, oauth_id, email, name, role)
+       VALUES (?, ?, ?, 'Test User', 'admin')
+       ON CONFLICT(id) DO UPDATE SET role = excluded.role`,
+    ).bind(id, `test:${id}`, `user${id}@example.com`),
+    env.DB.prepare(
+      `INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'credit', ?)
+       ON CONFLICT(user_id, currency) DO UPDATE SET balance = excluded.balance`,
+    ).bind(id, credits),
+  ]);
 }
 
 async function seedNonAdmin(id: number, credits: number, email: string, role = 'editor'): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO users (id, oauth_id, email, name, role, credits)
-     VALUES (?, ?, ?, 'Recipient', ?, ?)
-     ON CONFLICT(id) DO UPDATE SET credits = excluded.credits, role = excluded.role, email = excluded.email`,
-  ).bind(id, `test:${id}`, email, role, credits).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (id, oauth_id, email, name, role)
+       VALUES (?, ?, ?, 'Recipient', ?)
+       ON CONFLICT(id) DO UPDATE SET role = excluded.role, email = excluded.email`,
+    ).bind(id, `test:${id}`, email, role),
+    env.DB.prepare(
+      `INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'credit', ?)
+       ON CONFLICT(user_id, currency) DO UPDATE SET balance = excluded.balance`,
+    ).bind(id, credits),
+  ]);
 }
 
 async function balance(id: number): Promise<number | null> {
@@ -149,7 +161,8 @@ async function ledgerRows(id: number): Promise<Array<{ delta: number; balance_af
 
 async function seedSharedPool(amount: number): Promise<void> {
   await env.DB.prepare(
-    'INSERT INTO shared_credits (id, balance) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET balance = excluded.balance',
+    `INSERT INTO shared_credits (currency, balance) VALUES ('credit', ?)
+     ON CONFLICT(currency) DO UPDATE SET balance = excluded.balance`,
   ).bind(amount).run();
 }
 

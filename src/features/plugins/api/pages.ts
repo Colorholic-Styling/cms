@@ -38,7 +38,7 @@ import {
 } from './create';
 import type { HookPage } from '../hooks';
 import { checkCreateLimits, createCandidate } from '../limits';
-import { coreExtensions, type CreditChargeOutcome } from '../../../core/extensions';
+import { freeReservation, reservePageCreates } from '../../services';
 import { emitPluginHook, emitPluginHooks } from './hooks';
 import { chineseSearchVariants } from '../../../core/db/chinese';
 import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, performAdvancedSearch } from '../../../core/db/search';
@@ -477,26 +477,20 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
   // (failure mid-way, or sources trashed concurrently) the difference is
   // refunded below.
   const payer = actingUserId(c);
-  const cloneCharge: CreditChargeOutcome = remaining > 0
-    ? await coreExtensions().chargePageCreates?.(c.env, {
+  const cloneCharge = remaining > 0
+    ? await reservePageCreates(c.env, {
       pageTypes: [{ pageType, count: remaining }],
       payerUserId: payer,
       contributorId: auth.pluginId,
-    }) ?? { ok: true, charged: 0, totals: {}, refund: async () => {} }
-    : { ok: true, charged: 0, totals: {}, refund: async () => {} };
+    })
+    : freeReservation();
   if (!cloneCharge.ok) {
-    if (cloneCharge.reason === 'unknown_user') return c.json({ error: 'unknown_acting_user' }, 400);
     return c.json(
       {
-        error: 'insufficient_credits',
-        credit: {
-          currency: cloneCharge.currency,
-          required: cloneCharge.required,
-          balance: cloneCharge.balance,
-          shared_balance: cloneCharge.sharedBalance,
-        },
+        error: cloneCharge.code,
+        ...(cloneCharge.details ?? {}),
       },
-      402,
+      cloneCharge.status as 400 | 402,
     );
   }
   // Charged up front for `remaining` clones; whatever is not written is

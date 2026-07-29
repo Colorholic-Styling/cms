@@ -16,7 +16,7 @@ describe('flattened migration contract', () => {
 
   it('creates the complete private schema without transitional tables', async () => {
     expect(await objectNames(env.DB, 'table')).toEqual([
-      'admin_jobs', 'audit_log', 'block_types', 'credit_ledger', 'credit_subscriptions', 'draft_page_tags',
+      'admin_jobs', 'audit_log', 'block_types', 'credit_ledger', 'credit_subscriptions', 'credit_wallets', 'draft_page_tags',
       'draft_pages', 'locale_messages', 'locales', 'media_files', 'page_types',
       'page_versions', 'plugin_asset_approvals', 'plugin_page_type_approvals',
       'plugins', 'role_permissions', 'roles', 'sessions', 'settings',
@@ -50,8 +50,10 @@ describe('flattened migration contract', () => {
       'SELECT code FROM locales ORDER BY weight, code',
     ).all<{ code: string }>();
     expect(locales.map((locale) => locale.code)).toEqual(['mis', 'en', 'zh-hant', 'zh-hans']);
-    expect(await env.DB.prepare('SELECT balance FROM shared_credits WHERE id = 1').first<{ balance: number }>())
-      .toEqual({ balance: 0 });
+    const { results: userColumns } = await env.DB.prepare('PRAGMA table_info(users)').all<{ name: string }>();
+    expect(userColumns.map((column) => column.name)).not.toEqual(expect.arrayContaining(['credits', 'diamonds']));
+    expect(await env.DB.prepare("SELECT balance FROM shared_credits WHERE currency = 'credit'").first())
+      .toBeNull();
   });
 
   it('keeps published content isolated in its two-table schema', async () => {

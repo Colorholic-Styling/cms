@@ -11,6 +11,7 @@ import { Hono } from 'hono';
 import { authRoutes } from './routes/auth';
 import { adminRoutes } from './routes/admin';
 import { publicRouters } from './features/routers';
+import { runFeatureScheduledWork } from './features/services';
 import { errorPage } from './core/render/errors';
 import {
   canonicalHostResponse,
@@ -190,10 +191,11 @@ export default {
     const sessionEnv = withD1Sessions(env);
     const result = await ingestSubmissions(sessionEnv);
     if (result.scanned) console.log('submission ingest:', JSON.stringify(result));
-    // Cron work a feature owns (today, the credit subscription sweep). Absent
-    // when no feature registers it.
-    const featureWork = await coreExtensions().runScheduled?.(sessionEnv);
-    if (featureWork) console.log(featureWork);
+    // Cron work owned by installed features (today, the credit subscription
+    // sweep) is composed through the generated feature-service registry.
+    for (const featureWork of await runFeatureScheduledWork(sessionEnv)) {
+      console.log(featureWork);
+    }
   },
 };
 export { PageSyncDO } from './core/durable-objects/page-sync';

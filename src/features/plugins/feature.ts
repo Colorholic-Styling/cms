@@ -16,8 +16,8 @@ import './extensions';
  */
 export const pluginsFeature: CmsFeature = {
   id: 'plugins',
-  // No `requires`: the platform cooperates with the credits engine through
-  // core's extension points in both directions, so either installs alone. With
-  // credits off, plugin-declared costs are simply never charged.
+  // No `requires`: the platform cooperates with the credits engine through the
+  // generated feature-service registry, so either installs alone. With credits
+  // off, plugin-declared costs are simply never charged.
   navKeys: ['plugins'],
 };

@@ -19,7 +19,7 @@ import {
 import { sweepCreditSubscriptions } from '../src/features/credits/subscriptions';
 import type { JWTPayload } from '../src/types';
 import type { PluginManifest } from '../src/features/plugins/types';
-import type { CreditContributor } from '../src/core/extensions';
+import type { CreditContributor } from '../src/features/credits/contracts';
 
 // The diamond currency: a second wallet with its own per-user balance, its own
 // shared pool and its own ledger lines. The rule under test throughout is that
@@ -111,16 +111,28 @@ function postForm(path: string, fields: Record<string, string>): Promise<Respons
 }
 
 async function seedUser(id: number, credits: number, diamonds: number, role = 'admin'): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO users (id, oauth_id, email, name, role, credits, diamonds)
-     VALUES (?, ?, ?, 'Test User', ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       credits = excluded.credits, diamonds = excluded.diamonds, role = excluded.role`,
-  ).bind(id, `test:${id}`, `user${id}@example.com`, role, credits, diamonds).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (id, oauth_id, email, name, role)
+       VALUES (?, ?, ?, 'Test User', ?)
+       ON CONFLICT(id) DO UPDATE SET role = excluded.role`,
+    ).bind(id, `test:${id}`, `user${id}@example.com`, role),
+    env.DB.prepare(
+      `INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'credit', ?)
+       ON CONFLICT(user_id, currency) DO UPDATE SET balance = excluded.balance`,
+    ).bind(id, credits),
+    env.DB.prepare(
+      `INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'diamond', ?)
+       ON CONFLICT(user_id, currency) DO UPDATE SET balance = excluded.balance`,
+    ).bind(id, diamonds),
+  ]);
 }
 
 async function seedPool(currency: 'credit' | 'diamond', amount: number): Promise<void> {
-  await env.DB.prepare('UPDATE shared_credits SET balance = ? WHERE currency = ?').bind(amount, currency).run();
+  await env.DB.prepare(
+    `INSERT INTO shared_credits (currency, balance) VALUES (?, ?)
+     ON CONFLICT(currency) DO UPDATE SET balance = excluded.balance`,
+  ).bind(currency, amount).run();
 }
 
 async function ledgerRows(id: number): Promise<Array<{ currency: string; delta: number; action: string }>> {

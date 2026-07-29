@@ -9,7 +9,7 @@ import { requirePermission } from '../../../core/auth/guards';
 import { renderPage } from '../../../core/render/chrome';
 import { allRoleOptions } from '../../../core/auth/role-store';
 import { ROLE_LABELS, builtinRoleTranslationKey, effectivePermissions, resolveRolePermissions, splitRoles } from '../../../core/auth/roles';
-import { coreExtensions } from '../../../core/extensions';
+import { featureAdminScreenProps } from '../../services';
 import type { AppContext } from '../../../core/http/context';
 
 export const usersRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -81,7 +81,7 @@ usersRoutes.get('/users', async (c) => {
     allRoleOptions(c.env),
     c.env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE (',' || replace(role, ' ', '') || ',') LIKE '%,admin,%'")
       .first<{ n: number }>(),
-    coreExtensions().adminScreenProps?.(c, { screen: 'users' }) ?? {},
+    featureAdminScreenProps(c, { screen: 'users' }),
   ]);
   const providersByUser = new Map<number, string[]>();
   for (const identity of identities.results) {
@@ -114,7 +114,7 @@ usersRoutes.get('/users', async (c) => {
 
 usersRoutes.get('/users/:id/edit', async (c) => {
   const id = parseInt(c.req.param('id'), 10);
-  const user = await c.env.DB.prepare('SELECT id, name, email, role, credits FROM users WHERE id = ?')
+  const user = await c.env.DB.prepare('SELECT id, name, email, role FROM users WHERE id = ?')
     .bind(id)
     .first<User>();
   if (!user) return c.notFound();
@@ -123,7 +123,7 @@ usersRoutes.get('/users/:id/edit', async (c) => {
 
 usersRoutes.post('/users/:id', requirePermission('users:manage'), async (c) => {
   const id = parseInt(c.req.param('id'), 10);
-  const user = await c.env.DB.prepare('SELECT id, name, email, role, credits FROM users WHERE id = ?')
+  const user = await c.env.DB.prepare('SELECT id, name, email, role FROM users WHERE id = ?')
     .bind(id)
     .first<User>();
   if (!user) return c.notFound();
@@ -192,7 +192,7 @@ usersRoutes.post('/users/:id/delete', requirePermission('users:manage'), async (
 async function userForm(c: AppContext, user: User, error?: string, flash?: string): Promise<Response> {
   const [options, creditPanel] = await Promise.all([
     allRoleOptions(c.env),
-    coreExtensions().adminScreenProps?.(c, { screen: 'user', userId: user.id }) ?? {},
+    featureAdminScreenProps(c, { screen: 'user', userId: user.id }),
   ]);
   const held = new Set(user.role.split(',').map((role) => role.trim()).filter(Boolean));
   return renderPage(c, userFormPage, {

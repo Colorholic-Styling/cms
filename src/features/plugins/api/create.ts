@@ -15,7 +15,7 @@ import { withDraftMetadata } from '../../../core/db/page-logic';
 import { slugify } from '../../../core/http/forms';
 import { pageTypeScopeAllows } from '../page-types';
 import { checkCreateLimits, createCandidate } from '../limits';
-import { coreExtensions, type CreditChargeOutcome } from '../../../core/extensions';
+import { reservePageCreates } from '../../services';
 
 /** Largest batch accepted by POST /pages/batch — bounds D1 write volume per call. */
 
@@ -292,24 +292,18 @@ export async function createPages(c: AppContext, auth: PluginAuth, items: PageIn
   const payer = actingUserId(c);
   // Charged by whichever feature meters page creates; free when none is
   // installed. Refunded below if the batch write then fails.
-  const charge: CreditChargeOutcome = await coreExtensions().chargePageCreates?.(c.env, {
+  const charge = await reservePageCreates(c.env, {
     pageTypes: [...typeCounts].map(([pageType, count]) => ({ pageType, count })),
     payerUserId: payer,
     contributorId: auth.pluginId,
-  }) ?? { ok: true, charged: 0, totals: {}, refund: async () => {} };
+  });
   if (!charge.ok) {
-    if (charge.reason === 'unknown_user') return { ok: false, status: 400, body: { error: 'unknown_acting_user' } };
     return {
       ok: false,
-      status: 402,
+      status: charge.status,
       body: {
-        error: 'insufficient_credits',
-        credit: {
-          currency: charge.currency,
-          required: charge.required,
-          balance: charge.balance,
-          shared_balance: charge.sharedBalance,
-        },
+        error: charge.code,
+        ...(charge.details ?? {}),
       },
     };
   }

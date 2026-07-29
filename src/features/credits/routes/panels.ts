@@ -31,7 +31,7 @@ import {
   transferCredits,
   transferSharedCredits,
 } from '../service';
-import type { CreditCurrency } from '../../../core/extensions';
+import type { CreditCurrency } from '../currencies';
 
 export const creditPanelRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 

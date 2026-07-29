@@ -7,8 +7,6 @@
 
 import type { BlueprintEntry } from '../../cms-config';
 import type { PublishLectRule } from '../../core/publish/projection';
-import type { ContributedCreditDef } from '../../core/extensions';
-
 export type { PublishLectRule };
 
 /** A registered plugin (URL transport) stored in the `plugins` table. The CMS
@@ -192,7 +190,7 @@ export interface PluginManifest {
    * pays real money for (SMS and WhatsApp delivery). The wallets never convert
    * into each other, and an unrecognised currency drops the cost.
    */
-  credits?: ContributedCreditDef[];
+  credits?: PluginCreditDef[];
   /**
    * When true the plugin serves `POST /__plugin/tenants/enroll` and this CMS
    * can register itself as a tenant instead of an operator hand-writing the
@@ -242,14 +240,25 @@ export interface PluginLimitDef {
  * quantity (POST /__cms/credits/usage) once per period via the cron sweep
  * (e.g. record storage). See utils/credit-subscriptions.ts.
  */
-// The credit-declaration contract lives in core/extensions.ts: it is what the
-// CMS hands whoever prices these actions, and core must be able to describe it
-// without either the platform or the credits engine installed. Aliased here so
-// manifest code keeps reading in plugin vocabulary.
-export type { CreditChargeKind as PluginCreditCharge } from '../../core/extensions';
-export type { CreditBillingMode as PluginCreditBilling } from '../../core/extensions';
-export type { CreditCurrency as PluginCreditCurrency } from '../../core/extensions';
-export type { ContributedCreditDef as PluginCreditDef } from '../../core/extensions';
+// Plugin-owned structural view of the credit declaration in a remote
+// manifest. The credits feature validates this untrusted shape after it
+// crosses the generated feature-service boundary.
+export type PluginCreditCharge = 'page_create' | 'metered' | 'recurring';
+export type PluginCreditBilling = 'advance' | 'arrears';
+export type PluginCreditCurrency = string;
+export interface PluginCreditDef {
+  key: string;
+  label?: string;
+  description?: string;
+  charge: PluginCreditCharge;
+  currency?: PluginCreditCurrency;
+  page_type?: string;
+  unit?: string;
+  default?: number;
+  per?: number;
+  period?: 'month';
+  billing?: PluginCreditBilling;
+}
 
 /** An admin-approved plugin asset (see PluginManifest.assets), stored in the
  *  `plugin_asset_approvals` table. `integrity` is the SRI hash (sha384-...) of

@@ -4,7 +4,7 @@ import type { Env, Variables, User } from '../../types';
 import { renderPage } from '../../core/render/chrome';
 import { ROLE_LABELS } from '../../core/auth/roles';
 import { allRoleOptions } from '../../core/auth/role-store';
-import { coreExtensions } from '../../core/extensions';
+import { featureAdminScreenProps } from '../../features/services';
 import { localeRegistry, resolveUiLocale, setUiLocaleCookie } from '../../core/i18n';
 import { appendQuery, safeAdminReturnPath } from '../../core/http/forms';
 
@@ -71,7 +71,7 @@ profileRoutes.get('/profile', async (c) => {
       .bind(userId)
       .all<OAuthIdentityRow>(),
     allRoleOptions(c.env),
-    coreExtensions().adminScreenProps?.(c, { screen: 'profile' }) ?? {},
+    featureAdminScreenProps(c, { screen: 'profile' }),
     localeRegistry(c.env),
     resolveUiLocale(c),
   ]);

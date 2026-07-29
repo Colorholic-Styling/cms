@@ -596,30 +596,14 @@
             </span>
 
             <p class="text-xs text-gray-400">{% for role in userRoleItems %}{% if role.labelKey %}{{ role.labelKey | t }}{% else %}{{ role.label }}{% endif %}{% unless forloop.last %}, {% endunless %}{% endfor %}</p>
-            {% if showCredits %}
-            <p class="mt-1 flex items-center gap-1 text-xs font-medium text-amber-400">
+            {% for wallet in sidebarWallets %}
+            <p class="mt-1 flex items-center gap-1 text-xs font-medium {{ wallet.className }}">
               <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="8" stroke-width="2"></circle>
-                <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 8.5v7M10 10.5h2.5a1.5 1.5 0 010 3H10m0 0h3"></path>
+                <use href="{{ iconHrefPrefix }}#{{ wallet.icon }}"></use>
               </svg>
-              <span>{{ userCredits }} {% if userCredits == 1 %}{{ "shell.credit" | t }}{% else %}{{ "shell.credits" | t }}{% endif %}</span>
+              <span>{{ wallet.userBalance }} {{ wallet.unitKey | t }} · {{ wallet.sharedBalance }} {{ "shell.shared" | t }}</span>
             </p>
-            <p class="mt-0.5 flex items-center gap-1 text-xs font-medium text-sky-400">
-              <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="9" cy="12" r="6.5" stroke-width="2"></circle>
-                <path stroke-width="2" stroke-linecap="round" d="M14.5 5.7a6.5 6.5 0 010 12.6"></path>
-              </svg>
-              <span>{{ sharedCredits }} {{ "shell.shared" | t }}</span>
-            </p>
-            {% if showDiamonds %}
-            <p class="mt-0.5 flex items-center gap-1 text-xs font-medium text-violet-400">
-              <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path stroke-width="2" stroke-linejoin="round" d="M6 4h12l3 5-9 11L3 9l3-5z"></path>
-              </svg>
-              <span>{{ userDiamonds }} {% if userDiamonds == 1 %}{{ "shell.diamond" | t }}{% else %}{{ "shell.diamonds" | t }}{% endif %} · {{ sharedDiamonds }} {{ "shell.shared" | t }}</span>
-            </p>
-            {% endif %}
-            {% endif %}
+            {% endfor %}
           </div>
         </a>
 

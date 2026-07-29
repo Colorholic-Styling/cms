@@ -2,25 +2,27 @@
 // Feature registry generator.
 //
 // cms.features.json is the single switch per feature. This script turns it
-// into the two code registries, so enabling or dropping a feature is one JSON
+// into the code registries, so enabling or dropping a feature is one JSON
 // edit instead of three files kept in step by hand:
 //
 //   src/generated/manifests.ts   the CmsFeature list (read by the chrome)
 //   src/generated/routers.ts     the routers (read by the route tables)
+//   src/generated/services.ts    runtime service adapters
 //
 // They live outside src/features because they are build output, not a feature:
 // a directory there is a slice that cms.features.json can switch off.
 //
-// They stay two files on purpose. A router imports its templates and queries
-// and reaches back into the chrome via renderPage, so a single registry would
-// drag all of that into the chrome's import graph and make it cyclic — see
-// scripts/check-boundaries.mjs rules 6 and 7.
+// They stay separate on purpose. Routers and runtime services import their
+// implementations and may reach back into the chrome, so a single registry
+// would drag all of that into the chrome's import graph and make it cyclic —
+// see tools/check-boundaries.mjs rules 6 and 7.
 //
 // Discovery is by convention, so a new slice needs no wiring here:
 //   src/features/<id>/feature.ts          exports one `const <name>: CmsFeature`
 //   src/features/<id>/routes.ts           exports `const <name>Routes`
 //   src/features/<id>/routes/<file>.ts    likewise; `public.ts` mounts at the
 //                                         worker root instead of under /admin
+//   src/features/<id>/services.ts         exports one FeatureServiceEntry
 //
 // A feature listed in cms.features.json with no src/features/<id>/ directory
 // is schema-only (plugins, jobs) and simply contributes nothing here.
@@ -39,6 +41,7 @@ const featuresDir = path.join(rootDir, 'src', 'features');
 const outDir = path.join(rootDir, 'src', 'generated');
 const MANIFESTS = path.join(outDir, 'manifests.ts');
 const ROUTERS = path.join(outDir, 'routers.ts');
+const SERVICES = path.join(outDir, 'services.ts');
 
 function enabledFeatures() {
   const raw = JSON.parse(readFileSync(path.join(rootDir, 'cms.features.json'), 'utf8'));
@@ -55,6 +58,16 @@ function manifestExport(id) {
   const names = [...readFileSync(file, 'utf8').matchAll(/^export const (\w+)\s*:\s*CmsFeature\b/gm)].map((m) => m[1]);
   if (names.length === 0) throw new Error(`src/features/${id}/feature.ts exports no CmsFeature`);
   if (names.length > 1) throw new Error(`src/features/${id}/feature.ts exports ${names.length} CmsFeature values; expected one`);
+  return names[0];
+}
+
+/** The optional FeatureServiceEntry a slice's services.ts exports. */
+function serviceExport(id) {
+  const file = path.join(featuresDir, id, 'services.ts');
+  if (!existsSync(file)) return null;
+  const names = [...readFileSync(file, 'utf8').matchAll(/^export const (\w+)\s*:\s*FeatureServiceEntry\b/gm)].map((m) => m[1]);
+  if (names.length === 0) throw new Error(`src/features/${id}/services.ts exports no FeatureServiceEntry`);
+  if (names.length > 1) throw new Error(`src/features/${id}/services.ts exports ${names.length} FeatureServiceEntry values; expected one`);
   return names[0];
 }
 
@@ -134,6 +147,20 @@ ${publics.join('\n')}
 `;
 }
 
+function buildServices(ids) {
+  const entries = ids.map((id) => [id, serviceExport(id)]).filter(([, name]) => name);
+  const imports = entries.map(([id, name]) => `import { ${name} } from '../features/${id}/services';`);
+  return `${BANNER}
+import type { FeatureServiceEntry } from '../features/services';
+${imports.join('\n')}
+
+/** Runtime services contributed by installed features. */
+export const featureServiceEntries: readonly FeatureServiceEntry[] = [
+${entries.map(([, name]) => `  ${name},`).join('\n')}
+];
+`;
+}
+
 /**
  * A feature whose dependency is switched off produces a build that compiles
  * and deploys, then throws on the first request when assertFeatureRegistry
@@ -160,7 +187,11 @@ function assertProfile(ids) {
 function main() {
   const ids = enabledFeatures();
   assertProfile(ids);
-  const outputs = [[MANIFESTS, buildManifests(ids)], [ROUTERS, buildRouters(ids)]];
+  const outputs = [
+    [MANIFESTS, buildManifests(ids)],
+    [ROUTERS, buildRouters(ids)],
+    [SERVICES, buildServices(ids)],
+  ];
 
   if (process.argv.includes('--check')) {
     const stale = outputs.filter(([file, content]) => !existsSync(file) || readFileSync(file, 'utf8') !== content);

@@ -10,7 +10,8 @@ import { blueprintToLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page } from '../../../types';
 import type { BlueprintEntry } from '../../../cms-config';
 import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
-import { coreExtensions, type PageCreateChargeResult } from '../../../core/extensions';
+import { coreExtensions } from '../../../core/extensions';
+import { reservePageCreate } from '../../../features/services';
 import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
 import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../core/publish';
@@ -309,8 +310,8 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
   const violation = await coreExtensions().checkCreateLimits?.(c.env, [{ pageType, parentId: null, lect }]);
   if (violation) return c.text(violation, 422);
 
-  const creditCharge: PageCreateChargeResult | null = await coreExtensions().chargePageCreate?.(c, pageType) ?? null;
-  if (creditCharge && !creditCharge.ok) return c.text(creditCharge.error, 402);
+  const createReservation = await reservePageCreate(c, pageType);
+  if (!createReservation.ok) return c.text(createReservation.message, createReservation.status as 400 | 402);
 
   try {
     const result = await c.env.DB.prepare(
@@ -330,7 +331,7 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
 
     return c.redirect(`/admin/pages/${page.id}/edit`);
   } catch (error) {
-    if (creditCharge?.ok) await creditCharge.refund();
+    await createReservation.refund();
     throw error;
   }
 });

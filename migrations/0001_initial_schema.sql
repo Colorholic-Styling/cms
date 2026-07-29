@@ -25,12 +25,6 @@
 -- ============================================================
 
 -- 1. Users – populated on first OAuth login
---
--- NOTE: `credits` and `diamonds` are owned by the `credits` feature but
--- declared here because they are columns on a core table. Until they move to a
--- table owned by that fragment, disabling the feature still leaves them behind
--- (unused, always 0). One column per currency: see CREDIT_CURRENCIES in
--- src/core/extensions.ts.
 CREATE TABLE IF NOT EXISTS users(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     oauth_id TEXT UNIQUE NOT NULL,
@@ -40,9 +34,7 @@ CREATE TABLE IF NOT EXISTS users(
     -- role: comma-separated list of admin | editor | moderator | viewer
     role TEXT NOT NULL DEFAULT 'viewer',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
-    credits INTEGER NOT NULL DEFAULT 0,
-    diamonds INTEGER NOT NULL DEFAULT 0
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
 
 -- 2. Sessions – stores hashed refresh tokens for revocation support
@@ -298,17 +290,19 @@ END;
 --
 -- requires: core
 --
--- Every balance carries a CURRENCY: 'credit' is the ordinary metered wallet,
--- 'diamond' the premium one (SMS/WhatsApp delivery and anything else bought
--- with real money). The two never convert into each other — separate per-user
--- balances, separate shared pools, separate ledger lines — so one column on
--- `users` and one shared_credits row exist per currency, and every ledger row
--- says which wallet it moved.
---
--- KNOWN COUPLING: the per-user balances themselves are still `users.credits`
--- and `users.diamonds`, columns on a core table, so disabling this feature
--- leaves them in place. Moving them to a table owned by this fragment is what
--- makes the feature fully separable.
+-- Every balance carries an opaque currency identifier. Supported identifiers
+-- are owned by ./currencies.ts; all storage is row-based, so adding a wallet
+-- needs no SQL or core-schema change.
+
+-- One row per user and currency. Missing rows are zero balances and are
+-- created lazily on the first adjustment or attempted charge.
+CREATE TABLE IF NOT EXISTS credit_wallets(
+    user_id INTEGER NOT NULL,
+    currency TEXT NOT NULL,
+    balance INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, currency),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
 
 -- Per-user credit balance audit ledger.
 CREATE TABLE IF NOT EXISTS credit_ledger(
@@ -328,15 +322,11 @@ CREATE TABLE IF NOT EXISTS credit_ledger(
 );
 
 -- Site-wide shared balance and append-only ledger, one pool per currency.
--- `id` stays the stable row key (1 = credit, 2 = diamond) so the original
--- singleton row keeps its identity; `currency` is what the code selects on.
+-- Missing rows are zero balances and are created lazily.
 CREATE TABLE IF NOT EXISTS shared_credits(
-    id INTEGER PRIMARY KEY CHECK (id IN (1, 2)),
-    currency TEXT NOT NULL UNIQUE DEFAULT 'credit',
+    currency TEXT PRIMARY KEY,
     balance INTEGER NOT NULL DEFAULT 0
 );
-
-INSERT OR IGNORE INTO shared_credits (id, currency, balance) VALUES (1, 'credit', 0), (2, 'diamond', 0);
 
 CREATE TABLE IF NOT EXISTS shared_credit_ledger(
     id INTEGER PRIMARY KEY AUTOINCREMENT,

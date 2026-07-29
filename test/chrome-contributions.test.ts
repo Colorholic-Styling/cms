@@ -25,20 +25,6 @@ function layoutData(html: string): Record<string, unknown> {
   return (JSON.parse(match[1]) as { layoutData: Record<string, unknown> }).layoutData;
 }
 
-/** The body of a liquid `{% if %}` block, matching nested ifs to their endif. */
-function gated(view: string, opener: string): string {
-  const start = view.indexOf(opener);
-  if (start === -1) throw new Error(`view has no ${opener}`);
-  let depth = 0;
-  const tags = /\{%-?\s*(if|endif)\b/g;
-  tags.lastIndex = start;
-  for (let match = tags.exec(view); match; match = tags.exec(view)) {
-    depth += match[1] === 'if' ? 1 : -1;
-    if (depth === 0) return view.slice(start + opener.length, match.index);
-  }
-  throw new Error(`unbalanced ${opener}`);
-}
-
 async function adminGet(path: string): Promise<Response> {
   const now = Math.floor(Date.now() / 1000);
   const token = await signJWT({
@@ -65,8 +51,11 @@ beforeEach(async () => {
   clearRolePermissionsCache();
   await env.DB.prepare('DELETE FROM users').run();
   await env.DB.prepare(
-    'INSERT INTO users (id, oauth_id, email, name, avatar_url, role, credits) VALUES (?, ?, ?, ?, ?, ?, ?)',
-  ).bind(1, 'eventuai:admin', 'admin@example.com', 'Admin User', '', 'admin', 42).run();
+    'INSERT INTO users (id, oauth_id, email, name, avatar_url, role) VALUES (?, ?, ?, ?, ?, ?)',
+  ).bind(1, 'eventuai:admin', 'admin@example.com', 'Admin User', '', 'admin').run();
+  await env.DB.prepare(
+    "INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'credit', ?)",
+  ).bind(1, 42).run();
 });
 
 describe('admin chrome feature contributions', () => {
@@ -77,16 +66,12 @@ describe('admin chrome feature contributions', () => {
     // Reaches the sidebar through a route that has nothing to do with
     // credits — which is the whole point of the contribution seam.
     const data = layoutData(await response.text());
-    expect(data.showCredits).toBe(true);
-    expect(data.userCredits).toBe(42);
-    expect(typeof data.sharedCredits).toBe('number');
+    expect(data.sidebarWallets).toEqual([
+      expect.objectContaining({ currency: 'credit', userBalance: 42, sharedBalance: expect.any(Number) }),
+    ]);
   });
 
-  it('defaults showCredits to false when nothing contributes it', async () => {
-    // The admin shell is client-rendered from the payload, so the flag — not
-    // the server HTML — is what decides whether the balances appear. Without
-    // a contributor it must be false rather than undefined, so the sidebar
-    // renders no balances instead of a blank "{{ userCredits }}" row.
+  it('defaults sidebar wallets to an empty list when nothing contributes them', async () => {
     const { layout } = await import('../src/core/render/layout');
     const withoutCredits = await layout(env.VIEWS, {
       title: 'x',
@@ -96,15 +81,14 @@ describe('admin chrome feature contributions', () => {
       userName: 'Admin User',
       userRole: 'admin',
     });
-    expect(layoutData(withoutCredits).showCredits).toBe(false);
+    expect(layoutData(withoutCredits).sidebarWallets).toEqual([]);
   });
 
-  it('gates the sidebar credit markup on showCredits in the view', async () => {
-    // Pins the liquid side of the gate: the balances must sit inside the
-    // conditional, or dropping the contributor would leave empty rows.
+  it('renders sidebar wallets from contributed rows', async () => {
     const view = await (await env.VIEWS.fetch('https://views.local/layout/default.liquid')).text();
-    expect(gated(view, '{% if showCredits %}')).toContain('{{ userCredits }}');
-    expect(gated(view, '{% if showCredits %}')).toContain('{{ sharedCredits }}');
+    expect(view).toContain('{% for wallet in sidebarWallets %}');
+    expect(view).toContain('{{ wallet.userBalance }}');
+    expect(view).toContain('{{ wallet.sharedBalance }}');
   });
 
   it('registers each contributor under a cms.features.json id', () => {

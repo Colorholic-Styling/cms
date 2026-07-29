@@ -11,8 +11,8 @@
 --   wrangler d1 execute cms --file migrations/upgrades/diamond-currency.sql
 --   wrangler d1 execute cms --remote --file migrations/upgrades/diamond-currency.sql
 --
--- Run it ONCE per database, before deploying the Worker that reads these
--- columns. Re-running fails on the ADD COLUMN statements (SQLite has no
+-- Run it ONCE per database, then run credit-wallets.sql before deploying the
+-- current Worker. Re-running fails on the ADD COLUMN statements (SQLite has no
 -- IF NOT EXISTS there); that is a safe failure — nothing has changed yet at
 -- that point — but check the schema rather than guessing.
 --

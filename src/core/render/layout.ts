@@ -11,6 +11,16 @@ export interface SidebarNavItem {
   isActive?: boolean;
 }
 
+/** A compact balance contributed to the sidebar by an optional feature. */
+export interface SidebarWallet {
+  currency: string;
+  userBalance: number;
+  sharedBalance: number;
+  unitKey: string;
+  icon: string;
+  className: string;
+}
+
 /** Nav-gating flags forwarded into the sidebar; default false (hidden). */
 export interface NavFlags {
   canManageUsers?: boolean;
@@ -65,13 +75,8 @@ export interface BaseTemplateProps extends NavFlags {
   userName: string;
   userRole: string;
   userAvatar: string;
-  /** Signed-in user's current credit balance, shown in the sidebar footer.
-   *  Contributed by the credits feature; absent when it is not installed. */
-  userCredits?: number;
-  /** Site-wide shared credit pool balance, shown next to the user's own. */
-  sharedCredits?: number;
-  /** Whether to render the sidebar's credit rows at all. */
-  showCredits?: boolean;
+  /** Optional feature-contributed balances shown in the sidebar footer. */
+  sidebarWallets?: SidebarWallet[];
   currentUserId: string;
   /** Navigation entries contributed by active plugins, filtered to the user's roles. */
   pluginNav: Array<{ label: string; href: string }>;
@@ -128,9 +133,7 @@ export async function adminLayout(
     userName: base.userName,
     userRole: base.userRole,
     userAvatar: base.userAvatar,
-    userCredits: base.userCredits,
-    sharedCredits: base.sharedCredits,
-    showCredits: base.showCredits,
+    sidebarWallets: base.sidebarWallets,
     pluginNav: base.pluginNav,
     pluginSettingsNav: base.pluginSettingsNav,
     viewRevision: base.viewRevision,
@@ -167,10 +170,8 @@ export interface LayoutOptions extends NavFlags {
   userName?: string;
   userRole?: string;
   userAvatar?: string;
-  userCredits?: number;
-  sharedCredits?: number;
-  /** Render the sidebar credit rows (the credits feature is installed). */
-  showCredits?: boolean;
+  /** Optional feature-contributed balances shown in the sidebar footer. */
+  sidebarWallets?: SidebarWallet[];
   /** Nav entries contributed by active plugins (already role-filtered). */
   pluginNav?: Array<{ label: string; href: string }>;
   /** Plugin nav entries for the Settings group (already role-filtered). */
@@ -193,7 +194,7 @@ export interface LayoutOptions extends NavFlags {
 }
 
 export async function layout(views: Fetcher, opts: LayoutOptions): Promise<string> {
-  const { admin = false, userName = '', userRole = '', userAvatar = '', userCredits = 0, sharedCredits = 0 } = opts;
+  const { admin = false, userName = '', userRole = '', userAvatar = '' } = opts;
   const normalizedUserAvatar = userAvatar.trim();
   const hasUserAvatar = normalizedUserAvatar.length > 0;
   const userRoleLabel = userRole.split(',').map((role) => role.trim()).filter(Boolean).join(', ');
@@ -214,9 +215,7 @@ export async function layout(views: Fetcher, opts: LayoutOptions): Promise<strin
     hasUserAvatar,
     userRoleLabel,
     userRoleItems,
-    userCredits,
-    sharedCredits,
-    showCredits: opts.showCredits ?? false,
+    sidebarWallets: opts.sidebarWallets ?? [],
     userInitial: userName.trim().charAt(0).toUpperCase() || '?',
     appIcon: opts.appIcon || 'document',
     contentClass: admin ? 'md:ml-64' : '',

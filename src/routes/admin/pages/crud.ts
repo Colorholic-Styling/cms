@@ -10,7 +10,8 @@ import { readPage } from '../../../templates/read';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { announcePageEvent } from '../../../core/page-events';
 import { viewSourceFor } from '../../../core/render/view-source';
-import { coreExtensions, type PageCreateChargeResult } from '../../../core/extensions';
+import { coreExtensions } from '../../../core/extensions';
+import { reservePageCreate, type FeatureReservation } from '../../../features/services';
 import { blueprintToLect, safeParseLect, stringifyLect } from '../../../core/db/lect';
 import type { Env, Variables, Page, PageVersion } from '../../../types';
 import { appendQuery, editorsFromForm, languageFromRequest, nullableStr, num, safeAdminReturnPath, str, userIdFromContext } from '../../../core/http/forms';
@@ -116,11 +117,11 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
   // Page-create costs charge the signed-in editor. Deducted only when the
   // request is otherwise valid (a validation re-render must never cost
   // credits); a failed insert below refunds.
-  let creditCharge: PageCreateChargeResult | null = null;
+  let createReservation: FeatureReservation | null = null;
   if (!errors.length) {
     const pageType = nullableStr(form.get('page_type')) ?? 'default';
-    creditCharge = await coreExtensions().chargePageCreate?.(c, pageType) ?? null;
-    if (creditCharge && !creditCharge.ok) errors.push(creditCharge.error);
+    createReservation = await reservePageCreate(c, pageType);
+    if (!createReservation.ok) errors.push(createReservation.message);
   }
 
   if (errors.length) {
@@ -220,7 +221,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
 
   return c.redirect(appendQuery(backHref, 'flash=Page+created+successfully'));
   } catch (error) {
-    if (creditCharge?.ok) await creditCharge.refund();
+    if (createReservation?.ok) await createReservation.refund();
     throw error;
   }
 });

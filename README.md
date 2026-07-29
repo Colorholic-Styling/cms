@@ -554,8 +554,8 @@ There are two wallets, and they never convert into one another:
 
 | Currency | Balance | Shared pool | For |
 |---|---|---|---|
-| `credit` | `users.credits` | `shared_credits` row 1 | ordinary metered actions — page creates, EDM sends |
-| `diamond` | `users.diamonds` | `shared_credits` row 2 | premium actions the operator pays real money for — SMS and WhatsApp delivery |
+| `credit` | `credit_wallets` row | `shared_credits` row | ordinary metered actions — page creates, EDM sends |
+| `diamond` | `credit_wallets` row | `shared_credits` row | premium actions the operator pays real money for — SMS and WhatsApp delivery |
 
 A cost picks its wallet in the manifest with `"currency": "diamond"`; omitting
 the field means credits, so every existing manifest keeps its meaning. An
@@ -573,30 +573,36 @@ rather than "buy credits". A single page type priced by two plugins in two
 currencies costs both at once, all-or-nothing: if the second wallet is short,
 the first is refunded before the create is refused.
 
-The profile, the user edit screen and the users admin render one card per
-currency from the same markup, so the admin UI grows a wallet without new
-templates. The sidebar shows the diamond line only once diamonds are in play
-(a non-zero personal or pool balance).
+The supported currency catalog lives in
+`src/features/credits/currencies.ts`. The profile, user edit screen, users
+admin and sidebar all render contributed wallet arrays. Balances and shared
+pools are keyed by currency rows, so adding another currency needs only a
+catalog entry, translations, and optional styling — no core TypeScript or SQL
+change.
 
-**Upgrading an existing database.** The diamond wallet adds `users.diamonds`,
-a `currency` column on both ledgers, and a second `shared_credits` row. Fresh
-installs get all of it from the regenerated baseline; a database that already
-applied the baseline needs the one-off script instead:
+**Upgrading an existing database.** Fresh installs get the row-based wallet
+schema from the generated baseline. A database that already applied the old
+baseline must first add the diamond ledger shape if it has not already done
+so, then copy both legacy user columns into `credit_wallets`:
 
 ```bash
 wrangler d1 execute cms --remote --file migrations/upgrades/diamond-currency.sql
+wrangler d1 execute cms --remote --file migrations/upgrades/credit-wallets.sql
 ```
 
-Run it before deploying the Worker that reads these columns. It is not a
-wrangler migration (nothing under `migrations/upgrades/` is applied
-automatically) and it is not idempotent — run it once per database.
+If `diamond-currency.sql` was applied previously, run only
+`credit-wallets.sql`. Run the wallet migration before deploying the Worker
+that reads `credit_wallets`. These are not wrangler migrations (nothing under
+`migrations/upgrades/` is applied automatically) and are not idempotent — run
+each required script once per database. Legacy balance columns remain unused
+on upgraded databases; fresh databases do not create them.
 
 ---
 
 ## Database schema
 
-The flattened initial migrations create **30 application
-D1 tables**: 28 in the private CMS database and 2 in the published database.
+The flattened initial migrations create **31 application
+D1 tables**: 29 in the private CMS database and 2 in the published database.
 Live page editing also uses 2 SQLite tables inside each page's Durable Object;
 these are not D1 tables.
 
@@ -660,14 +666,16 @@ After editing `cms.features.json`:
 npm run build
 ```
 
-No code feature depends on another. Features cooperate through the extension
-points in `src/core/extensions.ts`: core (and any feature hosting a screen)
-declares what it will call if someone provides it, and a feature registers an
-implementation at module load. Nothing registered means the extension point is
-inert — pages are free without `credits`, the Import/Export buttons disappear
-without the import-export plugin, the role editor lists only built-in
-permissions without `plugins`. `feature.ts` still supports `requires` for a
-genuine dependency, validated by `assertFeatureRegistry` at startup; today none
+No code feature depends directly on another. Feature-owned runtime behavior is
+composed through `src/features/services.ts`, whose concrete entries are
+generated from `cms.features.json` just like `src/features/routers.ts`.
+Contracts stay with their owning feature; callers use a local structural view
+of a named service operation. An absent service is inert — pages are free
+without `credits`, the Import/Export buttons disappear without the
+import-export plugin, and the role editor lists only built-in permissions
+without `plugins`. Core-wide platform hooks still use
+`src/core/extensions.ts`. `feature.ts` supports `requires` for a genuine
+dependency, validated by `assertFeatureRegistry` at startup; today none
 declares one.
 
 `npm run check:boundaries` enforces this. Nothing outside `src/features/` may
@@ -712,9 +720,9 @@ without them. The optional part is the `i18n` *code* feature — the screens for
 editing locales and translations. Serving the UI's own catalog
 (`GET /admin/i18n/catalog/:locale`) stays core too.
 
-One coupling remains: the per-user balances are `users.credits` and
-`users.diamonds`, columns on a core table, so disabling `credits` leaves them
-in place (unused, always 0).
+The credits fragment owns `credit_wallets`, both ledgers, shared pools, and
+subscriptions. Disabling the feature therefore leaves no credit-specific
+objects in a fresh core-only database.
 
 #### Deleting a feature's source
 
@@ -853,12 +861,13 @@ are write-only.
 ## Project structure
 
 The codebase is split along one line: **`core/` is what every deployment has,
-`features/` is what a deployment chooses.** Nothing in `core/` may import a
-feature — where core needs something a feature provides, it declares an
-extension point in `core/extensions.ts` and the feature registers an
-implementation. `tools/check-boundaries.mjs` enforces this and fails the
-build when it is violated; see [Feature profiles](#feature-profiles) for the
-switch that turns features on and off.
+`features/` is what a deployment chooses.** Nothing in `core/` imports a
+feature implementation or feature-owned contract. Installed feature routers
+and runtime services are selected by generated registries, while genuinely
+core-wide platform hooks use `core/extensions.ts`.
+`tools/check-boundaries.mjs` enforces this and fails the build when it is
+violated; see [Feature profiles](#feature-profiles) for the switch that turns
+features on and off.
 
 ```
 ├── cms.features.json      # One switch per feature — the profile for this deployment

@@ -77,11 +77,17 @@ function reportUsage(key: string, quantity: number, userId = PAYER_ID): Promise<
 }
 
 async function seedUser(id: number, credits: number): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO users (id, oauth_id, email, name, role, credits)
-     VALUES (?, ?, ?, 'Test User', 'editor', ?)
-     ON CONFLICT(id) DO UPDATE SET credits = excluded.credits`,
-  ).bind(id, `test:${id}`, `user${id}@example.com`, credits).run();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO users (id, oauth_id, email, name, role)
+       VALUES (?, ?, ?, 'Test User', 'editor')
+       ON CONFLICT(id) DO UPDATE SET role = excluded.role`,
+    ).bind(id, `test:${id}`, `user${id}@example.com`),
+    env.DB.prepare(
+      `INSERT INTO credit_wallets (user_id, currency, balance) VALUES (?, 'credit', ?)
+       ON CONFLICT(user_id, currency) DO UPDATE SET balance = excluded.balance`,
+    ).bind(id, credits),
+  ]);
 }
 
 async function subscriptionRow(key: string, userId = PAYER_ID): Promise<CreditSubscriptionRow | null> {
@@ -110,7 +116,10 @@ beforeEach(async () => {
   await env.DB.prepare('DELETE FROM credit_subscriptions').run();
   await env.DB.prepare('DELETE FROM credit_ledger').run();
   await env.DB.prepare('DELETE FROM shared_credit_ledger').run();
-  await env.DB.prepare('UPDATE shared_credits SET balance = 0 WHERE id = 1').run();
+  await env.DB.prepare(
+    `INSERT INTO shared_credits (currency, balance) VALUES ('credit', 0)
+     ON CONFLICT(currency) DO UPDATE SET balance = excluded.balance`,
+  ).run();
   await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'plugin.credits.%'").run();
   testEnv.PLUGIN_SECRET = PLUGIN_SECRET;
   pluginUrl = await registerPlugin();
@@ -373,13 +382,16 @@ describe('sweepCreditSubscriptions — mode switches and lifecycle', () => {
   });
 
   it('falls back to the shared pool like any other spend', async () => {
-    await env.DB.prepare('UPDATE shared_credits SET balance = 80 WHERE id = 1').run();
+    await env.DB.prepare(
+      `INSERT INTO shared_credits (currency, balance) VALUES ('credit', 80)
+       ON CONFLICT(currency) DO UPDATE SET balance = excluded.balance`,
+    ).run();
     await reportUsage('record_storage', 100); // 1 block = 50, user balance 0
 
     const sweep = await sweepCreditSubscriptions(env);
     expect(sweep.charged).toBe(1);
     expect(await getCreditBalance(env, PAYER_ID)).toBe(0);
-    const shared = await env.DB.prepare('SELECT balance FROM shared_credits WHERE id = 1').first<{ balance: number }>();
+    const shared = await env.DB.prepare("SELECT balance FROM shared_credits WHERE currency = 'credit'").first<{ balance: number }>();
     expect(shared!.balance).toBe(30);
   });
 });

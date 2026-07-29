@@ -1,22 +1,11 @@
-// The credits feature's implementations of core's extension points.
+// The credits feature's runtime service entry.
 //
-// Importing this module registers them. Nothing in core/, src/routes/ or any
-// other feature names this feature: screens that host a credits panel ask the
-// registry for props, the editor asks it to charge for a page create, and the
-// scheduled handler asks it whether it has a sweep to run. With the feature
-// dropped, every one of those is simply absent — pages are free, the panels
-// disappear, and the sweep does not run.
+// src/generated/services.ts includes this entry only when the feature is
+// enabled. Core and sibling features call the neutral dispatchers in
+// src/features/services.ts and never import this module or its contracts.
 
-import {
-  registerCoreExtensions,
-  CREDIT_CURRENCIES,
-  type AdminScreen,
-  type CreditChargeOutcome,
-  type CreditChargeTotals,
-  type CreditCurrency,
-  type CreditPricingRow,
-  type PageCreateChargeResult,
-} from '../../core/extensions';
+import type { FeatureServiceEntry } from '../services';
+import type { CreditPricingRow } from './contracts';
 import type { AppContext } from '../../core/http/context';
 import { effectivePermissions, resolveRolePermissions, splitRoles } from '../../core/auth/roles';
 import type { Env } from '../../types';
@@ -35,6 +24,7 @@ import {
   currencyLabelKey,
   currencyUnitKey,
   declaredCredits,
+  creditContributor,
   effectiveCreditsForId,
   emptyCurrencyTotals,
   getCreditBalances,
@@ -49,8 +39,11 @@ import {
   type NormalizedCreditDef,
   type PluginCreditValues,
 } from './service';
-import { coreExtensions } from '../../core/extensions';
 import { sweepCreditSubscriptions } from './subscriptions';
+import {
+  CREDIT_CURRENCIES,
+  type CreditCurrency,
+} from './currencies';
 
 /** Ledger rows per page on the profile screen. */
 const PROFILE_LEDGER_PAGE_SIZE = 20;
@@ -61,14 +54,16 @@ const CREDIT_TRANSFER_ACTION = adminAction(PROFILE_TRANSFER_PATH);
 const SHARED_DONATE_ACTION = adminAction(PROFILE_DONATE_PATH);
 const SHARED_POOL_ACTION = adminAction(SHARED_POOL_ADJUST_PATH);
 
-registerCoreExtensions({
+export const creditsServices: FeatureServiceEntry = {
+  id: 'credits',
+
   /**
    * Charges the signed-in editor for a page create. A type nobody prices is
    * free, and returns a charge whose refund is a no-op.
    */
-  async chargePageCreate(c: AppContext, pageType: string): Promise<PageCreateChargeResult> {
+  async reservePageCreate(c: AppContext, pageType: string) {
     const cost = await pageCreateCostForType(c.env, pageType);
-    if (cost.total <= 0) return { ok: true, refund: async () => {} };
+    if (cost.total <= 0) return { ok: true, charged: 0, refund: async () => {} };
 
     const userId = Number(c.get('user').sub);
     const action = pageCreateAction(pageType, cost);
@@ -85,7 +80,9 @@ registerCoreExtensions({
       const money = currencyLabel(charge.currency);
       return {
         ok: false,
-        error: charge.error === 'unknown_user'
+        status: charge.error === 'unknown_user' ? 400 : 402,
+        code: charge.error === 'unknown_user' ? 'unknown_user' : 'insufficient_credits',
+        message: charge.error === 'unknown_user'
           ? `Your user account could not be charged ${money}.`
           : `Not enough ${money}: creating this needs ${charge.required} ${money} and you have ${charge.balance} (shared pool: ${charge.sharedBalance}).`,
       };
@@ -94,11 +91,12 @@ registerCoreExtensions({
     const spent = charge.spent;
     return {
       ok: true,
+      charged: spent.reduce((sum, part) => sum + part.amount, 0),
       refund: () => refundCurrencies(c.env, { userId, action, createdBy: String(userId), spent }),
     };
   },
 
-  async adminScreenProps(c: AppContext, target: AdminScreen): Promise<Record<string, unknown>> {
+  async adminScreenProps(c: AppContext, target): Promise<Record<string, unknown>> {
     if (target.screen === 'profile') return profileCreditProps(c);
     if (target.screen === 'users') return sharedPoolProps(c.env);
     if (target.screen === 'user') return userCreditProps(c, target.userId);
@@ -109,7 +107,7 @@ registerCoreExtensions({
    * Charges a batch of page creates for an API caller. Structured rather than
    * message-formatted: the caller turns a refusal into its own 402 payload.
    */
-  async chargePageCreates(env: Env, input): Promise<CreditChargeOutcome> {
+  async reservePageCreates(env: Env, input) {
     const totals = emptyCurrencyTotals();
     const breakdown: Record<string, number> = {};
     let action = 'page_create:batch';
@@ -129,7 +127,7 @@ registerCoreExtensions({
     const amounts = currencyAmounts(totals);
     const payer = input.payerUserId;
     if (!amounts.length || payer === null) {
-      return { ok: true, charged: 0, totals: {}, refund: async () => {} };
+      return { ok: true, charged: 0, refund: async () => {} };
     }
 
     const createdBy = input.contributorId ? `plugin:${input.contributorId}` : String(payer);
@@ -144,24 +142,32 @@ registerCoreExtensions({
     });
     if (!charge.ok) {
       return charge.error === 'unknown_user'
-        ? { ok: false, reason: 'unknown_user' }
+        ? {
+          ok: false,
+          status: 400,
+          code: 'unknown_acting_user',
+          message: 'The acting user does not exist.',
+        }
         : {
           ok: false,
-          reason: 'insufficient',
-          currency: charge.currency,
-          required: charge.required,
-          balance: charge.balance,
-          sharedBalance: charge.sharedBalance,
+          status: 402,
+          code: 'insufficient_credits',
+          message: `The ${currencyLabel(charge.currency)} balance is insufficient.`,
+          details: {
+            credit: {
+              currency: charge.currency,
+              required: charge.required,
+              balance: charge.balance,
+              shared_balance: charge.sharedBalance,
+            },
+          },
         };
     }
 
     const spent = charge.spent;
-    const charged: CreditChargeTotals = {};
-    for (const part of spent) charged[part.currency] = (charged[part.currency] ?? 0) + part.amount;
     return {
       ok: true,
       charged: spent.reduce((sum, part) => sum + part.amount, 0),
-      totals: charged,
       refund: (portion?: number) => refundCurrencies(env, {
         userId: payer,
         action,
@@ -173,46 +179,63 @@ registerCoreExtensions({
     };
   },
 
-  async creditPricing(env: Env, contributorId: string): Promise<CreditPricingRow[]> {
-    const credits = await effectiveCreditsForId(env, contributorId);
-    return credits.map((credit) => ({
-      key: credit.def.key,
-      label: credit.def.label,
-      description: credit.def.description,
-      currency: credit.def.currency,
-      currencyKey: currencyUnitKey(credit.def.currency),
-      chargeLabel: chargeLabel(credit.def),
-      chargeKey: chargeKey(credit.def),
-      defaultValue: credit.def.defaultValue,
-      effectiveValue: credit.value,
-      configured: credit.configured,
-    }));
-  },
+  async call(operation, env, input): Promise<unknown> {
+    const request = typeof input === 'object' && input !== null
+      ? input as { contributorId?: unknown; submitted?: unknown }
+      : {};
+    const contributorId = typeof request.contributorId === 'string' ? request.contributorId : '';
+    if (!contributorId) return operation === 'pricing' ? [] : {};
 
-  async saveCreditPricing(
-    env: Env,
-    contributorId: string,
-    submitted: Record<string, string>,
-  ): Promise<Record<string, number>> {
-    const contributor = await coreExtensions().creditContributor?.(env, contributorId);
-    if (!contributor) return {};
-    // Only declared keys are saved; blank = unset, so the default applies.
-    const values: PluginCreditValues = {};
-    for (const def of declaredCredits(contributor)) {
-      const raw = (submitted[def.key] ?? '').trim();
-      if (!raw) continue;
-      const parsed = Number(raw);
-      if (Number.isFinite(parsed) && parsed >= 0) values[def.key] = Math.trunc(parsed);
+    if (operation === 'pricing') return creditPricing(env, contributorId);
+    if (operation === 'save-pricing') {
+      const submitted = request.submitted && typeof request.submitted === 'object' && !Array.isArray(request.submitted)
+        ? request.submitted as Record<string, string>
+        : {};
+      return saveCreditPricing(env, contributorId, submitted);
     }
-    await saveCreditValues(env, contributorId, values);
-    return values;
+    return undefined;
   },
 
-  async runScheduled(env: Env): Promise<string | null> {
+  async scheduled(env: Env): Promise<string | null> {
     const sweep = await sweepCreditSubscriptions(env);
     return sweep.processed ? `credit subscription sweep: ${JSON.stringify(sweep)}` : null;
   },
-});
+};
+
+async function creditPricing(env: Env, contributorId: string): Promise<CreditPricingRow[]> {
+  const credits = await effectiveCreditsForId(env, contributorId);
+  return credits.map((credit) => ({
+    key: credit.def.key,
+    label: credit.def.label,
+    description: credit.def.description,
+    currency: credit.def.currency,
+    currencyKey: currencyUnitKey(credit.def.currency),
+    chargeLabel: chargeLabel(credit.def),
+    chargeKey: chargeKey(credit.def),
+    defaultValue: credit.def.defaultValue,
+    effectiveValue: credit.value,
+    configured: credit.configured,
+  }));
+}
+
+async function saveCreditPricing(
+  env: Env,
+  contributorId: string,
+  submitted: Record<string, string>,
+): Promise<Record<string, number>> {
+  const contributor = await creditContributor(env, contributorId);
+  if (!contributor) return {};
+  // Only declared keys are saved; blank = unset, so the default applies.
+  const values: PluginCreditValues = {};
+  for (const def of declaredCredits(contributor)) {
+    const raw = (submitted[def.key] ?? '').trim();
+    if (!raw) continue;
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 0) values[def.key] = Math.trunc(parsed);
+  }
+  await saveCreditValues(env, contributorId, values);
+  return values;
+}
 
 /**
  * The profile page's wallets: one card per currency, each with its own
