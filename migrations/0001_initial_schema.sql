@@ -466,6 +466,26 @@ CREATE TABLE IF NOT EXISTS plugin_page_type_approvals(
     UNIQUE(plugin_id, page_type, access)
 );
 
+-- Host-owned per-plugin state, read and written by the plugin Worker over
+-- /__cms/state. A plugin Worker serving several CMS hosts must not be the
+-- system of record for any one host's data: keeping it here means the record
+-- is backed up, auditable and deleted with the host that owns it, instead of
+-- outliving it in the plugin's own KV.
+--
+-- `value` is opaque JSON the CMS never parses. NOT for secrets — D1 is
+-- plaintext at rest, so credentials stay in the plugin's Worker secrets.
+-- The primary key serves both point reads and `WHERE plugin_id = ?` scans,
+-- so no extra index is needed.
+CREATE TABLE IF NOT EXISTS plugin_state(
+    -- Manifest id of the owning plugin, as in the approval tables above.
+    plugin_id TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (plugin_id, key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_plugins_enabled ON plugins(enabled, sort_order);
 CREATE INDEX IF NOT EXISTS idx_plugin_asset_approvals_plugin ON plugin_asset_approvals(plugin_id);
 CREATE INDEX IF NOT EXISTS idx_plugin_page_type_approvals_plugin ON plugin_page_type_approvals(plugin_id);

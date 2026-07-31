@@ -45,6 +45,10 @@ const EXPECTED = [
   'DELETE /pages/children',
   'POST /ingest/submissions',
   'DELETE /pages/:id',
+  'GET /state',
+  'GET /state/:key',
+  'PUT /state/:key',
+  'DELETE /state/:key',
 ];
 
 describe('/__cms route table', () => {

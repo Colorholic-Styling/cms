@@ -85,3 +85,13 @@ export async function revokePageTypeAccess(
     .bind(pluginId, pageType, access)
     .run();
 }
+
+/**
+ * Drops every page-type approval a plugin holds — for unregistering it. Like
+ * asset approvals these are keyed by manifest id, so deleting the registry row
+ * alone leaves them behind, to be silently inherited by whatever is registered
+ * next under the same manifest id.
+ */
+export async function revokeAllPageTypeAccess(db: D1DatabaseClient, pluginId: string): Promise<void> {
+  await db.prepare('DELETE FROM plugin_page_type_approvals WHERE plugin_id = ?').bind(pluginId).run();
+}

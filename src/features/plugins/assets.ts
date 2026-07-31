@@ -65,6 +65,15 @@ export async function revokeAsset(db: D1DatabaseClient, pluginId: string, path: 
   await db.prepare('DELETE FROM plugin_asset_approvals WHERE plugin_id = ? AND path = ?').bind(pluginId, path).run();
 }
 
+/**
+ * Drops every approval a plugin holds — for unregistering it. Approvals are
+ * keyed by manifest id rather than by the registry row, so nothing removes
+ * them when that row goes away unless this is called explicitly.
+ */
+export async function revokeAllAssets(db: D1DatabaseClient, pluginId: string): Promise<void> {
+  await db.prepare('DELETE FROM plugin_asset_approvals WHERE plugin_id = ?').bind(pluginId).run();
+}
+
 /** SRI-format digest ("sha384-<base64>") of the given bytes. */
 export async function computeIntegrity(bytes: ArrayBuffer): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-384', bytes);

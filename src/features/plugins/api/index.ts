@@ -33,6 +33,7 @@ import { limitsApiRoutes } from './limits';
 import { contentApiRoutes } from './content';
 import { pagesApiRoutes } from './pages';
 import { ingestApiRoutes } from './ingest';
+import { stateApiRoutes } from './state';
 export const cmsApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Mounted by resource, in the order the routes were originally registered.
@@ -43,3 +44,4 @@ cmsApiRoutes.route('/', limitsApiRoutes);
 cmsApiRoutes.route('/', contentApiRoutes);
 cmsApiRoutes.route('/', pagesApiRoutes);
 cmsApiRoutes.route('/', ingestApiRoutes);
+cmsApiRoutes.route('/', stateApiRoutes);

@@ -26,14 +26,16 @@ import {
   generatePluginSecret,
   type PluginInput,
 } from '../store';
-import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAsset } from '../assets';
+import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAllAssets, revokeAsset } from '../assets';
 import {
   approvePageTypeAccess,
   getPageTypeApproval,
   isPageTypeWildcard,
   listPageTypeApprovals,
+  revokeAllPageTypeAccess,
   revokePageTypeAccess,
 } from '../page-types';
+import { deleteAllPluginState } from '../state';
 import { PLUGIN_ORIGIN } from '../registry';
 import { pluginTenantId } from '../proxy';
 import { enrollPluginTenant, manifestAllowsAutoTenant, revokePluginTenant } from '../enroll';
@@ -337,11 +339,36 @@ pluginsManageRoutes.post('/plugins-manage/:id/toggle', async (c) => {
 
 pluginsManageRoutes.post('/plugins-manage/:id/delete', async (c) => {
   const id = Number(c.req.param('id'));
-  const plugin = await getPlugin(c.env.DB, id);
-  if (!plugin) return c.notFound();
+  const found = await resolvedPluginFor(c.env, id);
+  if (!found) return c.notFound();
+  const { row: plugin, resolved } = found;
+
+  // Everything a plugin owns outside the registry row — approvals and host-held
+  // state — is keyed by MANIFEST id, not by this row, so deleting the row alone
+  // orphans it: invisible in the admin, yet silently inherited by whatever is
+  // registered next under the same manifest id.
+  //
+  // The manifest id comes from the resolved plugin, which needs the plugin to
+  // be enabled and reachable. A row that is disabled or offline is deleted
+  // anyway (an admin must be able to remove a dead plugin), and the leftovers
+  // are logged so they can be cleared by hand.
+  const manifestId = resolved?.manifest.id ?? '';
+  if (manifestId) {
+    await Promise.all([
+      deleteAllPluginState(c.env.DB, manifestId),
+      revokeAllAssets(c.env.DB, manifestId),
+      revokeAllPageTypeAccess(c.env.DB, manifestId),
+    ]);
+  } else {
+    console.warn(
+      `Deleted plugin ${plugin.url} without resolving its manifest; any approvals `
+      + 'and plugin_state rows it owned remain and must be cleared manually.',
+    );
+  }
+
   await deletePlugin(c.env.DB, id);
   invalidate();
-  logAudit(c, 'plugin.delete', 'plugin', plugin.url);
+  logAudit(c, 'plugin.delete', 'plugin', plugin.url, { plugin_id: manifestId, purged: !!manifestId });
   return c.redirect('/admin/plugins-manage');
 });
 

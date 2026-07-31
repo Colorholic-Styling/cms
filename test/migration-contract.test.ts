@@ -10,7 +10,16 @@ async function objectNames(db: D1Database, type: 'table' | 'index' | 'trigger'):
 
 describe('flattened migration contract', () => {
   it('ships one complete baseline per D1 database', () => {
-    expect(env.TEST_MIGRATIONS.map((migration) => migration.name)).toEqual(['0001_initial_schema.sql']);
+    // Exactly one baseline each. Additive `000N_enable_<feature>.sql` files may
+    // sit alongside it: D1 tracks applied migrations by name, so regenerating a
+    // baseline never reaches a database that already ran it, and a feature's
+    // tables get there through an enable migration instead (see
+    // tools/build-migrations.mjs --enable). Those are idempotent by
+    // construction — every statement is CREATE ... IF NOT EXISTS — so they are
+    // no-ops on a fresh install that got the same objects from the baseline.
+    const names = env.TEST_MIGRATIONS.map((migration) => migration.name);
+    expect(names.filter((name) => !/^\d{4}_enable_/.test(name))).toEqual(['0001_initial_schema.sql']);
+    expect(names[0]).toBe('0001_initial_schema.sql');
     expect(env.TEST_PUBLISHED_MIGRATIONS.map((migration) => migration.name)).toEqual(['0001_published_schema.sql']);
   });
 
@@ -19,7 +28,7 @@ describe('flattened migration contract', () => {
       'admin_jobs', 'audit_log', 'block_types', 'credit_ledger', 'credit_subscriptions', 'credit_wallets', 'draft_page_tags',
       'draft_pages', 'locale_messages', 'locales', 'media_files', 'page_types',
       'page_versions', 'plugin_asset_approvals', 'plugin_page_type_approvals',
-      'plugins', 'role_permissions', 'roles', 'sessions', 'settings',
+      'plugin_state', 'plugins', 'role_permissions', 'roles', 'sessions', 'settings',
       'shared_credit_ledger', 'shared_credits', 'tags', 'taxonomies',
       'trash_page_tags', 'trash_page_versions', 'trash_pages',
       'user_oauth_identities', 'users',
