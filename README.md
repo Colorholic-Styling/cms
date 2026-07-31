@@ -485,6 +485,42 @@ Responses under `/__cms` use `Cache-Control: no-store`. Existing plugin rows
 whose `secret` is `NULL` must be rotated in the admin before they can call this
 API; they fail closed with `503 plugin_api_unavailable`.
 
+### Plugin state
+
+A plugin Worker typically serves several CMS hosts. Anything describing **one
+host's** relationship with the outside world — a connected GitHub App
+installation, a linked account, a per-host preference — belongs to that host,
+not to the plugin: a copy kept plugin-side outlives the host it describes, is
+invisible to that host's admins, and is readable by whoever operates the plugin.
+
+`/__cms/state` is where that lives:
+
+```http
+GET    /__cms/state?prefix=github.     → { state: [{ key, value, updated_at }] }
+GET    /__cms/state/github.connection  → { key, value, updated_at }  (404 if absent)
+PUT    /__cms/state/github.connection    { "value": { … } }
+DELETE /__cms/state/github.connection
+```
+
+Entries are namespaced by the **authenticated caller's manifest id**, taken from
+the credential rather than from the request, so one plugin cannot address
+another's keys. Keys match `^[a-z0-9._-]{1,64}$`, values are JSON capped at
+64 KB, and a plugin may hold 100 keys. `value` is opaque — the CMS stores and
+returns it without parsing.
+
+**Not a secret store.** Rows live in D1, which is plaintext at rest. Credentials
+belong in the plugin's own Worker secrets; only non-secret metadata goes here.
+
+Unregistering a plugin drops its state along with its asset and page-type
+approvals. All three are keyed by manifest id, so the cleanup needs the plugin
+to be resolvable when it is deleted; removing one that is disabled or
+unreachable deletes the row and logs what was left behind.
+
+The `@lionrockjs/worker-cms-plugin` SDK wraps this as `PluginState`
+(`pluginState(env, pluginId)`), which caches hits per isolate, scoped to the
+tenant. A missing key reads as `null`; an unreachable host throws, so "nothing
+stored" is never confused with "could not ask".
+
 ---
 
 ## Security model and release checklist
