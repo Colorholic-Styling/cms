@@ -8,6 +8,9 @@ describe('desktop sidebar collapse', () => {
     expect(view).toContain("window.localStorage.getItem('worker-cms-sidebar-collapsed')");
     expect(view).toContain("window.localStorage.setItem(storageKey");
     expect(view).toContain('data-sidebar-toggle');
+    expect(view).toContain('data-sidebar-footer-toggle');
+    expect(view.indexOf('data-sidebar-footer-toggle')).toBeGreaterThan(view.indexOf('data-sidebar-footer-controls'));
+    expect(view).toContain('#sidebar');
     expect(view).toContain('data-sidebar-tooltip-layer');
     expect(view).toContain('data-sidebar-label="{% if item.translationKey %}');
     expect(view).toContain('aria-label="{% if item.translationKey %}');

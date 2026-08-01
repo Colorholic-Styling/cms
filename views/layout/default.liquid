@@ -513,18 +513,6 @@
           <span class="min-w-0 truncate text-lg font-bold tracking-tight" data-sidebar-text>{{ siteTitle }}</span>
         </a>
         <button type="button"
-                class="hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white md:inline-flex"
-                data-sidebar-toggle
-                data-sidebar-tooltip
-                data-sidebar-label="{{ "shell.collapse_sidebar" | t }}"
-                data-collapse-label="{{ "shell.collapse_sidebar" | t }}"
-                data-expand-label="{{ "shell.expand_sidebar" | t }}"
-                aria-controls="admin-mobile-menu"
-                aria-expanded="true"
-                aria-label="{{ "shell.collapse_sidebar" | t }}">
-          <svg class="h-5 w-5 transition-transform" data-sidebar-toggle-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
-        </button>
-        <button type="button"
                 class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-700 text-gray-300 transition-colors hover:bg-gray-700 hover:text-white md:hidden"
                 data-mobile-menu-close
                 aria-label="{{ "shell.close_menu" | t }}">
@@ -654,6 +642,21 @@
             <svg class="h-4 w-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-theme-icon="light"><use href="{{ iconHrefPrefix }}#sun"></use></svg>
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" data-theme-icon="dark"><use href="{{ iconHrefPrefix }}#moon"></use></svg>
             <span data-theme-toggle-label>{{ "shell.theme.dark" | t }}</span>
+          </button>
+        </div>
+
+        <div class="mt-2 border-t border-gray-700 pt-2" data-sidebar-footer-toggle>
+          <button type="button"
+                  class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-300 transition-colors hover:bg-gray-700 hover:text-white md:inline-flex"
+                  data-sidebar-toggle
+                  data-sidebar-tooltip
+                  data-sidebar-label="{{ "shell.collapse_sidebar" | t }}"
+                  data-collapse-label="{{ "shell.collapse_sidebar" | t }}"
+                  data-expand-label="{{ "shell.expand_sidebar" | t }}"
+                  aria-controls="admin-mobile-menu"
+                  aria-expanded="true"
+                  aria-label="{{ "shell.collapse_sidebar" | t }}">
+            <svg class="h-4 w-4 transition-transform" data-sidebar-toggle-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#sidebar"></use></svg>
           </button>
         </div>
       </div>

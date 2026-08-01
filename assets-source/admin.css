@@ -369,12 +369,20 @@ th,
     padding: 0;
   }
 
+  html[data-sidebar-collapsed="true"] [data-theme-toggle] {
+    gap: 0;
+  }
+
   html[data-sidebar-collapsed="true"] [data-sidebar-locale] select {
     position: absolute;
     inset: 0;
     width: 100%;
     cursor: pointer;
     opacity: 0;
+  }
+
+  html[data-sidebar-collapsed="true"] [data-theme-toggle-label] {
+    display: none;
   }
 
   [data-sidebar-tooltip-layer] {
@@ -492,6 +500,9 @@ html[data-theme="light"] [data-admin-mobile-bar] {
 }
 html[data-theme="light"] [data-admin-sidebar] .text-white,
 html[data-theme="light"] [data-admin-mobile-bar] .text-white { color: var(--color-gray-900); }
+html[data-theme="light"] [data-admin-sidebar] [aria-current="page"].text-white {
+  color: #ffffff;
+}
 html[data-theme="light"] [data-admin-sidebar] .text-gray-300,
 html[data-theme="light"] [data-admin-sidebar] .text-gray-400,
 html[data-theme="light"] [data-admin-mobile-bar] .text-gray-300,
