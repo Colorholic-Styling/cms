@@ -88,7 +88,10 @@ CREATE TABLE IF NOT EXISTS draft_pages(
     -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
     timezone TEXT,
     page_type TEXT,
-    current_page_version_id INTEGER,
+    -- `lect` is the working copy and the single source of truth for a draft.
+    -- page_versions is an append-only backup log: the newest row mirrors this
+    -- column, older rows are restore candidates. There is deliberately no
+    -- current-version pointer — it could name a snapshot other than `lect`.
     lect TEXT,
     page_id INTEGER,
     creator INTEGER,

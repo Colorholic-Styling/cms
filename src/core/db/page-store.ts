@@ -2,19 +2,6 @@ import type { Env } from '../../types';
 import type { Page, PageTag } from '../../types';
 import { savePageVersion } from './admin-queries';
 
-export async function savePageVersionAndSetCurrent(
-  db: D1DatabaseClient,
-  pageId: number,
-  lect: string | null,
-  action: string | null,
-): Promise<number> {
-  const versionId = await savePageVersion(db, pageId, lect, action);
-  await db.prepare('UPDATE draft_pages SET current_page_version_id = ? WHERE id = ?')
-    .bind(versionId, pageId)
-    .run();
-  return versionId;
-}
-
 export async function setDraftPageTags(
   db: D1DatabaseClient,
   pageId: number,
@@ -93,12 +80,11 @@ export async function pullPublishedPageToDraft(
   if (!draftPage) return null;
 
   await copyPublishedTagsToDraft(draftDb, publishedDb, livePage.id, draftPage.id);
-  await savePageVersionAndSetCurrent(draftDb, draftPage.id, livePage.lect, 'pull-published');
+  // Records where the row came from; nothing about the page row changes, so
+  // the copy selected above is already the final one.
+  await savePageVersion(draftDb, draftPage.id, livePage.lect, 'pull-published');
 
-  const pulledPage = await draftDb.prepare('SELECT * FROM draft_pages WHERE id = ?')
-    .bind(draftPage.id)
-    .first<Page>();
-  return { page: pulledPage ?? draftPage, created: true };
+  return { page: draftPage, created: true };
 }
 
 function numericTagIds(tags: unknown[]): number[] {

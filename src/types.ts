@@ -98,7 +98,10 @@ export interface Page {
   /** IANA timezone name (e.g. 'Asia/Hong_Kong') for the start/end window. */
   timezone: string | null;
   page_type: string | null;
-  current_page_version_id?: number | null;
+  /**
+   * The working copy, and the source of truth for a draft. `page_versions`
+   * holds append-only snapshots; its newest row mirrors this value.
+   */
   lect: string | null;
   page_id: number | null;
   /** Original draft parent id retained while a child page sits in trash. */

@@ -304,10 +304,10 @@ describe('version revert', () => {
     const lectV1 = lectWithName('Original');
     const lectV2 = lectWithName('Changed');
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, current_page_version_id, lect, creator, editors)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(111, 'revert-uuid-111', 'Changed', 'revert-page', 5, 'default', 512, lectV2, 1, '1')
+      .bind(111, 'revert-uuid-111', 'Changed', 'revert-page', 5, 'default', lectV2, 1, '1')
       .run();
     await env.DB.prepare('INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)')
       .bind(511, 111, lectV1, 'create')
@@ -326,20 +326,25 @@ describe('version revert', () => {
     expect(response.headers.get('Location')).toBe('/admin/pages/111/edit?flash=Version+restored');
 
     const page = await env.DB.prepare(
-      'SELECT lect, current_page_version_id FROM draft_pages WHERE id = 111',
-    ).first<{ lect: string; current_page_version_id: number }>();
+      'SELECT lect FROM draft_pages WHERE id = 111',
+    ).first<{ lect: string }>();
     const lect = JSON.parse(page?.lect ?? '{}') as { name?: Record<string, string> };
     expect(lect.name?.[cmsConfig.defaultLanguage]).toBe('Original');
-    expect(page?.current_page_version_id).toBe(511);
 
-    // History is preserved: both versions remain untouched.
+    // A restore is an ordinary edit: the two existing snapshots are untouched
+    // (so the pre-revert content is still recoverable) and the restore is
+    // appended as the newest one.
     const versions = await env.DB.prepare(
-      'SELECT id, action FROM page_versions WHERE page_id = 111 ORDER BY id',
-    ).all<{ id: number; action: string }>();
-    expect(versions.results).toEqual([
+      'SELECT id, action, lect FROM page_versions WHERE page_id = 111 ORDER BY id',
+    ).all<{ id: number; action: string; lect: string }>();
+    expect(versions.results.map(({ id, action }) => ({ id, action }))).toEqual([
       { id: 511, action: 'create' },
       { id: 512, action: 'update' },
+      { id: expect.any(Number), action: 'restore' },
     ]);
+    // The newest snapshot mirrors the working copy, which is the invariant the
+    // editor relies on now that there is no current-version pointer.
+    expect(versions.results[2].lect).toBe(page?.lect);
   });
 
   it('404s a revert to a version belonging to another page', async () => {
@@ -368,12 +373,12 @@ describe('version revert', () => {
     expect(response.status).toBe(404);
   });
 
-  it('removes one saved version and retargets the current version pointer', async () => {
+  it('removes one saved version without changing the working copy', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, current_page_version_id, lect, creator, editors)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(114, 'version-delete-uuid-114', 'Changed', 'version-delete-page', 5, 'default', 522, lectWithName('Changed'), 1, '1')
+      .bind(114, 'version-delete-uuid-114', 'Changed', 'version-delete-page', 5, 'default', lectWithName('Changed'), 1, '1')
       .run();
     await env.DB.prepare('INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)')
       .bind(521, 114, lectWithName('Original'), 'create')
@@ -400,10 +405,12 @@ describe('version revert', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toBe('/admin/pages/114/edit?flash=Version+removed');
 
+    // Deleting the newest snapshot must not roll the page back to the older
+    // one: `lect` is the working copy, and history is only a backup log.
     const page = await env.DB.prepare(
-      'SELECT current_page_version_id FROM draft_pages WHERE id = 114',
-    ).first<{ current_page_version_id: number | null }>();
-    expect(page?.current_page_version_id).toBe(521);
+      'SELECT lect FROM draft_pages WHERE id = 114',
+    ).first<{ lect: string }>();
+    expect(page?.lect).toBe(lectWithName('Changed'));
 
     const versions = await env.DB.prepare(
       'SELECT id FROM page_versions WHERE page_id = 114 ORDER BY id',
@@ -411,12 +418,12 @@ describe('version revert', () => {
     expect(versions.results).toEqual([{ id: 521 }]);
   });
 
-  it('cleans all saved versions and clears the current version pointer', async () => {
+  it('cleans all saved versions and leaves the working copy intact', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, current_page_version_id, lect, creator, editors)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind(115, 'versions-clean-uuid-115', 'Clean Me', 'versions-clean-page', 5, 'default', 532, lectWithName('Clean Me'), 1, '1')
+      .bind(115, 'versions-clean-uuid-115', 'Clean Me', 'versions-clean-page', 5, 'default', lectWithName('Clean Me'), 1, '1')
       .run();
     await env.DB.prepare('INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)')
       .bind(531, 115, lectWithName('Original'), 'create')
@@ -435,9 +442,9 @@ describe('version revert', () => {
     expect(response.headers.get('Location')).toBe('/admin/pages/115/edit?flash=Versions+cleaned');
 
     const page = await env.DB.prepare(
-      'SELECT current_page_version_id FROM draft_pages WHERE id = 115',
-    ).first<{ current_page_version_id: number | null }>();
-    expect(page?.current_page_version_id).toBeNull();
+      'SELECT lect FROM draft_pages WHERE id = 115',
+    ).first<{ lect: string }>();
+    expect(page?.lect).toBe(lectWithName('Clean Me'));
 
     const versions = await env.DB.prepare(
       'SELECT COUNT(*) AS count FROM page_versions WHERE page_id = 115',

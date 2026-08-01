@@ -170,8 +170,10 @@ export async function reservedPageVersionIds(db: D1DatabaseClient, ids: number[]
   return out;
 }
 
-/** Explicit version ids let bulk writes set current_page_version_id in the
- * same DB.batch as the version INSERT. Collision-check all candidates at once. */
+/** Explicit version ids keep a whole batch of page_versions INSERTs collision-
+ * free: the column's default draws from a 16-bit random within the same 10ms
+ * window, so a large batch can pick the same id twice and fail the commit.
+ * Collision-check all candidates against existing rows at once. */
 export async function generatedPageVersionIds(db: D1DatabaseClient, count: number): Promise<number[]> {
   const ids: number[] = [];
   const usedIds = new Set<number>();
@@ -428,11 +430,11 @@ export interface BulkPageRow {
 export function bulkPageInsertStatements(db: D1DatabaseClient, row: BulkPageRow): D1PreparedStatement[] {
   return [
     db.prepare(
-      `INSERT INTO draft_pages (id, uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, current_page_version_id, lect, page_id, creator)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO draft_pages (id, uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       row.id, row.uuid, row.createdAt, row.createdAt, row.name, row.slug, row.weight, row.start,
-      row.end, row.timezone, row.pageType, row.versionId, row.lect, row.parentId, null,
+      row.end, row.timezone, row.pageType, row.lect, row.parentId, null,
     ),
     db.prepare(
       `INSERT INTO page_versions (id, uuid, created_at, updated_at, page_id, lect, action)
@@ -447,8 +449,8 @@ export function bulkPageUpdateStatements(
 ): D1PreparedStatement[] {
   return [
     db.prepare(
-      'UPDATE draft_pages SET lect = ?, current_page_version_id = ?, updated_at = ? WHERE id = ?',
-    ).bind(row.lect, row.versionId, row.updatedAt, row.id),
+      'UPDATE draft_pages SET lect = ?, updated_at = ? WHERE id = ?',
+    ).bind(row.lect, row.updatedAt, row.id),
     db.prepare(
       `INSERT INTO page_versions (id, uuid, created_at, updated_at, page_id, lect, action)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,

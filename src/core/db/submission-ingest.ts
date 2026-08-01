@@ -20,7 +20,7 @@
 import type { Env } from '../../types';
 import { coreExtensions } from '../extensions';
 import { getSetting, saveSetting } from './settings';
-import { savePageVersionAndSetCurrent } from './page-store';
+import { savePageVersion } from './admin-queries';
 
 const CURSOR_SETTING_KEY = 'submissions.ingest.cursor';
 /** Rows scanned from the published DB per run. */
@@ -159,7 +159,7 @@ export async function ingestSubmissions(env: Env): Promise<IngestResult> {
       .first<{ id: number }>();
     if (!inserted) continue; // lost a race to a concurrent run — already ingested
 
-    await savePageVersionAndSetCurrent(env.DB, inserted.id, row.lect, 'ingest-submission');
+    await savePageVersion(env.DB, inserted.id, row.lect, 'ingest-submission');
     created += 1;
 
     await coreExtensions().notifyPageEvent?.(env, undefined, 'submission', [{

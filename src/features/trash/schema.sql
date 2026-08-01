@@ -17,8 +17,6 @@ CREATE TABLE IF NOT EXISTS trash_pages(
     -- IANA tz name or UTC offset (e.g. 'Asia/Hong_Kong', '+0800') for start/end.
     timezone TEXT,
     page_type TEXT,
-    -- Current-version pointer preserved while the page sits in trash.
-    current_page_version_id INTEGER,
     lect TEXT,
     page_id INTEGER,
     -- Original draft parent id, retained so a trashed child can be restored

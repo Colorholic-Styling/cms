@@ -175,8 +175,8 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
   const trashParentId = trashParent?.id ?? null;
 
   await db.prepare(
-    `INSERT INTO trash_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, current_page_version_id, lect, page_id, source_page_id, creator, editors)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO trash_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, source_page_id, creator, editors)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(uuid) DO UPDATE SET
        name = excluded.name,
        slug = excluded.slug,
@@ -185,7 +185,6 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
        end = excluded.end,
        timezone = excluded.timezone,
        page_type = excluded.page_type,
-       current_page_version_id = excluded.current_page_version_id,
        lect = excluded.lect,
        page_id = excluded.page_id,
        source_page_id = excluded.source_page_id,
@@ -202,7 +201,6 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
       page.end,
       page.timezone,
       page.page_type,
-      page.current_page_version_id ?? null,
       page.lect,
       trashParentId,
       page.page_id,
@@ -284,15 +282,15 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
   await db.batch([
     // Copy pages into trash, resolving trash parent inline.
     db.prepare(
-      `INSERT INTO trash_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, current_page_version_id, lect, page_id, source_page_id, creator, editors)
-       SELECT dp.id, dp.uuid, dp.name, dp.slug, dp.weight, dp.start, dp.end, dp.timezone, dp.page_type, dp.current_page_version_id, dp.lect,
+      `INSERT INTO trash_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, source_page_id, creator, editors)
+       SELECT dp.id, dp.uuid, dp.name, dp.slug, dp.weight, dp.start, dp.end, dp.timezone, dp.page_type, dp.lect,
          CASE WHEN dp.page_id IS NOT NULL AND EXISTS (SELECT 1 FROM trash_pages tp WHERE tp.id = dp.page_id) THEN dp.page_id ELSE NULL END,
          dp.page_id, dp.creator, dp.editors
        FROM draft_pages dp WHERE dp.id IN (${foundPh})
        ON CONFLICT(uuid) DO UPDATE SET
          name = excluded.name, slug = excluded.slug, weight = excluded.weight,
          start = excluded.start, end = excluded.end, timezone = excluded.timezone,
-         page_type = excluded.page_type, current_page_version_id = excluded.current_page_version_id,
+         page_type = excluded.page_type,
          lect = excluded.lect, page_id = excluded.page_id, source_page_id = excluded.source_page_id,
          creator = excluded.creator, editors = excluded.editors`,
     ).bind(...foundIds),
@@ -350,8 +348,8 @@ export async function restoreTrashedPages(
   await db.batch([
     // 1. Pages back to draft (preserve id; re-link the parent only if it is live).
     db.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, current_page_version_id, lect, page_id, creator, editors)
-       SELECT tp.id, tp.uuid, tp.name, tp.slug, tp.weight, tp.start, tp.end, tp.timezone, tp.page_type, tp.current_page_version_id, tp.lect,
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+       SELECT tp.id, tp.uuid, tp.name, tp.slug, tp.weight, tp.start, tp.end, tp.timezone, tp.page_type, tp.lect,
          CASE WHEN COALESCE(tp.source_page_id, tp.page_id) IS NOT NULL
            AND EXISTS (SELECT 1 FROM draft_pages dp WHERE dp.id = COALESCE(tp.source_page_id, tp.page_id))
            THEN COALESCE(tp.source_page_id, tp.page_id) ELSE NULL END,
@@ -360,7 +358,7 @@ export async function restoreTrashedPages(
        ON CONFLICT(uuid) DO UPDATE SET
          name = excluded.name, slug = excluded.slug, weight = excluded.weight,
          start = excluded.start, end = excluded.end, timezone = excluded.timezone,
-         page_type = excluded.page_type, current_page_version_id = excluded.current_page_version_id,
+         page_type = excluded.page_type,
          lect = excluded.lect, page_id = excluded.page_id, creator = excluded.creator, editors = excluded.editors`,
     ).bind(...params),
     // 2. Version history (trash_page_versions.page_id is the preserved page id).

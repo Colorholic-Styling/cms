@@ -17,12 +17,12 @@ import type { Env, Variables, Page, PageVersion } from '../../../types';
 import { appendQuery, editorsFromForm, languageFromRequest, nullableStr, num, safeAdminReturnPath, str, userIdFromContext } from '../../../core/http/forms';
 import { validatePageBasics } from '../../../core/db/validation';
 import { applyStructuredAction, isStructuredEditorAction, lectForPage, lectFromForm, withDraftMetadata } from '../../../core/db/page-logic';
-import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption } from '../../../core/db/admin-queries';
+import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption, savePageVersion } from '../../../core/db/admin-queries';
 import { publishPageToTargets } from '../../../core/publish';
 import { renderPage } from '../../../core/render/chrome';
 import { uiTranslator } from '../../../core/i18n';
 import { requirePermission } from '../../../core/auth/guards';
-import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../../core/db/page-store';
+import { notifyPageSaved, setDraftPageTags } from '../../../core/db/page-store';
 import { publishFlash } from './lifecycle';
 import {
   defaultTimezone,
@@ -214,7 +214,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
   const pageId = pageRow!.id;
 
   // Insert page version
-  await savePageVersionAndSetCurrent(c.env.DB, pageId, lectVal, 'create');
+  await savePageVersion(c.env.DB, pageId, lectVal, 'create');
   await setDraftPageTags(c.env.DB, pageId, form.getAll('tag_ids'), false);
 
   announcePageEvent(c, 'create', { id: pageId, page_type: pageTypeVal, name, slug: uniqueSlug });
@@ -301,8 +301,8 @@ pageCrudRoutes.get('/pages/:id/read', requirePermission('content:read'), async (
     page: { ...page, lect: stringifyLect(lect) },
     modifierName: modifierName ?? undefined,
     editorUsers,
-    version: data.version ?? undefined,
-    isVersionPreview: Number.isFinite(requestedVersionId) && !!data.version,
+    version: data.version ?? data.currentVersion ?? undefined,
+    isVersionPreview: !!data.version,
     liveVersionId: data.liveVersionId,
     parentPages: data.parentPages,
     tags: data.taxonomy.tags,
@@ -365,8 +365,8 @@ pageCrudRoutes.get('/pages/:id/edit', requirePermission('content:read'), async (
     creatorName: creatorName ?? undefined,
     modifierName: modifierName ?? undefined,
     editorUsers,
-    version: data.version ?? undefined,
-    isVersionPreview: Number.isFinite(requestedVersionId) && !!data.version,
+    version: data.version ?? data.currentVersion ?? undefined,
+    isVersionPreview: !!data.version,
     liveVersionId: data.liveVersionId,
     isPublished: data.isPublished,
     isLiveSynced: data.isLiveSynced,
@@ -426,10 +426,8 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
   }
 
   if (action === 'delete-versions') {
+    // History only — the page's own lect is what gets edited and published.
     await c.env.DB.prepare('DELETE FROM page_versions WHERE page_id = ?')
-      .bind(pageId)
-      .run();
-    await c.env.DB.prepare('UPDATE draft_pages SET current_page_version_id = NULL WHERE id = ?')
       .bind(pageId)
       .run();
     return c.redirect(`/admin/pages/${pageId}/edit?flash=Versions+cleaned`);
@@ -445,9 +443,14 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
     const revertedLect = stringifyLect(
       withDraftMetadata(safeParseLect(version.lect ?? page.lect), userIdFromContext(c)),
     );
-    await c.env.DB.prepare('UPDATE draft_pages SET lect = ?, current_page_version_id = ? WHERE id = ?')
-      .bind(revertedLect, version.id, pageId)
+    // Restoring is an ordinary edit: the old snapshot becomes the working copy
+    // and is appended to history. The pre-revert content stays in history as
+    // the snapshot written by the save before this one, so the revert itself
+    // is reversible and visible in the version list.
+    await c.env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+      .bind(revertedLect, pageId)
       .run();
+    await savePageVersion(c.env.DB, pageId, revertedLect, 'restore');
     return c.redirect(`/admin/pages/${pageId}/edit?flash=Version+restored`);
   }
 
@@ -474,7 +477,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
     return renderPage(c, editorPage, {
       page: { ...page, editors: formEditors },
       editorUsers: await fetchEditorUsers(c.env.DB, formEditors),
-      version: data.version ?? undefined,
+      version: data.version ?? data.currentVersion ?? undefined,
       liveVersionId: data.liveVersionId,
       isPublished: data.isPublished,
       isLiveSynced: data.isLiveSynced,
@@ -526,7 +529,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
     )
     .run();
 
-  await savePageVersionAndSetCurrent(
+  await savePageVersion(
     c.env.DB,
     pageId,
     lectVal,

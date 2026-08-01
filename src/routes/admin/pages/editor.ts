@@ -107,8 +107,14 @@ export async function maybePluginReadView(
 
 /**
  * Loads everything the built-in editor needs alongside a draft page row:
- * parent options, taxonomy, the current (or requested) version, recent
+ * parent options, taxonomy, the requested version (preview only), recent
  * version history, which version is live, and the selected tag ids.
+ *
+ * `version` is non-null only when `?version=N` names a real version of this
+ * page. Without it there is nothing to preview: the page's own `lect` is the
+ * working copy, so callers render that rather than a snapshot. `currentVersion`
+ * is the head of the history — the snapshot that mirrors `lect` — and exists
+ * only so the version list can mark which entry that is.
  */
 export async function editorPageData(
   c: AppContext,
@@ -123,12 +129,13 @@ export async function editorPageData(
       ? c.env.DB.prepare('SELECT * FROM page_versions WHERE page_id = ? AND id = ?')
           .bind(page.id, requestedVersionId)
           .first<PageVersion>()
-      : page.current_page_version_id
-      ? c.env.DB.prepare('SELECT * FROM page_versions WHERE id = ?')
-          .bind(page.current_page_version_id)
-          .first<PageVersion>()
       : Promise.resolve(null),
-    c.env.DB.prepare('SELECT * FROM page_versions WHERE page_id = ? ORDER BY created_at DESC, id DESC LIMIT 20')
+    // `rowid`, not `id`, breaks the tie: created_at is second-granularity
+    // (cmsTimestamp), so a create and an update in the same second collide,
+    // and `id` embeds a 16-bit random that would order them arbitrarily.
+    // rowid is insert order, which is what "newest" has to mean here — the
+    // head of this list is the snapshot that mirrors the page's own lect.
+    c.env.DB.prepare('SELECT * FROM page_versions WHERE page_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 20')
       .bind(page.id)
       .all<PageVersion>(),
     getLiveLect(c.env, page.uuid),
@@ -142,6 +149,8 @@ export async function editorPageData(
     parentPages,
     taxonomy,
     version,
+    // Head of the history: the same query already loaded it, newest first.
+    currentVersion: versions.results[0] ?? null,
     versions: versions.results,
     // The live copy is projected at publish time, so each candidate version
     // must be projected the same way before comparing (page-logic lectsMatch
@@ -156,13 +165,11 @@ export async function editorPageData(
   };
 }
 
-export async function latestPageVersionId(db: D1DatabaseClient, pageId: number): Promise<number | null> {
-  const latest = await db.prepare('SELECT id FROM page_versions WHERE page_id = ? ORDER BY created_at DESC, id DESC LIMIT 1')
-    .bind(pageId)
-    .first<{ id: number }>();
-  return latest?.id ?? null;
-}
-
+/**
+ * Removes one snapshot from a page's history. The page's own `lect` is
+ * untouched — deleting a version, including the newest one, never changes
+ * what is being edited or what would be published.
+ */
 export async function deletePageVersion(db: D1DatabaseClient, page: Page, versionId: number): Promise<boolean> {
   const version = await db.prepare('SELECT id FROM page_versions WHERE page_id = ? AND id = ?')
     .bind(page.id, versionId)
@@ -172,12 +179,6 @@ export async function deletePageVersion(db: D1DatabaseClient, page: Page, versio
   await db.prepare('DELETE FROM page_versions WHERE page_id = ? AND id = ?')
     .bind(page.id, versionId)
     .run();
-
-  if (page.current_page_version_id === versionId) {
-    await db.prepare('UPDATE draft_pages SET current_page_version_id = ? WHERE id = ?')
-      .bind(await latestPageVersionId(db, page.id), page.id)
-      .run();
-  }
 
   return true;
 }

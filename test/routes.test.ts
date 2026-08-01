@@ -1661,10 +1661,10 @@ describe('admin routes', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toMatch(/^\/admin\/pages\/\d+\/edit\?flash=Published\+page\+pulled\+to\+draft$/);
     const draft = await env.DB.prepare(
-      'SELECT id, uuid, name, slug, weight, page_type, current_page_version_id FROM draft_pages WHERE uuid = ?',
+      'SELECT id, uuid, name, slug, weight, page_type FROM draft_pages WHERE uuid = ?',
     )
       .bind('live-only-uuid')
-      .first<{ id: number; uuid: string; name: string; slug: string; weight: number; page_type: string; current_page_version_id: number }>();
+      .first<{ id: number; uuid: string; name: string; slug: string; weight: number; page_type: string }>();
     if (!draft) throw new Error('Expected pulled draft page');
     expect(draft).toMatchObject({
       uuid: 'live-only-uuid',
@@ -1673,12 +1673,14 @@ describe('admin routes', () => {
       weight: 12,
       page_type: 'default',
     });
-    expect(draft.current_page_version_id).toBeTypeOf('number');
     expect(await env.DB.prepare('SELECT tag_id, weight FROM draft_page_tags WHERE page_id = ?')
       .bind(draft.id)
       .first<{ tag_id: number; weight: number }>()).toEqual({ tag_id: 301, weight: 4 });
-    expect(await env.DB.prepare('SELECT lect, action FROM page_versions WHERE id = ?')
-      .bind(draft.current_page_version_id)
+    // The pull is recorded as the page's first (and so newest) snapshot.
+    expect(await env.DB.prepare(
+      'SELECT lect, action FROM page_versions WHERE page_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+    )
+      .bind(draft.id)
       .first<{ lect: string; action: string }>()).toEqual({ lect: basePageLect, action: 'pull-published' });
   });
 
@@ -1714,11 +1716,11 @@ describe('admin routes', () => {
     });
     expect(deleteResponse.status).toBe(302);
 
-    // Trash keeps the original id, the current-version pointer, and the history.
-    const trashed = await env.DB.prepare('SELECT id, current_page_version_id FROM trash_pages WHERE uuid = ?')
+    // Trash keeps the original id, the lect, and the history.
+    const trashed = await env.DB.prepare('SELECT id, lect FROM trash_pages WHERE uuid = ?')
       .bind('page-uuid-101')
-      .first<{ id: number; current_page_version_id: number }>();
-    expect(trashed).toMatchObject({ id: 101, current_page_version_id: 501 });
+      .first<{ id: number; lect: string }>();
+    expect(trashed).toMatchObject({ id: 101, lect: basePageLect });
     const trashVersion = await env.DB.prepare('SELECT id, page_id FROM trash_page_versions WHERE id = ?')
       .bind(501)
       .first<{ id: number; page_id: number }>();
@@ -1732,11 +1734,11 @@ describe('admin routes', () => {
     });
     expect(restoreResponse.status).toBe(302);
 
-    // Restore brings back the same id, the same current version, and the history.
-    const restored = await env.DB.prepare('SELECT id, current_page_version_id FROM draft_pages WHERE uuid = ?')
+    // Restore brings back the same id, the same lect, and the history.
+    const restored = await env.DB.prepare('SELECT id, lect FROM draft_pages WHERE uuid = ?')
       .bind('page-uuid-101')
-      .first<{ id: number; current_page_version_id: number }>();
-    expect(restored).toMatchObject({ id: 101, current_page_version_id: 501 });
+      .first<{ id: number; lect: string }>();
+    expect(restored).toMatchObject({ id: 101, lect: basePageLect });
     const restoredVersion = await env.DB.prepare('SELECT id, page_id, action FROM page_versions WHERE id = ?')
       .bind(501)
       .first<{ id: number; page_id: number; action: string }>();
@@ -2850,7 +2852,7 @@ describe('structured editor weights', () => {
     const items = lect.items as Array<Record<string, unknown>>;
     items[0]._weight = 4;
     lect._blocks = [{ _type: 'label', _weight: 7, subject: { en: 'Featured' } }];
-    await env.DB.prepare('UPDATE draft_pages SET lect = ?, current_page_version_id = NULL WHERE id = ?')
+    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify(lect), 101)
       .run();
 
@@ -3187,10 +3189,10 @@ async function seedBaseData(): Promise<void> {
     .run();
 
   await env.DB.prepare(
-    `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, current_page_version_id, lect, creator, editors)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(101, 'page-uuid-101', 'About', 'about', 5, 'default', 501, basePageLect, 1, '1')
+    .bind(101, 'page-uuid-101', 'About', 'about', 5, 'default', basePageLect, 1, '1')
     .run();
   await env.DB.prepare(
     'INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)',

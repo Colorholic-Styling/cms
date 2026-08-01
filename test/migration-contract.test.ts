@@ -17,6 +17,12 @@ describe('flattened migration contract', () => {
     // tools/build-migrations.mjs --enable). Those are idempotent by
     // construction — every statement is CREATE ... IF NOT EXISTS — so they are
     // no-ops on a fresh install that got the same objects from the baseline.
+    //
+    // A column *removal* cannot join them: DROP COLUMN aborts on the fresh
+    // install whose baseline never had the column, and the rebuild that would
+    // be safe on both cascades through draft_pages' foreign keys (D1 runs with
+    // foreign_keys=1) and takes page_versions and draft_page_tags with it. Such
+    // changes leave the baseline and ship as a one-off under migrations/manual/.
     const names = env.TEST_MIGRATIONS.map((migration) => migration.name);
     expect(names.filter((name) => !/^\d{4}_enable_/.test(name))).toEqual(['0001_initial_schema.sql']);
     expect(names[0]).toBe('0001_initial_schema.sql');
@@ -45,6 +51,19 @@ describe('flattened migration contract', () => {
     expect(await objectNames(env.DB, 'trigger')).toEqual(expect.arrayContaining([
       'locales_updated_at', 'locale_messages_updated_at', 'user_oauth_identities_updated_at',
     ]));
+  });
+
+  it('leaves lect as the only current-content column on page tables', async () => {
+    // `lect` is the working copy and the source of truth; page_versions is an
+    // append-only backup log whose newest row mirrors it. A current-version
+    // pointer would be a second answer to "what does this page say", and could
+    // disagree — deleting the version it named repointed it at older content.
+    for (const table of ['draft_pages', 'trash_pages']) {
+      const { results } = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+      const columns = results.map((column) => column.name);
+      expect(columns).toContain('lect');
+      expect(columns).not.toContain('current_page_version_id');
+    }
   });
 
   it('preserves security-critical columns and seed rows', async () => {

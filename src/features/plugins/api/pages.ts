@@ -45,11 +45,11 @@ import { advancedSearchOperator, advancedSearchOrder, advancedSearchSort, perfor
 import { blueprintToLect, mergeLects, safeParseLect, stringifyLect } from '../../../core/db/lect';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { withDraftMetadata } from '../../../core/db/page-logic';
-import { ensureUniqueDraftSlug, trashDraftPage, trashDraftPages } from '../../../core/db/admin-queries';
+import { ensureUniqueDraftSlug, savePageVersion, trashDraftPage, trashDraftPages } from '../../../core/db/admin-queries';
 import { slugify } from '../../../core/http/forms';
 import { pageTypeScopeAllows } from '../page-types';
 import { liveMapForDraftPages, publishPageToTargets, unpublishPageFromTargets, unpublishPagesFromTargets } from '../../../core/publish';
-import { notifyPageSaved, savePageVersionAndSetCurrent, setDraftPageTags } from '../../../core/db/page-store';
+import { notifyPageSaved, setDraftPageTags } from '../../../core/db/page-store';
 
 const DUPLICATE_BATCH = 100;
 const DUPLICATE_MAX_PER_CALL = 1000;
@@ -717,7 +717,7 @@ async function updatePage(c: AppContext): Promise<Response> {
     .bind(name, slug, weight, start, end, timezone, lectVal, parentId, id)
     .run();
 
-  await savePageVersionAndSetCurrent(c.env.DB, id, lectVal, versionAction(body.version_action, 'update'));
+  await savePageVersion(c.env.DB, id, lectVal, versionAction(body.version_action, 'update'));
   if ('tags' in body) await setDraftPageTags(c.env.DB, id, body.tags, true);
 
   await notifyPageSaved(c.env, id);

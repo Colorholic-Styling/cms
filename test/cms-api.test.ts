@@ -354,12 +354,10 @@ describe('Plugin API create / read / list / update / delete', () => {
     expect(created.page_type).toBe('guest');
     expect(created.slug).toBe('ada-lovelace');
 
-    // A create version was minted and linked.
-    const row = await env.DB.prepare('SELECT current_page_version_id FROM draft_pages WHERE id = ?')
-      .bind(created.id).first<{ current_page_version_id: number }>();
-    expect(row?.current_page_version_id).toBeTruthy();
-    const version = await env.DB.prepare('SELECT action FROM page_versions WHERE id = ?')
-      .bind(row!.current_page_version_id).first<{ action: string }>();
+    // A create version was minted as the page's newest snapshot.
+    const version = await env.DB.prepare(
+      'SELECT action FROM page_versions WHERE page_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
+    ).bind(created.id).first<{ action: string }>();
     expect(version?.action).toBe('create');
 
     const readRes = await cmsApi('GET', `/__cms/pages/${created.id}`);
@@ -846,7 +844,9 @@ describe('Plugin API batch writes', () => {
     const rows = await env.DB.prepare(
       `SELECT p.id, p.lect AS page_lect, v.lect AS version_lect, v.action
        FROM draft_pages p
-       JOIN page_versions v ON v.id = p.current_page_version_id
+       JOIN page_versions v ON v.id = (
+         SELECT id FROM page_versions WHERE page_id = p.id ORDER BY created_at DESC, rowid DESC LIMIT 1
+       )
        WHERE p.id IN (?, ?)
        ORDER BY p.id`,
     ).bind(first.id, second.id).all<{ id: number; page_lect: string; version_lect: string; action: string }>();
@@ -891,10 +891,9 @@ describe('Plugin API batch writes', () => {
     expect(body.created.map((page) => page.slug)).toEqual(['same-name', 'same-name-2']);
 
     const rows = await env.DB.prepare(
-      'SELECT slug, current_page_version_id FROM draft_pages WHERE id IN (?, ?) ORDER BY slug',
-    ).bind(body.created[0].id, body.created[1].id).all<{ slug: string; current_page_version_id: number }>();
+      'SELECT slug FROM draft_pages WHERE id IN (?, ?) ORDER BY slug',
+    ).bind(body.created[0].id, body.created[1].id).all<{ slug: string }>();
     expect(rows.results.map((row) => row.slug)).toEqual(['same-name', 'same-name-2']);
-    expect(rows.results.every((row) => row.current_page_version_id)).toBe(true);
 
     const versions = await env.DB.prepare(
       'SELECT COUNT(*) AS count FROM page_versions WHERE page_id IN (?, ?)',
@@ -904,7 +903,9 @@ describe('Plugin API batch writes', () => {
     const payloads = await env.DB.prepare(
       `SELECT p.lect AS page_lect, v.lect AS version_lect
        FROM draft_pages p
-       JOIN page_versions v ON v.id = p.current_page_version_id
+       JOIN page_versions v ON v.id = (
+         SELECT id FROM page_versions WHERE page_id = p.id ORDER BY created_at DESC, rowid DESC LIMIT 1
+       )
        WHERE p.id IN (?, ?)
        ORDER BY p.slug`,
     ).bind(body.created[0].id, body.created[1].id).all<{ page_lect: string; version_lect: string }>();

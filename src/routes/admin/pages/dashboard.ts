@@ -13,7 +13,7 @@ import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardSta
 import { coreExtensions } from '../../../core/extensions';
 import { reservePageCreate } from '../../../features/services';
 import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
-import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids } from '../../../core/db/admin-queries';
+import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids, savePageVersion } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
@@ -21,7 +21,6 @@ import { userCan } from '../../../core/auth/permissions';
 import { loadAdminHomeSettings } from '../../../core/db/settings';
 import { requirePermission } from '../../../core/auth/guards';
 import type { AppContext } from '../../../core/http/context';
-import { savePageVersionAndSetCurrent } from '../../../core/db/page-store';
 
 
 export const pageDashboardRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
@@ -99,7 +98,7 @@ async function liveDashboardPagesForRequest(
   const draftMap = new Map(draftRows.map((page) => [page.uuid, page]));
   const results: DashboardPageRow[] = liveRows.results.map((page) => {
     const draft = draftMap.get(page.uuid);
-    return draft ?? { ...page, current_page_version_id: null, isDraftMissing: true };
+    return draft ?? { ...page, isDraftMissing: true };
   });
   const projectDraft = await draftLectProjector(c.env);
 
@@ -325,7 +324,7 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
       .first<{ id: number }>();
     if (!page) return c.notFound();
 
-    await savePageVersionAndSetCurrent(c.env.DB, page.id, lect, 'create');
+    await savePageVersion(c.env.DB, page.id, lect, 'create');
 
     announcePageEvent(c, 'create', { id: page.id, page_type: pageType, name, slug });
 

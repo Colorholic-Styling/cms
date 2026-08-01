@@ -89,11 +89,11 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
     : await c.env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(originalParentId).first<{ id: number }>();
   const restoredParentId = draftParent?.id ?? null;
 
-  // Restore into draft, preserving the original id and current-version pointer
-  // so the page keeps the same identity it had before being trashed.
+  // Restore into draft, preserving the original id so the page keeps the same
+  // identity it had before being trashed.
   await c.env.DB.prepare(
-    `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, current_page_version_id, lect, page_id, creator, editors)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(uuid) DO UPDATE SET
        name = excluded.name,
        slug = excluded.slug,
@@ -102,7 +102,6 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
        end = excluded.end,
        timezone = excluded.timezone,
        page_type = excluded.page_type,
-       current_page_version_id = excluded.current_page_version_id,
        lect = excluded.lect,
        page_id = excluded.page_id,
        creator = excluded.creator,
@@ -118,7 +117,6 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
       trashedPage.end,
       trashedPage.timezone,
       trashedPage.page_type,
-      trashedPage.current_page_version_id ?? null,
       trashedPage.lect,
       restoredParentId,
       trashedPage.creator,
@@ -131,8 +129,8 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
     .first<{ id: number }>();
 
   if (draftPage) {
-    // Bring version history back, preserving version ids so the restored
-    // current_page_version_id still resolves to the right snapshot.
+    // Bring version history back, preserving version ids so links to a
+    // specific snapshot survive the trash round-trip.
     const trashVersions = await c.env.DB.prepare('SELECT * FROM trash_page_versions WHERE page_id = ?')
       .bind(trashId)
       .all<PageVersion>();
