@@ -601,7 +601,10 @@
               <svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <use href="{{ iconHrefPrefix }}#{{ wallet.icon }}"></use>
               </svg>
-              <span>{{ wallet.userBalance }} {{ wallet.unitKey | t }} · {{ wallet.sharedBalance }} {{ "shell.shared" | t }}</span>
+              <span class="min-w-0">
+                <span class="whitespace-nowrap">{{ wallet.userBalance }} {{ wallet.unitKey | t }}</span>
+                <span class="whitespace-nowrap"> · {{ wallet.sharedBalance }} {{ "shell.shared" | t }}</span>
+              </span>
             </p>
             {% endfor %}
           </div>

@@ -89,6 +89,7 @@ describe('admin chrome feature contributions', () => {
     expect(view).toContain('{% for wallet in sidebarWallets %}');
     expect(view).toContain('{{ wallet.userBalance }}');
     expect(view).toContain('{{ wallet.sharedBalance }}');
+    expect(view).toContain('whitespace-nowrap');
   });
 
   it('registers each contributor under a cms.features.json id', () => {
