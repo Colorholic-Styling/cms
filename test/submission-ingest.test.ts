@@ -27,7 +27,7 @@ interface LiveSubmissionSeed {
 
 async function seedLiveSubmission(seed: LiveSubmissionSeed): Promise<void> {
   await env.PUBLISHED_DB.prepare(
-    `INSERT INTO live_pages (id, uuid, created_at, name, slug, weight, page_type, lect, page_id)
+    `INSERT INTO pages (id, uuid, created_at, name, slug, weight, page_type, lect, page_id)
      VALUES (?, ?, ?, ?, ?, 5, ?, ?, ?)`,
   )
     .bind(
@@ -45,7 +45,7 @@ async function seedLiveSubmission(seed: LiveSubmissionSeed): Promise<void> {
 
 async function seedDraftPage(id: number, pageType: string, uuid?: string): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO draft_pages (id, ${uuid ? 'uuid, ' : ''}name, slug, weight, page_type, lect)
+    `INSERT INTO pages (id, ${uuid ? 'uuid, ' : ''}name, slug, weight, page_type, lect)
      VALUES (?, ${uuid ? '?, ' : ''}?, ?, 5, ?, ?)`,
   )
     .bind(...(uuid ? [id, uuid] : [id]), `Page ${id}`, `page-${id}`, pageType, JSON.stringify({ name: { en: `Page ${id}` } }))
@@ -86,9 +86,9 @@ async function cleanup(): Promise<void> {
   hookCalls.length = 0;
   await env.DB.prepare('DELETE FROM plugins').run();
   await env.DB.prepare('DELETE FROM settings WHERE key = ?').bind(CURSOR_KEY).run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE uuid LIKE 'facade01-%'").run();
-  await env.DB.prepare('DELETE FROM draft_pages WHERE id IN (?, ?)').bind(GUEST_ID, EVENT_ID).run();
-  await env.PUBLISHED_DB.prepare("DELETE FROM live_pages WHERE uuid LIKE 'facade01-%'").run();
+  await env.DB.prepare("DELETE FROM pages WHERE uuid LIKE 'facade01-%'").run();
+  await env.DB.prepare('DELETE FROM pages WHERE id IN (?, ?)').bind(GUEST_ID, EVENT_ID).run();
+  await env.PUBLISHED_DB.prepare("DELETE FROM pages WHERE uuid LIKE 'facade01-%'").run();
 }
 
 beforeEach(async () => {
@@ -121,7 +121,7 @@ describe('ingestSubmissions', () => {
     expect(result.created).toBe(1);
     expect(result.scanned).toBe(1);
 
-    const draft = await env.DB.prepare('SELECT * FROM draft_pages WHERE uuid = ?')
+    const draft = await env.DB.prepare('SELECT * FROM pages WHERE uuid = ?')
       .bind('facade01-0001-4001-8001-000000000001')
       .first<{ id: number; page_type: string; page_id: number | null; lect: string; created_at: string }>();
     expect(draft).not.toBeNull();
@@ -159,7 +159,7 @@ describe('ingestSubmissions', () => {
     expect(again.created).toBe(0);
     expect(again.scanned).toBe(0); // cursor moved past the row
 
-    const drafts = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'rsvp_registration'")
+    const drafts = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'rsvp_registration'")
       .first<{ n: number }>();
     expect(drafts?.n).toBe(1);
   });
@@ -192,11 +192,11 @@ describe('ingestSubmissions', () => {
     await seedDraftPage(77004, 'survey_answer', uuid);
 
     expect((await ingestSubmissions(env)).created).toBe(0);
-    await env.DB.prepare('DELETE FROM draft_pages WHERE uuid = ?').bind(uuid).run();
+    await env.DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(uuid).run();
 
     expect((await ingestSubmissions(env)).more).toBe(true); // completed pass resets cursor
     expect((await ingestSubmissions(env)).created).toBe(1);
-    const mirrored = await env.DB.prepare('SELECT id FROM draft_pages WHERE uuid = ?')
+    const mirrored = await env.DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind(uuid).first<{ id: number }>();
     expect(await isSubmissionMirror(env.DB, mirrored!.id)).toBe(true);
   });
@@ -219,7 +219,7 @@ describe('ingestSubmissions', () => {
     const second = await ingestSubmissions(env);
     expect(second.created).toBe(2);
 
-    const drafts = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'rsvp_response'")
+    const drafts = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'rsvp_response'")
       .first<{ n: number }>();
     expect(drafts?.n).toBe(10);
   });
@@ -236,7 +236,7 @@ describe('publish path refuses submission mirrors', () => {
       lect: { _type: 'contact_request', status: 'new' },
     });
     await ingestSubmissions(env);
-    const draft = await env.DB.prepare('SELECT id FROM draft_pages WHERE uuid = ?')
+    const draft = await env.DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('facade01-0201-4201-8201-000000000201')
       .first<{ id: number }>();
 
@@ -245,7 +245,7 @@ describe('publish path refuses submission mirrors', () => {
     expect(outcome?.targets).toEqual([]);
 
     // The original live row is untouched.
-    const live = await env.PUBLISHED_DB.prepare('SELECT id, lect FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT id, lect FROM pages WHERE uuid = ?')
       .bind('facade01-0201-4201-8201-000000000201')
       .first<{ id: number; lect: string }>();
     expect(live?.id).toBe(-100201);
@@ -264,7 +264,7 @@ describe('publish path refuses submission mirrors', () => {
     const outcome = await unpublishPageFromTargets(env, 'facade01-0202-4202-8202-000000000202', true);
     expect(outcome.refused).toBe(true);
 
-    const live = await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('facade01-0202-4202-8202-000000000202')
       .first<{ id: number }>();
     expect(live?.id).toBe(-100202);
@@ -284,7 +284,7 @@ describe('publish path refuses submission mirrors', () => {
     expect(published?.refused).toBeUndefined();
     await unpublishPageFromTargets(env, 'facade01-aaaa-4aaa-8aaa-00000000aaaa', false);
 
-    const live = await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('facade01-0203-4203-8203-000000000203')
       .first<{ id: number }>();
     expect(live?.id).toBe(-100203);

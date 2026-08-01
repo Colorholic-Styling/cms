@@ -166,7 +166,7 @@ describe('app shell routes', () => {
     });
 
     expect(response.status).toBe(403);
-    expect(await env.DB.prepare("SELECT id FROM draft_pages WHERE slug = 'must-not-exist'").first()).toBeNull();
+    expect(await env.DB.prepare("SELECT id FROM pages WHERE slug = 'must-not-exist'").first()).toBeNull();
   });
 
   it('rejects mutations with no browser origin signals (fail closed)', async () => {
@@ -1177,7 +1177,7 @@ describe('admin routes', () => {
   it('POST /admin/pages/batch-weight updates multiple page weights', async () => {
     const cookie = await authCookie();
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(102, 'page-uuid-102', 'Contact', 'contact', 5, 'default', basePageLect, 1, '1')
@@ -1199,7 +1199,7 @@ describe('admin routes', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ success: true });
 
-    const rows = await env.DB.prepare('SELECT id, weight FROM draft_pages WHERE id IN (?, ?)')
+    const rows = await env.DB.prepare('SELECT id, weight FROM pages WHERE id IN (?, ?)')
       .bind(101, 102)
       .all<{ id: number; weight: number }>();
     
@@ -1239,7 +1239,7 @@ describe('admin routes', () => {
 
   it('POST /admin/pages/:id/publish writes published content to PUBLISHED_DB only', async () => {
     await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags').run();
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_pages').run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM pages').run();
 
     const response = await fetchWorker('/admin/pages/101/publish', {
       method: 'POST',
@@ -1247,7 +1247,7 @@ describe('admin routes', () => {
     });
 
     expect(response.status).toBe(302);
-    expect(await env.PUBLISHED_DB.prepare('SELECT name, slug, page_type FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT name, slug, page_type FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ name: string; slug: string; page_type: string }>()).toEqual({
         name: 'About',
@@ -1257,7 +1257,7 @@ describe('admin routes', () => {
     expect(await env.PUBLISHED_DB.prepare(
       `SELECT lpt.tag_id
        FROM live_page_tags lpt
-       JOIN live_pages lp ON lp.id = lpt.page_id
+       JOIN pages lp ON lp.id = lpt.page_id
        WHERE lp.uuid = ?`,
     )
       .bind('page-uuid-101')
@@ -1273,7 +1273,7 @@ describe('admin routes', () => {
       unpublishAction: '/admin/pages/101/unpublish?return_to=%2Fadmin%2Fpages%2F101%2Fedit',
     });
 
-    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify({ _type: 'default', name: { mis: 'Updated draft' } }), 101)
       .run();
     const changedEditor = bodyData(await (await fetchWorker('/admin/pages/101/edit', {
@@ -1295,7 +1295,7 @@ describe('admin routes', () => {
     } as unknown as Fetcher);
     await env.DB.prepare('INSERT INTO plugins (label, url, enabled) VALUES (?, ?, 1)').bind('Events', pluginUrl).run();
     clearManifestCache();
-    await env.DB.prepare('UPDATE draft_pages SET page_type = ? WHERE id = ?').bind(pageType, 101).run();
+    await env.DB.prepare('UPDATE pages SET page_type = ? WHERE id = ?').bind(pageType, 101).run();
     await fetchWorker('/admin/pages/101/publish', {
       method: 'POST',
       headers: { Cookie: await authCookie() },
@@ -1309,7 +1309,7 @@ describe('admin routes', () => {
 
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toContain('flash=Page+updated+and+published+successfully');
-    expect(await env.PUBLISHED_DB.prepare('SELECT name, slug, page_type FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT name, slug, page_type FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first()).toEqual({ name: 'RSVP Fresh', slug: 'rsvp-fresh', page_type: pageType });
   });
@@ -1327,8 +1327,8 @@ describe('admin routes', () => {
     } as unknown as Fetcher);
     await env.DB.prepare('INSERT INTO plugins (label, url, enabled) VALUES (?, ?, 1)').bind('Events', pluginUrl).run();
     clearManifestCache();
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid = ?').bind('page-uuid-101').run();
-    await env.DB.prepare("UPDATE draft_pages SET page_type = 'guest' WHERE id = 101").run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind('page-uuid-101').run();
+    await env.DB.prepare("UPDATE pages SET page_type = 'guest' WHERE id = 101").run();
 
     const response = await fetchWorker('/admin/pages/101', {
       method: 'POST',
@@ -1337,13 +1337,13 @@ describe('admin routes', () => {
     });
 
     expect(response.status).toBe(302);
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first()).toBeNull();
   });
 
   it('POST /admin/pages/:id/unpublish removes content from PUBLISHED_DB', async () => {
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ id: number }>()).not.toBeNull();
 
@@ -1353,7 +1353,7 @@ describe('admin routes', () => {
     });
 
     expect(response.status).toBe(302);
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ id: number }>()).toBeNull();
   });
@@ -1362,7 +1362,7 @@ describe('admin routes', () => {
     const { queue, sent } = queueStub<CmsAdminJobMessage>();
     (env as unknown as { ADMIN_JOBS_QUEUE?: Queue<CmsAdminJobMessage> }).ADMIN_JOBS_QUEUE = queue;
     await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags').run();
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_pages').run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM pages').run();
     const query = 'operator=AND&pagesize=20&sort=updated_at&order=DESC&search1=About&path1=';
     const cookie = await authCookie();
 
@@ -1386,13 +1386,13 @@ describe('admin routes', () => {
       .first<{ type: string; status: string; body: string }>();
     expect(publishJob).toMatchObject({ type: 'advanced_search_bulk_action', status: 'queued' });
     expect(JSON.parse(publishJob?.body ?? '{}')).toMatchObject({ action: 'publish', scope: 'selected', ids: [101] });
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ id: number }>()).toBeNull();
 
     await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
 
-    expect(await env.PUBLISHED_DB.prepare('SELECT name FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT name FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ name: string }>()).toEqual({ name: 'About' });
 
@@ -1413,7 +1413,7 @@ describe('admin routes', () => {
 
     await worker.queue(queueBatch([sent[1]]), env as unknown as AppEnv);
 
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ id: number }>()).toBeNull();
   });
@@ -1426,13 +1426,13 @@ describe('admin routes', () => {
     const secondLect = blueprintToLect('default', cmsConfig.blueprint, cmsConfig.defaultLanguage);
     secondLect.name = localizedFixture('Bulk Match Two');
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(103, 'bulk-match-uuid-103', 'Bulk Match One', 'bulk-match-one', 7, 'default', stringifyLect(firstLect), 1, '1')
       .run();
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(104, 'bulk-match-uuid-104', 'Bulk Match Two', 'bulk-match-two', 8, 'default', stringifyLect(secondLect), 1, '1')
@@ -1465,19 +1465,19 @@ describe('admin routes', () => {
       pageTypes: ['default'],
       operator: 'AND',
     });
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id IN (?, ?)')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id IN (?, ?)')
       .bind(103, 104)
       .first<{ total: number }>()).toEqual({ total: 2 });
 
     await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
 
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id IN (?, ?)')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id IN (?, ?)')
       .bind(103, 104)
       .first<{ total: number }>()).toEqual({ total: 0 });
     expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM trash_pages WHERE id IN (?, ?)')
       .bind(103, 104)
       .first<{ total: number }>()).toEqual({ total: 2 });
-    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?')
+    expect(await env.DB.prepare('SELECT id FROM pages WHERE id = ?')
       .bind(101)
       .first<{ id: number }>()).not.toBeNull();
     // Audit rows are written for every deleted page in one batched insert.
@@ -1500,7 +1500,7 @@ describe('admin routes', () => {
         const lect = blueprintToLect('default', cmsConfig.blueprint, cmsConfig.defaultLanguage);
         lect.name = localizedFixture(name);
         await env.DB.prepare(
-          `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+          `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(id, uuid, name, slug, 5, 'default', stringifyLect(lect), 1, '1').run();
       }
@@ -1528,7 +1528,7 @@ describe('admin routes', () => {
       expect(response.headers.get('Location'))
         .toBe('/admin/advanced-search/default?flash=2%20pages%20moved%20to%20trash');
 
-      expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id IN (?, ?)')
+      expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id IN (?, ?)')
         .bind(601, 602)
         .first<{ total: number }>()).toEqual({ total: 0 });
       expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM trash_pages WHERE id IN (?, ?)')
@@ -1566,7 +1566,7 @@ describe('admin routes', () => {
     await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
 
     expect(sent).toHaveLength(2);
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id BETWEEN ? AND ?')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id BETWEEN ? AND ?')
       .bind(3001, 3125)
       .first<{ total: number }>()).toEqual({ total: 25 });
     const partialJob = await env.DB.prepare('SELECT status, body FROM admin_jobs WHERE id = ?')
@@ -1577,7 +1577,7 @@ describe('admin routes', () => {
 
     await worker.queue(queueBatch([sent[1]]), env as unknown as AppEnv);
 
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id BETWEEN ? AND ?')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id BETWEEN ? AND ?')
       .bind(3001, 3125)
       .first<{ total: number }>()).toEqual({ total: 0 });
     expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM trash_pages WHERE id BETWEEN ? AND ?')
@@ -1598,7 +1598,7 @@ describe('admin routes', () => {
     await seedDraftPages('default', 25, 4000, 'All Scope');
     const matchLect = blueprintToLect('default', cmsConfig.blueprint, cmsConfig.defaultLanguage);
     matchLect.name = localizedFixture('All Scope');
-    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id BETWEEN ? AND ?')
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id BETWEEN ? AND ?')
       .bind(stringifyLect(matchLect), 4001, 4025)
       .run();
     const query = 'operator=AND&pagesize=20&sort=updated_at&order=DESC&search1=All%20Scope&path1=';
@@ -1620,7 +1620,7 @@ describe('admin routes', () => {
 
     await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
 
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id BETWEEN ? AND ?')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id BETWEEN ? AND ?')
       .bind(4001, 4025)
       .first<{ total: number }>()).toEqual({ total: 0 });
     expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM trash_pages WHERE id BETWEEN ? AND ?')
@@ -1644,7 +1644,7 @@ describe('admin routes', () => {
 
   it('POST /admin/pages/pull/:uuid recreates a missing draft from published content', async () => {
     await env.PUBLISHED_DB.prepare(
-      `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(920, 'live-only-uuid', 'Live Only', 'live-only', 12, 'default', basePageLect, 1, '1')
@@ -1661,7 +1661,7 @@ describe('admin routes', () => {
     expect(response.status).toBe(302);
     expect(response.headers.get('Location')).toMatch(/^\/admin\/pages\/\d+\/edit\?flash=Published\+page\+pulled\+to\+draft$/);
     const draft = await env.DB.prepare(
-      'SELECT id, uuid, name, slug, weight, page_type FROM draft_pages WHERE uuid = ?',
+      'SELECT id, uuid, name, slug, weight, page_type FROM pages WHERE uuid = ?',
     )
       .bind('live-only-uuid')
       .first<{ id: number; uuid: string; name: string; slug: string; weight: number; page_type: string }>();
@@ -1695,9 +1695,12 @@ describe('admin routes', () => {
   });
 
   it('CMS DB migration does not create live or runtime presence tables', async () => {
+    // `pages` is deliberately the name in both databases now, so it can no
+    // longer be the marker for "the published schema was applied here" —
+    // live_page_tags is.
     const tables = await env.DB.prepare(
       `SELECT name FROM sqlite_master
-       WHERE type = 'table' AND name IN ('live_pages', 'live_page_tags', 'presence')
+       WHERE type = 'table' AND name IN ('live_page_tags', 'presence')
        ORDER BY name`,
     ).all<{ name: string }>();
 
@@ -1726,7 +1729,7 @@ describe('admin routes', () => {
       .first<{ id: number; page_id: number }>();
     expect(trashVersion).toMatchObject({ id: 501, page_id: 101 });
     // The draft copy and its versions are gone while it sits in trash.
-    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(101).first()).toBeNull();
+    expect(await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(101).first()).toBeNull();
 
     const restoreResponse = await fetchWorker('/admin/trash/101/restore', {
       method: 'POST',
@@ -1735,7 +1738,7 @@ describe('admin routes', () => {
     expect(restoreResponse.status).toBe(302);
 
     // Restore brings back the same id, the same lect, and the history.
-    const restored = await env.DB.prepare('SELECT id, lect FROM draft_pages WHERE uuid = ?')
+    const restored = await env.DB.prepare('SELECT id, lect FROM pages WHERE uuid = ?')
       .bind('page-uuid-101')
       .first<{ id: number; lect: string }>();
     expect(restored).toMatchObject({ id: 101, lect: basePageLect });
@@ -1748,16 +1751,16 @@ describe('admin routes', () => {
   });
 
   it('leaves a child page in place when its parent is deleted', async () => {
-    // draft_pages.page_id carries no foreign key (it mirrors live_pages), so a
+    // pages.page_id carries no foreign key (it mirrors pages), so a
     // parent delete no longer cascades. That cascade destroyed children
     // outright — trashDraftPage copies only the page it is given, so a child
     // was hard-deleted with its history and never reached trash.
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(150, 'parent-uuid-150', 'Parent', 'parent-150', 5, 'default', basePageLect, 1).run();
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, page_id, creator)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, page_id, creator)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(151, 'child-uuid-151', 'Child', 'child-151', 5, 'default', basePageLect, 150, 1).run();
     await env.DB.prepare('INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)')
@@ -1769,7 +1772,7 @@ describe('admin routes', () => {
     });
     expect(response.status).toBe(302);
 
-    const child = await env.DB.prepare('SELECT id, page_id FROM draft_pages WHERE id = ?')
+    const child = await env.DB.prepare('SELECT id, page_id FROM pages WHERE id = ?')
       .bind(151).first<{ id: number; page_id: number }>();
     // The child survives, still pointing at the id its parent had. Readers
     // resolve that to "no parent" rather than treating it as an error.
@@ -1779,7 +1782,7 @@ describe('admin routes', () => {
 
     // The parent's own rows still cascade-clean: page_versions and
     // draft_page_tags keep their foreign keys, only the self-reference went.
-    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(150).first()).toBeNull();
+    expect(await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(150).first()).toBeNull();
 
     // The orphan renders as parentless instead of erroring.
     const editor = await fetchWorker('/admin/pages/151/edit', {
@@ -1811,7 +1814,7 @@ describe('admin routes', () => {
 
   it('GET /admin filters pages by draft or live status', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(901, 'draft-only-uuid', 'Draft Only', 'draft-only', 6, 'default', basePageLect, 1, '1')
@@ -1838,7 +1841,7 @@ describe('admin routes', () => {
 
   it('GET /admin?status=live shows published pages missing from drafts with a pull action', async () => {
     await env.PUBLISHED_DB.prepare(
-      `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(930, 'dashboard-live-only-uuid', 'Dashboard Live Only', 'dashboard-live-only', 8, 'default', basePageLect, 1, '1')
@@ -1861,7 +1864,7 @@ describe('admin routes', () => {
 
   it('keeps the page list available when /admin is configured for another home', async () => {
     await env.PUBLISHED_DB.prepare(
-      `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(931, 'page-list-submission-uuid', 'Page List Submission', 'page-list-submission', 8, 'default', basePageLect, 1, '1')
@@ -1989,9 +1992,9 @@ describe('admin routes', () => {
 
     await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
 
-    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM draft_pages WHERE id BETWEEN 6000 AND 6002')
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM pages WHERE id BETWEEN 6000 AND 6002')
       .first<{ total: number }>()).toEqual({ total: 0 });
-    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = 101').first()).not.toBeNull();
+    expect(await env.DB.prepare('SELECT id FROM pages WHERE id = 101').first()).not.toBeNull();
   });
 
   it('redirects anonymous admin requests to login', async () => {
@@ -2675,7 +2678,7 @@ describe('permission-aware admin UI', () => {
     const orphanedKey = 'content-list-test/orphaned-image.png';
     await env.MEDIA_BUCKET.put(linkedKey, pngBytes());
     await env.MEDIA_BUCKET.put(orphanedKey, pngBytes());
-    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify({ image: { en: `/media/${linkedKey}` } }), 101)
       .run();
 
@@ -2788,7 +2791,7 @@ describe('draft page slug uniqueness on save', () => {
     await createPage('About Two', 'about');
     await createPage('About Three', 'about');
 
-    const slugs = await env.DB.prepare("SELECT slug FROM draft_pages WHERE slug LIKE 'about%' ORDER BY slug ASC")
+    const slugs = await env.DB.prepare("SELECT slug FROM pages WHERE slug LIKE 'about%' ORDER BY slug ASC")
       .all<{ slug: string }>();
     expect(slugs.results.map((row) => row.slug)).toEqual(['about', 'about-2', 'about-3']);
   });
@@ -2800,7 +2803,7 @@ describe('draft page slug uniqueness on save', () => {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: await authCookie() },
     });
     expect(response.status).toBe(302);
-    const row = await env.DB.prepare('SELECT slug FROM draft_pages WHERE id = ?')
+    const row = await env.DB.prepare('SELECT slug FROM pages WHERE id = ?')
       .bind(101)
       .first<{ slug: string }>();
     expect(row?.slug).toBe('about');
@@ -2860,7 +2863,7 @@ describe('database page type with a scalar @name field', () => {
       body: form({ name: 'Main Menu', slug: 'main-menu', page_type: 'menu', weight: '5', '.name|en': 'Main Menu', '.links[0].label|en': 'Home', '.links[0].url|en': '/home' }),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: await authCookie() },
     });
-    const row = await env.DB.prepare('SELECT id FROM draft_pages WHERE slug = ?')
+    const row = await env.DB.prepare('SELECT id FROM pages WHERE slug = ?')
       .bind('main-menu')
       .first<{ id: number }>();
 
@@ -2894,7 +2897,7 @@ describe('structured editor weights', () => {
     const items = lect.items as Array<Record<string, unknown>>;
     items[0]._weight = 4;
     lect._blocks = [{ _type: 'label', _weight: 7, subject: { en: 'Featured' } }];
-    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify(lect), 101)
       .run();
 
@@ -2907,7 +2910,7 @@ describe('structured editor weights', () => {
     expect(structuredModel.itemGroups[0].rows[0]).toMatchObject({ deleteAction: 'item-delete:items|0', showDelete: false });
 
     items.push({ _weight: 8, name: { en: 'Second item' } });
-    await env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify(lect), 101)
       .run();
 
@@ -2978,7 +2981,7 @@ describe('Add-block picker scope', () => {
   it('offers every block type when the page type defines no block list', async () => {
     // Page type 'event' (seeded type 700) has no block list of its own.
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(105, 'page-uuid-105', 'Gala', 'gala', 5, 'event', stringifyLect({ _type: 'event' }), 1, '1').run();
 
@@ -3170,7 +3173,7 @@ async function resetData(): Promise<void> {
     'trash_page_tags',
     'page_versions',
     'media_files',
-    'draft_pages',
+    'pages',
     'trash_pages',
     'tags',
     'taxonomies',
@@ -3190,7 +3193,7 @@ async function resetData(): Promise<void> {
 
   const publishedTables = [
     'live_page_tags',
-    'live_pages',
+    'pages',
   ];
   for (const table of publishedTables) {
     await env.PUBLISHED_DB.prepare(`DELETE FROM ${table}`).run();
@@ -3231,7 +3234,7 @@ async function seedBaseData(): Promise<void> {
     .run();
 
   await env.DB.prepare(
-    `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+    `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(101, 'page-uuid-101', 'About', 'about', 5, 'default', basePageLect, 1, '1')
@@ -3242,7 +3245,7 @@ async function seedBaseData(): Promise<void> {
     .bind(501, 101, basePageLect, 'create')
     .run();
   await env.PUBLISHED_DB.prepare(
-    `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+    `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(102, 'page-uuid-101', 'About', 'about', 5, 'default', basePageLect, 1, '1')
@@ -3262,7 +3265,7 @@ async function seedDraftPages(pageType: string, count: number, idStart: number, 
   for (let index = 1; index <= count; index++) {
     const padded = String(index).padStart(3, '0');
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(

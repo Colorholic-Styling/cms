@@ -63,7 +63,7 @@ function dashboardPaginationResult<T>(items: T[], requestedPage: number, limit: 
 }
 
 async function liveDashboardUuids(c: AppContext): Promise<Set<string>> {
-  const liveRows = await c.env.PUBLISHED_DB.prepare('SELECT uuid FROM live_pages')
+  const liveRows = await c.env.PUBLISHED_DB.prepare('SELECT uuid FROM pages')
     .all<DashboardLiveUuidRow>();
   return new Set(liveRows.results.map((page) => page.uuid));
 }
@@ -75,7 +75,7 @@ async function liveDashboardPagesForRequest(
   const { pageType, requestedPage, pageSize } = options;
   const whereSql = pageType ? 'WHERE page_type = ?' : '';
   const baseParams = pageType ? [pageType] : [];
-  const countRow = await c.env.PUBLISHED_DB.prepare(`SELECT COUNT(*) AS total FROM live_pages ${whereSql}`)
+  const countRow = await c.env.PUBLISHED_DB.prepare(`SELECT COUNT(*) AS total FROM pages ${whereSql}`)
     .bind(...baseParams)
     .first<{ total: number }>();
   const total = countRow?.total ?? 0;
@@ -83,7 +83,7 @@ async function liveDashboardPagesForRequest(
   const currentPage = Math.min(requestedPage, totalPages);
   const currentOffset = (currentPage - 1) * pageSize;
   const liveRows = await c.env.PUBLISHED_DB.prepare(
-    `SELECT * FROM live_pages ${whereSql}
+    `SELECT * FROM pages ${whereSql}
      ORDER BY weight ASC, name ASC, id ASC
      LIMIT ? OFFSET ?`,
   )
@@ -314,12 +314,12 @@ pageDashboardRoutes.post('/pages/new_post/:pageType', requirePermission('content
 
   try {
     const result = await c.env.DB.prepare(
-      `INSERT INTO draft_pages (name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(name, slug, num(form.get('weight')), pageType, lect, creator || null, editorsFromForm(form))
       .run();
-    const page = await c.env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+    const page = await c.env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
       .bind(result.meta.last_row_id)
       .first<{ id: number }>();
     if (!page) return c.notFound();

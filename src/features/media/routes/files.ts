@@ -60,7 +60,7 @@ async function linkedPagesForMedia(
   // in memory. A dynamically generated OR-of-LIKE expression can exceed
   // SQLite's complexity limit when the bucket page contains many objects.
   const pages = await db.prepare(
-    "SELECT id, name, slug, lect FROM draft_pages WHERE instr(lect, '/media/') > 0 ORDER BY name ASC, id ASC",
+    "SELECT id, name, slug, lect FROM pages WHERE instr(lect, '/media/') > 0 ORDER BY name ASC, id ASC",
   ).all<PageRow>();
 
   for (const page of pages.results) {

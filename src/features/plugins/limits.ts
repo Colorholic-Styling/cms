@@ -208,7 +208,7 @@ export async function countLimitUsage(
   def: NormalizedLimitDef,
   scopeValue: string | number | null,
 ): Promise<number> {
-  let sql = 'SELECT COUNT(*) AS total FROM draft_pages WHERE page_type = ?';
+  let sql = 'SELECT COUNT(*) AS total FROM pages WHERE page_type = ?';
   const params: unknown[] = [def.pageType];
   if (def.scope === 'per_parent') {
     sql += ' AND page_id = ?';

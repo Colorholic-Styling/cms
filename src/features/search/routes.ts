@@ -95,7 +95,7 @@ async function bulkAdvancedSearch(
         pageTypes = [defaultPageType];
       } else {
         const rows = await c.env.DB.prepare(
-          "SELECT DISTINCT page_type FROM draft_pages WHERE page_type IS NOT NULL AND page_type != ''",
+          "SELECT DISTINCT page_type FROM pages WHERE page_type IS NOT NULL AND page_type != ''",
         ).all<{ page_type: string }>();
         pageTypes = rows.results.map((row) => row.page_type);
       }

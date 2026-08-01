@@ -276,7 +276,7 @@ export async function performAdvancedSearch(
   },
 ): Promise<AdvancedSearchResult> {
   const { whereSql, baseParams } = advancedSearchWhere(pageTypes, criteria, operator);
-  const countRow = await db.prepare(`SELECT COUNT(*) as total FROM draft_pages p WHERE ${whereSql}`)
+  const countRow = await db.prepare(`SELECT COUNT(*) as total FROM pages p WHERE ${whereSql}`)
     .bind(...baseParams)
     .first<{ total: number }>();
   const total = countRow?.total ?? 0;
@@ -285,7 +285,7 @@ export async function performAdvancedSearch(
   const currentOffset = (currentPage - 1) * options.limit;
 
   const pages = await db.prepare(
-    `SELECT * FROM draft_pages p
+    `SELECT * FROM pages p
      WHERE ${whereSql}
      ORDER BY ${options.sort} ${options.order}, id DESC
      LIMIT ? OFFSET ?`,
@@ -333,7 +333,7 @@ export function advancedSearchWhere(
     searchParams = base.params;
     if (excludeConditions.length) {
       searchCondition += ` AND p.id NOT IN (
-        SELECT excluded.id FROM draft_pages excluded
+        SELECT excluded.id FROM pages excluded
         WHERE excluded.page_type IN (${pageTypePlaceholders}) AND (${excludeConditions.join(' OR ')})
       )`;
       searchParams.push(...pageTypes, ...excludeParams);
@@ -363,7 +363,7 @@ export async function advancedSearchMatchingPageIds(
 ): Promise<number[]> {
   const { whereSql, baseParams } = advancedSearchWhere(pageTypes, criteria, operator);
   const rows = await db.prepare(
-    `SELECT p.id FROM draft_pages p
+    `SELECT p.id FROM pages p
      WHERE ${whereSql}
      ORDER BY p.id ASC`,
   )

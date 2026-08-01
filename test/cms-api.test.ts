@@ -67,11 +67,11 @@ beforeEach(async () => {
   __clearInjectedFetchers();
   await env.DB.prepare('DELETE FROM plugins').run();
   await env.DB.prepare('DELETE FROM plugin_page_type_approvals').run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE page_type IN ('event','guest','mail_list','contact','article')").run();
+  await env.DB.prepare("DELETE FROM pages WHERE page_type IN ('event','guest','mail_list','contact','article')").run();
   await env.DB.prepare("DELETE FROM trash_pages WHERE page_type IN ('event','guest','mail_list','contact','article')").run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE uuid = 'facade02-0001-4001-8001-000000000001'").run();
+  await env.DB.prepare("DELETE FROM pages WHERE uuid = 'facade02-0001-4001-8001-000000000001'").run();
   await env.DB.prepare("DELETE FROM settings WHERE key = 'submissions.ingest.cursor'").run();
-  await env.PUBLISHED_DB.prepare("DELETE FROM live_pages WHERE uuid = 'facade02-0001-4001-8001-000000000001'").run();
+  await env.PUBLISHED_DB.prepare("DELETE FROM pages WHERE uuid = 'facade02-0001-4001-8001-000000000001'").run();
   savedSecret = testEnv.PLUGIN_SECRET;
   testEnv.PLUGIN_SECRET = PLUGIN_SECRET;
   await registerPlugin();
@@ -108,7 +108,7 @@ describe('Plugin API auth + scoping', () => {
   });
 
   it('invalidates the old credential immediately after plugin-secret rotation', async () => {
-    const before = await env.DB.prepare("SELECT COUNT(*) AS total FROM draft_pages WHERE page_type = 'guest'")
+    const before = await env.DB.prepare("SELECT COUNT(*) AS total FROM pages WHERE page_type = 'guest'")
       .first<{ total: number }>();
     await env.DB.prepare('UPDATE plugins SET secret = ?').bind('rotated-plugin-secret').run();
     clearManifestCache();
@@ -116,7 +116,7 @@ describe('Plugin API auth + scoping', () => {
     const oldSecret = await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name: 'Must not exist' });
     expect(oldSecret.status).toBe(403);
     expect(oldSecret.headers.get('Cache-Control')).toBe('no-store');
-    expect(await env.DB.prepare("SELECT COUNT(*) AS total FROM draft_pages WHERE page_type = 'guest'")
+    expect(await env.DB.prepare("SELECT COUNT(*) AS total FROM pages WHERE page_type = 'guest'")
       .first<{ total: number }>()).toEqual(before);
 
     const rotatedSecret = await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name: 'Allowed after rotation' }, {
@@ -129,7 +129,7 @@ describe('Plugin API auth + scoping', () => {
     ['disabled', 'UPDATE plugins SET enabled = 0'],
     ['deleted', 'DELETE FROM plugins'],
   ])('denies a %s plugin before it can write', async (_state, mutation) => {
-    const before = await env.DB.prepare("SELECT COUNT(*) AS total FROM draft_pages WHERE page_type = 'guest'")
+    const before = await env.DB.prepare("SELECT COUNT(*) AS total FROM pages WHERE page_type = 'guest'")
       .first<{ total: number }>();
     await env.DB.prepare(mutation).run();
     clearManifestCache();
@@ -137,7 +137,7 @@ describe('Plugin API auth + scoping', () => {
     const response = await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name: 'Must not exist' });
     expect(response.status).toBe(403);
     expect(response.headers.get('Cache-Control')).toBe('no-store');
-    expect(await env.DB.prepare("SELECT COUNT(*) AS total FROM draft_pages WHERE page_type = 'guest'")
+    expect(await env.DB.prepare("SELECT COUNT(*) AS total FROM pages WHERE page_type = 'guest'")
       .first<{ total: number }>()).toEqual(before);
   });
 
@@ -260,9 +260,9 @@ describe('Plugin API auth + scoping', () => {
       },
     } as unknown as Fetcher);
     await env.DB.prepare(
-      "INSERT INTO draft_pages (name, slug, page_type, lect) VALUES (?, ?, 'article', ?)",
+      "INSERT INTO pages (name, slug, page_type, lect) VALUES (?, ?, 'article', ?)",
     ).bind('Launch Notes', 'launch-notes', JSON.stringify({ title: { en: 'Launch Notes' } })).run();
-    const article = await env.DB.prepare("SELECT id FROM draft_pages WHERE page_type = 'article' LIMIT 1")
+    const article = await env.DB.prepare("SELECT id FROM pages WHERE page_type = 'article' LIMIT 1")
       .first<{ id: number }>();
 
     expect((await cmsApi('GET', '/__cms/pages?page_type=article')).status).toBe(403);
@@ -289,14 +289,14 @@ describe('Plugin API auth + scoping', () => {
   it('lets a submission-hook plugin trigger generic live-only ingest', async () => {
     const uuid = 'facade02-0001-4001-8001-000000000001';
     await env.PUBLISHED_DB.prepare(
-      `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect)
        VALUES (?, ?, ?, ?, 5, ?, ?)`,
     ).bind(-720001, uuid, 'Survey answer', 'survey-answer', 'survey_answer', '{"answer":"yes"}').run();
 
     const res = await cmsApi('POST', '/__cms/ingest/submissions');
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, created: 1 });
-    const mirrored = await env.DB.prepare('SELECT id, page_type FROM draft_pages WHERE uuid = ?')
+    const mirrored = await env.DB.prepare('SELECT id, page_type FROM pages WHERE uuid = ?')
       .bind(uuid).first<{ id: number; page_type: string }>();
     expect(mirrored?.page_type).toBe('survey_answer');
     expect(await env.DB.prepare(
@@ -415,7 +415,7 @@ describe('Plugin API create / read / list / update / delete', () => {
     };
     try {
       await env.PUBLISHED_DB.prepare(
-        'INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?, ?, ?)',
       ).bind(
         created.page.id,
         created.page.uuid,
@@ -435,7 +435,7 @@ describe('Plugin API create / read / list / update / delete', () => {
       expect(single.status).toBe(200);
       expect((await single.json() as { page: { isPublished?: boolean } }).page.isPublished).toBe(true);
     } finally {
-      await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid = ?').bind(created.page.uuid).run();
+      await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(created.page.uuid).run();
     }
   });
 
@@ -461,12 +461,12 @@ describe('Plugin API create / read / list / update / delete', () => {
       });
 
       const live = await env.PUBLISHED_DB.prepare(
-        'SELECT id, page_type FROM live_pages WHERE uuid IN (?, ?) ORDER BY id',
+        'SELECT id, page_type FROM pages WHERE uuid IN (?, ?) ORDER BY id',
       ).bind(event.page.uuid, guest.page.uuid).all<{ id: number; page_type: string }>();
       expect(live.results.map((page) => page.id).sort((a, b) => a - b))
         .toEqual([event.page.id, guest.page.id].sort((a, b) => a - b));
     } finally {
-      await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid IN (?, ?)')
+      await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid IN (?, ?)')
         .bind(event.page.uuid, guest.page.uuid).run();
     }
   });
@@ -475,7 +475,7 @@ describe('Plugin API create / read / list / update / delete', () => {
     const contactId = 7_100_001;
     const contactUuid = crypto.randomUUID();
     await env.DB.prepare(
-      "INSERT INTO draft_pages (id, uuid, name, slug, page_type, lect) VALUES (?, ?, 'Private contact', 'private-contact', 'contact', '{}')",
+      "INSERT INTO pages (id, uuid, name, slug, page_type, lect) VALUES (?, ?, 'Private contact', 'private-contact', 'contact', '{}')",
     ).bind(contactId, contactUuid).run();
 
     try {
@@ -486,10 +486,10 @@ describe('Plugin API create / read / list / update / delete', () => {
         errors: [{ index: 0, id: contactId, error: 'forbidden_page_type', page_type: 'contact' }],
         count: 0,
       });
-      expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?').bind(contactUuid).first()).toBeNull();
+      expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?').bind(contactUuid).first()).toBeNull();
     } finally {
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(contactId).run();
-      await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid = ?').bind(contactUuid).run();
+      await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(contactId).run();
+      await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(contactUuid).run();
     }
   });
 
@@ -537,7 +537,7 @@ describe('Plugin API create / read / list / update / delete', () => {
       errors: [{ index: 0, id: created.page.id, error: 'submission_publish_refused' }],
       count: 0,
     });
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?').bind(created.page.uuid).first()).toBeNull();
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?').bind(created.page.uuid).first()).toBeNull();
   });
 
   it('uses Chinese variants and lect fields when plugins list pages with q', async () => {
@@ -610,11 +610,11 @@ describe('Plugin API create / read / list / update / delete', () => {
     // The route inlines the JSON path as a literal for exactly this reason —
     // a bound parameter in the indexed expression would force a table scan.
     const plan = await env.DB.prepare(
-      "EXPLAIN QUERY PLAN SELECT * FROM draft_pages WHERE page_type = ? AND json_extract(lect, '$._pointers.mail_list') = ? ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+      "EXPLAIN QUERY PLAN SELECT * FROM pages WHERE page_type = ? AND json_extract(lect, '$._pointers.mail_list') = ? ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
     ).bind('guest', '12', 500, 0).all<{ detail: string }>();
     const details = plan.results.map((row) => row.detail).join('\n');
-    expect(details).toContain('idx_draft_pages_pointer_mail_list');
-    expect(details).not.toContain('SCAN draft_pages');
+    expect(details).toContain('idx_pages_pointer_mail_list');
+    expect(details).not.toContain('SCAN pages');
   });
 
   it('advanced-searches plugin pages by wildcard lect path criteria', async () => {
@@ -673,7 +673,7 @@ describe('Plugin API create / read / list / update / delete', () => {
 
   it('rejects a delegated readType until an admin approves it', async () => {
     await env.DB.prepare(
-      "INSERT INTO draft_pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
+      "INSERT INTO pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
     ).bind('Ada Lovelace', 'ada-lovelace', JSON.stringify({ first_name: { en: 'Ada' } })).run();
 
     const res = await cmsApi('GET', '/__cms/pages?page_type=contact');
@@ -696,9 +696,9 @@ describe('Plugin API create / read / list / update / delete', () => {
     await approvePageTypeAccess(env.DB, PLUGIN_ID, 'contact', 'read', 'admin@example.com');
     // A contact page the events plugin does NOT own, inserted directly.
     await env.DB.prepare(
-      "INSERT INTO draft_pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
+      "INSERT INTO pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
     ).bind('Ada Lovelace', 'ada-lovelace', JSON.stringify({ first_name: { en: 'Ada' } })).run();
-    const contact = await env.DB.prepare("SELECT id FROM draft_pages WHERE page_type = 'contact' LIMIT 1")
+    const contact = await env.DB.prepare("SELECT id FROM pages WHERE page_type = 'contact' LIMIT 1")
       .first<{ id: number }>();
 
     // Read is allowed (contact is a declared readType)…
@@ -719,7 +719,7 @@ describe('Plugin API create / read / list / update / delete', () => {
 
   it('scopes plugin advanced search to approved readable page types', async () => {
     await env.DB.prepare(
-      "INSERT INTO draft_pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
+      "INSERT INTO pages (name, slug, page_type, lect) VALUES (?, ?, 'contact', ?)",
     ).bind('Ada Lovelace', 'ada-lovelace', JSON.stringify({ first_name: { en: 'Ada' } })).run();
 
     const blocked = await cmsApi('POST', '/__cms/pages/search', {
@@ -770,7 +770,7 @@ describe('Plugin API create / read / list / update / delete', () => {
     const delRes = await cmsApi('DELETE', `/__cms/pages/${created.id}`);
     expect(delRes.status).toBe(200);
 
-    const draft = await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(created.id).first();
+    const draft = await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(created.id).first();
     expect(draft).toBeNull();
     const trashed = await env.DB.prepare('SELECT id FROM trash_pages WHERE uuid = ?').bind(created.uuid).first();
     expect(trashed).not.toBeNull();
@@ -789,7 +789,7 @@ describe('Plugin API create / read / list / update / delete', () => {
       .bind(list.id)
       .first<{ page_id: number | null; source_page_id: number | null }>();
     expect(trashed).toEqual({ page_id: null, source_page_id: event.id });
-    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(event.id).first()).not.toBeNull();
+    expect(await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(event.id).first()).not.toBeNull();
   });
 });
 
@@ -843,7 +843,7 @@ describe('Plugin API batch writes', () => {
 
     const rows = await env.DB.prepare(
       `SELECT p.id, p.lect AS page_lect, v.lect AS version_lect, v.action
-       FROM draft_pages p
+       FROM pages p
        JOIN page_versions v ON v.id = (
          SELECT id FROM page_versions WHERE page_id = p.id ORDER BY created_at DESC, rowid DESC LIMIT 1
        )
@@ -860,10 +860,10 @@ describe('Plugin API batch writes', () => {
       page_type: 'guest', name: 'Writable Guest', lect: { status: 'invited' },
     })).json() as { page: { id: number } }).page;
     await env.DB.prepare(
-      'INSERT INTO draft_pages (name, slug, page_type, lect) VALUES (?, ?, ?, ?)',
+      'INSERT INTO pages (name, slug, page_type, lect) VALUES (?, ?, ?, ?)',
     ).bind('Protected Contact', `protected-${crypto.randomUUID()}`, 'contact', '{}').run();
     const contact = await env.DB.prepare(
-      'SELECT id FROM draft_pages WHERE name = ? ORDER BY created_at DESC LIMIT 1',
+      'SELECT id FROM pages WHERE name = ? ORDER BY created_at DESC LIMIT 1',
     ).bind('Protected Contact').first<{ id: number }>();
 
     const res = await cmsApi('PATCH', '/__cms/pages/batch', {
@@ -891,7 +891,7 @@ describe('Plugin API batch writes', () => {
     expect(body.created.map((page) => page.slug)).toEqual(['same-name', 'same-name-2']);
 
     const rows = await env.DB.prepare(
-      'SELECT slug FROM draft_pages WHERE id IN (?, ?) ORDER BY slug',
+      'SELECT slug FROM pages WHERE id IN (?, ?) ORDER BY slug',
     ).bind(body.created[0].id, body.created[1].id).all<{ slug: string }>();
     expect(rows.results.map((row) => row.slug)).toEqual(['same-name', 'same-name-2']);
 
@@ -902,7 +902,7 @@ describe('Plugin API batch writes', () => {
 
     const payloads = await env.DB.prepare(
       `SELECT p.lect AS page_lect, v.lect AS version_lect
-       FROM draft_pages p
+       FROM pages p
        JOIN page_versions v ON v.id = (
          SELECT id FROM page_versions WHERE page_id = p.id ORDER BY created_at DESC, rowid DESC LIMIT 1
        )
@@ -968,7 +968,7 @@ describe('Plugin API batch writes', () => {
 
   it('coerces an explicit null page_id to a null parent (not 0) so the FK holds', async () => {
     // Regression: `Number(null)` is 0, so a naive numeric coercion would bind
-    // page_id=0 and violate the draft_pages self-FK. A null/empty parent must
+    // page_id=0 and violate the pages self-FK. A null/empty parent must
     // store NULL. (Exposed by the events plugin "duplicate event" of a top-level
     // event, whose source page_id is null.)
     const res = await cmsApi('POST', '/__cms/pages', {
@@ -1095,7 +1095,7 @@ describe('Plugin API batch writes', () => {
 // controls). Exercises the set-based restoreTrashedPages helper against D1.
 describe('bulk trash restore', () => {
   beforeEach(async () => {
-    await env.DB.prepare("DELETE FROM draft_pages WHERE page_type IN ('event','guest','mail_list')").run();
+    await env.DB.prepare("DELETE FROM pages WHERE page_type IN ('event','guest','mail_list')").run();
     await env.DB.prepare("DELETE FROM trash_pages WHERE page_type IN ('event','guest','mail_list')").run();
   });
 
@@ -1104,7 +1104,7 @@ describe('bulk trash restore', () => {
     return row?.n ?? 0;
   }
   async function draftGuestCount(): Promise<number> {
-    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'guest'").first<{ n: number }>();
+    const row = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'guest'").first<{ n: number }>();
     return row?.n ?? 0;
   }
 

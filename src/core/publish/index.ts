@@ -68,7 +68,7 @@ export async function getPublishAdapters(env: Env): Promise<PublishAdapter[]> {
 }
 
 async function buildSnapshot(env: Env, pageId: number): Promise<PublishSnapshot | null> {
-  const page = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?')
+  const page = await env.DB.prepare('SELECT * FROM pages WHERE id = ?')
     .bind(pageId)
     .first<Page>();
   if (!page) return null;

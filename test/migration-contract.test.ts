@@ -20,7 +20,7 @@ describe('flattened migration contract', () => {
     //
     // A column *removal* cannot join them: DROP COLUMN aborts on the fresh
     // install whose baseline never had the column, and the rebuild that would
-    // be safe on both cascades through draft_pages' foreign keys (D1 runs with
+    // be safe on both cascades through DB.pages' foreign keys (D1 runs with
     // foreign_keys=1) and takes page_versions and draft_page_tags with it. Such
     // changes leave the baseline and ship as a one-off under migrations/manual/.
     const names = env.TEST_MIGRATIONS.map((migration) => migration.name);
@@ -32,20 +32,22 @@ describe('flattened migration contract', () => {
   it('creates the complete private schema without transitional tables', async () => {
     expect(await objectNames(env.DB, 'table')).toEqual([
       'admin_jobs', 'audit_log', 'block_types', 'credit_ledger', 'credit_subscriptions', 'credit_wallets', 'draft_page_tags',
-      'draft_pages', 'locale_messages', 'locales', 'media_files', 'page_types',
-      'page_versions', 'plugin_asset_approvals', 'plugin_page_type_approvals',
+      'locale_messages', 'locales', 'media_files', 'page_types',
+      'page_versions', 'pages', 'plugin_asset_approvals', 'plugin_page_type_approvals',
       'plugin_state', 'plugins', 'role_permissions', 'roles', 'sessions', 'settings',
       'shared_credit_ledger', 'shared_credits', 'tags', 'taxonomies',
       'trash_page_tags', 'trash_page_versions', 'trash_pages',
       'user_oauth_identities', 'users',
     ]);
 
+    // Both databases now call their page table `pages`, so its presence no
+    // longer distinguishes them — live_page_tags is what must never appear here.
     expect(await objectNames(env.DB, 'table')).not.toEqual(expect.arrayContaining([
-      'used_form_tokens', 'tags_new', 'admin_jobs_new', 'live_pages', 'live_page_tags',
+      'used_form_tokens', 'tags_new', 'admin_jobs_new', 'live_page_tags',
     ]));
     expect(await objectNames(env.DB, 'index')).toEqual(expect.arrayContaining([
-      'idx_draft_pages_pointer_contact', 'idx_draft_pages_pointer_edm',
-      'idx_draft_pages_pointer_event', 'idx_draft_pages_pointer_mail_list',
+      'idx_pages_pointer_contact', 'idx_pages_pointer_edm',
+      'idx_pages_pointer_event', 'idx_pages_pointer_mail_list',
       'idx_sessions_previous_refresh', 'idx_tags_taxonomy_slug_weight_name',
     ]));
     expect(await objectNames(env.DB, 'trigger')).toEqual(expect.arrayContaining([
@@ -58,7 +60,7 @@ describe('flattened migration contract', () => {
     // append-only backup log whose newest row mirrors it. A current-version
     // pointer would be a second answer to "what does this page say", and could
     // disagree — deleting the version it named repointed it at older content.
-    for (const table of ['draft_pages', 'trash_pages']) {
+    for (const table of ['pages', 'trash_pages']) {
       const { results } = await env.DB.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
       const columns = results.map((column) => column.name);
       expect(columns).toContain('lect');
@@ -66,11 +68,11 @@ describe('flattened migration contract', () => {
     }
   });
 
-  it('gives draft_pages no foreign keys while its dependents keep theirs', async () => {
-    // page_id mirrors live_pages.page_id: a plain column, so a page is handled
+  it('gives pages no foreign keys while its dependents keep theirs', async () => {
+    // page_id mirrors PUBLISHED_DB.pages.page_id: a plain column, so a page is handled
     // independently of its parent's state and a parent delete cannot cascade
     // its children away (that cascade hard-deleted them past trash entirely).
-    const parentFks = await env.DB.prepare('PRAGMA foreign_key_list(draft_pages)').all();
+    const parentFks = await env.DB.prepare('PRAGMA foreign_key_list(pages)').all();
     expect(parentFks.results).toEqual([]);
 
     // The cascade that must stay: deleting a page still cleans up its own
@@ -79,7 +81,7 @@ describe('flattened migration contract', () => {
       const { results } = await env.DB.prepare(`PRAGMA foreign_key_list(${table})`)
         .all<{ table: string; from: string; on_delete: string }>();
       expect(results).toEqual([
-        expect.objectContaining({ table: 'draft_pages', from: 'page_id', on_delete: 'CASCADE' }),
+        expect.objectContaining({ table: 'pages', from: 'page_id', on_delete: 'CASCADE' }),
       ]);
     }
   });
@@ -103,10 +105,10 @@ describe('flattened migration contract', () => {
   });
 
   it('keeps published content isolated in its two-table schema', async () => {
-    expect(await objectNames(env.PUBLISHED_DB, 'table')).toEqual(['live_page_tags', 'live_pages']);
+    expect(await objectNames(env.PUBLISHED_DB, 'table')).toEqual(['live_page_tags', 'pages']);
     expect(await objectNames(env.PUBLISHED_DB, 'index')).toEqual(expect.arrayContaining([
-      'idx_live_pages_created_at_uuid', 'idx_live_pages_page_type_created_at',
-      'idx_live_pages_page_type_page_id',
+      'idx_pages_created_at_uuid', 'idx_pages_page_type_created_at',
+      'idx_pages_page_type_page_id',
     ]));
   });
 });

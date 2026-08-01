@@ -115,7 +115,7 @@ export async function draftPageIds(db: D1DatabaseClient, ids: number[]): Promise
   for (let index = 0; index < unique.length; index += 100) {
     const chunk = unique.slice(index, index + 100);
     if (!chunk.length) continue;
-    const rows = await db.prepare(`SELECT id FROM draft_pages WHERE id IN (${chunk.map(() => '?').join(',')})`)
+    const rows = await db.prepare(`SELECT id FROM pages WHERE id IN (${chunk.map(() => '?').join(',')})`)
       .bind(...chunk)
       .all<{ id: number }>();
     for (const row of rows.results) out.add(row.id);
@@ -133,7 +133,7 @@ export async function reservedPageIds(db: D1DatabaseClient, ids: number[]): Prom
     if (!chunk.length) continue;
     const placeholders = chunk.map(() => '?').join(',');
     const rows = await db.prepare(
-      `SELECT id FROM draft_pages WHERE id IN (${placeholders})
+      `SELECT id FROM pages WHERE id IN (${placeholders})
        UNION
        SELECT id FROM trash_pages WHERE id IN (${placeholders})`,
     )
@@ -372,7 +372,7 @@ export async function existingSlugSet(db: D1DatabaseClient, baseSlugs: string[])
     const chunk = bases.slice(index, index + 25);
     const where = chunk.map(() => '(slug = ? OR slug LIKE ?)').join(' OR ');
     const params = chunk.flatMap((base) => [base, `${base}-%`]);
-    const rows = await db.prepare(`SELECT slug FROM draft_pages WHERE ${where}`)
+    const rows = await db.prepare(`SELECT slug FROM pages WHERE ${where}`)
       .bind(...params)
       .all<{ slug: string }>();
     for (const row of rows.results) out.add(row.slug);
@@ -423,14 +423,14 @@ export interface BulkPageRow {
 }
 
 /**
- * The draft_pages + page_versions INSERT pair for one bulk-created page.
+ * The pages + page_versions INSERT pair for one bulk-created page.
  * Ids, uuids, and timestamps are assigned by the caller so a whole batch
  * commits in a single DB.batch without per-row SELECT-backs.
  */
 export function bulkPageInsertStatements(db: D1DatabaseClient, row: BulkPageRow): D1PreparedStatement[] {
   return [
     db.prepare(
-      `INSERT INTO draft_pages (id, uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator)
+      `INSERT INTO pages (id, uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       row.id, row.uuid, row.createdAt, row.createdAt, row.name, row.slug, row.weight, row.start,
@@ -449,7 +449,7 @@ export function bulkPageUpdateStatements(
 ): D1PreparedStatement[] {
   return [
     db.prepare(
-      'UPDATE draft_pages SET lect = ?, updated_at = ? WHERE id = ?',
+      'UPDATE pages SET lect = ?, updated_at = ? WHERE id = ?',
     ).bind(row.lect, row.updatedAt, row.id),
     db.prepare(
       `INSERT INTO page_versions (id, uuid, created_at, updated_at, page_id, lect, action)

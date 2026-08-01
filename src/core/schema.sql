@@ -73,8 +73,14 @@ CREATE TABLE IF NOT EXISTS tags(
     lect TEXT
 );
 
--- 6. Draft Pages
-CREATE TABLE IF NOT EXISTS draft_pages(
+-- 6. Pages (the draft/working copy)
+--
+-- Named `pages`, the same as the published database's table, so one physical
+-- database can be a publish target for one host and the working set of the
+-- next — publish A → B, B → C. Because the name no longer says which database
+-- it belongs to, comments and docs disambiguate by binding: `DB.pages` is this
+-- table, `PUBLISHED_DB.pages` is the published one (src/core/publish/schema.sql).
+CREATE TABLE IF NOT EXISTS pages(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
     uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
     || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
@@ -94,7 +100,7 @@ CREATE TABLE IF NOT EXISTS draft_pages(
     -- current-version pointer — it could name a snapshot other than `lect`.
     lect TEXT,
     -- Parent page. Deliberately NOT a foreign key, which makes this table's
-    -- shape identical to live_pages(page_id) and lets a page be handled
+    -- shape identical to PUBLISHED_DB.pages(page_id) and lets a page be handled
     -- independently of its parent's state. Two consequences:
     --
     --   * Deleting a parent no longer cascade-deletes its children. That
@@ -121,7 +127,7 @@ CREATE TABLE IF NOT EXISTS page_versions(
     page_id INTEGER NOT NULL,
     lect TEXT,
     action TEXT,
-    FOREIGN KEY (page_id) REFERENCES draft_pages (id) ON DELETE CASCADE
+    FOREIGN KEY (page_id) REFERENCES pages (id) ON DELETE CASCADE
 );
 
 -- 8. Draft Page Tags
@@ -134,7 +140,7 @@ CREATE TABLE IF NOT EXISTS draft_page_tags(
     page_id INTEGER,
     tag_id INTEGER NOT NULL,
     weight INTEGER DEFAULT 5,
-    FOREIGN KEY (page_id) REFERENCES draft_pages (id) ON DELETE CASCADE
+    FOREIGN KEY (page_id) REFERENCES pages (id) ON DELETE CASCADE
 );
 
 -- 9. Audit log for admin mutations (who did what, when)
@@ -181,9 +187,9 @@ CREATE TABLE IF NOT EXISTS settings(
 );
 
 -- ── Indexes ──────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_name ON draft_pages(page_type, name);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_page_type_slug ON draft_pages(page_type, slug);
-CREATE INDEX IF NOT EXISTS idx_draft_pages_slug ON draft_pages(slug);
+CREATE INDEX IF NOT EXISTS idx_pages_page_type_name ON pages(page_type, name);
+CREATE INDEX IF NOT EXISTS idx_pages_page_type_slug ON pages(page_type, slug);
+CREATE INDEX IF NOT EXISTS idx_pages_slug ON pages(slug);
 CREATE INDEX IF NOT EXISTS idx_page_versions_page_id_created_at ON page_versions(page_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_tags_taxonomy_slug_weight_name ON tags(taxonomy_slug, weight, name);
 CREATE INDEX IF NOT EXISTS idx_tags_parent_tag ON tags(parent_tag);
@@ -209,8 +215,8 @@ CREATE TRIGGER IF NOT EXISTS tags_updated_at AFTER UPDATE ON tags WHEN old.updat
     UPDATE tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS draft_pages_updated_at AFTER UPDATE ON draft_pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE draft_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+CREATE TRIGGER IF NOT EXISTS pages_updated_at AFTER UPDATE ON pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS page_versions_updated_at AFTER UPDATE ON page_versions WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN

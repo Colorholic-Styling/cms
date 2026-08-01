@@ -114,7 +114,7 @@ beforeEach(async () => {
   await env.DB.prepare('DELETE FROM plugins').run();
   await env.DB.prepare('DELETE FROM plugin_page_type_approvals').run();
   await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'plugin.limits.%'").run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
+  await env.DB.prepare("DELETE FROM pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
   await env.DB.prepare("DELETE FROM trash_pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
   savedSecret = testEnv.PLUGIN_SECRET;
   testEnv.PLUGIN_SECRET = PLUGIN_SECRET;
@@ -226,7 +226,7 @@ describe('/__cms create enforcement', () => {
     expect(batch.status).toBe(409);
     expect((await batch.json() as { error: string }).error).toBe('limit_exceeded');
 
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'guest'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'guest'")
       .first<{ n: number }>();
     expect(count?.n).toBe(1);
   });
@@ -236,9 +236,9 @@ describe('/__cms create enforcement', () => {
     // (owned elsewhere) are unaffected. Create one directly to verify counting
     // paths never see the dropped def.
     await env.DB.prepare(
-      "INSERT INTO draft_pages (name, slug, page_type, lect) VALUES ('C', 'c-limit-test', 'contact', '{}')",
+      "INSERT INTO pages (name, slug, page_type, lect) VALUES ('C', 'c-limit-test', 'contact', '{}')",
     ).run();
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'contact'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'contact'")
       .first<{ n: number }>();
     expect(count?.n).toBe(1);
   });

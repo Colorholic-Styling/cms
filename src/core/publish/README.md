@@ -4,13 +4,23 @@ Publishing fans a draft-page snapshot out to the targets configured in
 `PUBLISH_TARGETS` (default `d1`). See `index.ts` for the registry and
 `adapter.ts` for the adapter contract.
 
+## Naming
+
+Both databases call the table `pages` — same name, same shape — so a published
+database can serve as the next host's working set (publish A → B, B → C). The
+table name no longer says which database it is, so this repo disambiguates by
+binding: **`DB.pages`** is the CMS's own draft table, **`PUBLISHED_DB.pages`**
+is the published one. A query aimed at the wrong binding is no longer a loud
+"no such table" error, so the binding is the thing to check first when page
+reads or writes land somewhere unexpected.
+
 ## Who writes the published D1 (`cms-published`)
 
 The d1 target's database is shared with public Workers, and row ownership is
 strictly partitioned between:
 
-1. **worker-cms (this repo)** — upserts/deletes `live_pages` rows keyed by the
-   draft pages' own uuids (`d1.ts`). It must never touch rows whose uuids it
+1. **worker-cms (this repo)** — upserts/deletes `PUBLISHED_DB.pages` rows keyed
+   by the draft pages' own uuids (`d1.ts`). It must never touch rows whose uuids it
    didn't mint.
 2. **External submission Workers** — INSERT-only. They mint their own ids and
    uuids and never update or delete their source rows. `worker-rsvp` is one
@@ -21,8 +31,8 @@ only. The schema is owned here (`migrations/published/`).
 
 ## Submission ingest (published → draft)
 
-`src/utils/submission-ingest.ts` treats every published page whose uuid is not
-present in `draft_pages` as a submission, regardless of page type. It mirrors
+`src/utils/submission-ingest.ts` treats every `PUBLISHED_DB.pages` row whose
+uuid is not present in `DB.pages` as a submission, regardless of page type. It mirrors
 the row with the same uuid (idempotent via the draft uuid unique constraint),
 mints a draft id and an `ingest-submission` page version, and fires the
 `submission` hook so subscribed plugins can react. Ingest is cron-driven (`wrangler.toml [triggers]`)

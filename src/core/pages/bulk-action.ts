@@ -4,7 +4,7 @@
 // is: two callers need it and neither may depend on the other. The search
 // screen runs it inline when there is nothing durable to run it on, and the
 // jobs feature runs it one bounded slice at a time from a queue. All it
-// touches is core — draft_pages, the publish targets, the trash, the audit
+// touches is core — pages, the publish targets, the trash, the audit
 // log — so it carries no job or screen concepts of its own.
 
 import { coreExtensions, type PageEvent, type PageEventPage } from '../extensions';
@@ -167,7 +167,7 @@ export async function draftPagesByIds(db: D1DatabaseClient, ids: number[]): Prom
   for (const chunk of chunks(ids)) {
     if (!chunk.length) continue;
     const placeholders = chunk.map(() => '?').join(',');
-    const rows = await db.prepare(`SELECT * FROM draft_pages WHERE id IN (${placeholders})`)
+    const rows = await db.prepare(`SELECT * FROM pages WHERE id IN (${placeholders})`)
       .bind(...chunk)
       .all<Page>();
     pages.push(...rows.results);

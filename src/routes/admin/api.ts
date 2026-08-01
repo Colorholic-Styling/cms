@@ -31,7 +31,7 @@ apiRoutes.get('/api/parent-pages', requirePermission('content:read'), async (c) 
   const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
   const pages = await c.env.DB.prepare(
     `SELECT id, name, slug
-     FROM draft_pages
+     FROM pages
      ${whereSql}
      ORDER BY updated_at DESC, name ASC
      LIMIT 20`,
@@ -140,7 +140,7 @@ apiRoutes.get('/api/pages/:type', requirePermission('content:read'), async (c) =
 
   const pages = await c.env.DB.prepare(
     `SELECT id, name, slug
-     FROM draft_pages
+     FROM pages
      WHERE ${conditions.join(' AND ')}
      ORDER BY updated_at DESC, name ASC
      LIMIT 20`,
@@ -194,7 +194,7 @@ apiRoutes.post('/api/page/:pageId/tag/:tagId', requirePermission('content:write'
   const pageTag = await c.env.DB.prepare('SELECT id FROM draft_page_tags WHERE rowid = ?')
     .bind(result.meta.last_row_id)
     .first<{ id: number }>();
-  await c.env.DB.prepare('UPDATE draft_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(pageId).run();
+  await c.env.DB.prepare('UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(pageId).run();
   return c.json({ type: 'ADD_PAGE_TAG', payload: { success: true, id: pageTag?.id } });
 });
 
@@ -208,7 +208,7 @@ async function deletePageTagApi(c: AppContext) {
     .first<{ page_id: number }>();
   await c.env.DB.prepare('DELETE FROM draft_page_tags WHERE id = ?').bind(id).run();
   if (pageTag) {
-    await c.env.DB.prepare('UPDATE draft_pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+    await c.env.DB.prepare('UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .bind(pageTag.page_id)
       .run();
   }
@@ -218,7 +218,7 @@ async function deletePageTagApi(c: AppContext) {
 // ── Lect CRDT sync (WebSocket) ────────────────────────────────────────────────
 
 async function draftPageExists(c: AppContext, pageId: number): Promise<boolean> {
-  const page = await c.env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?')
+  const page = await c.env.DB.prepare('SELECT id FROM pages WHERE id = ?')
     .bind(pageId)
     .first<{ id: number }>();
   return !!page;

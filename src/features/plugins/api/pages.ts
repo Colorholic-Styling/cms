@@ -164,12 +164,12 @@ pagesApiRoutes.get('/pages', async (c) => {
 
   const select = fields ? fields.join(', ') : '*';
   const [rows, totalRow] = await Promise.all([
-    c.env.DB.prepare(`SELECT ${select} FROM draft_pages ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`)
+    c.env.DB.prepare(`SELECT ${select} FROM pages ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`)
       .bind(...params, limit, offset)
       .all<Page>(),
     skipCount
       ? Promise.resolve(null)
-      : c.env.DB.prepare(`SELECT COUNT(*) AS total FROM draft_pages ${where}`)
+      : c.env.DB.prepare(`SELECT COUNT(*) AS total FROM pages ${where}`)
           .bind(...params)
           .first<{ total: number }>(),
   ]);
@@ -283,7 +283,7 @@ pagesApiRoutes.post('/pages/publish', async (c) => {
   if (candidates.length) {
     const ids = candidates.map((candidate) => candidate.id);
     const pages = await c.env.DB.prepare(
-      `SELECT * FROM draft_pages WHERE id IN (${ids.map(() => '?').join(',')})`,
+      `SELECT * FROM pages WHERE id IN (${ids.map(() => '?').join(',')})`,
     ).bind(...ids).all<Page>();
     for (const page of pages.results) pageById.set(page.id, page);
   }
@@ -355,7 +355,7 @@ pagesApiRoutes.get('/pages/:id', async (c) => {
   const id = asFiniteNumber(c.req.param('id'));
   if (id === null) return c.json({ error: 'invalid_id' }, 400);
 
-  const page = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?').bind(id).first<Page>();
+  const page = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?').bind(id).first<Page>();
   if (!page) return c.json({ error: 'not_found' }, 404);
   if (!pageTypeScopeAllows(auth.readableTypes, page.page_type ?? '')) return forbiddenPageType(c, auth, page.page_type ?? '');
 
@@ -464,7 +464,7 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
   // lect repoints the pointer (the normal "duplicate into a new list" flow);
   // clones that inherit per-row source pointers are not gated here.
   const remainingRow = await c.env.DB.prepare(
-    `SELECT COUNT(*) AS total FROM draft_pages WHERE ${selector.sql} AND page_type = ? AND id > ?`,
+    `SELECT COUNT(*) AS total FROM pages WHERE ${selector.sql} AND page_type = ? AND id > ?`,
   ).bind(...selector.params, pageType, cursor).first<{ total: number }>();
   const remaining = Math.min(remainingRow?.total ?? 0, DUPLICATE_MAX_PER_CALL);
   if (remaining > 0) {
@@ -505,7 +505,7 @@ pagesApiRoutes.post('/pages/duplicate', async (c) => {
     const take = Math.min(DUPLICATE_BATCH, DUPLICATE_MAX_PER_CALL - copied);
     // Fetch one row past the chunk to detect whether more sources remain.
     const sources = await c.env.DB.prepare(
-      `SELECT * FROM draft_pages WHERE ${selector.sql} AND page_type = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+      `SELECT * FROM pages WHERE ${selector.sql} AND page_type = ? AND id > ? ORDER BY id ASC LIMIT ?`,
     ).bind(...selector.params, pageType, cursor, take + 1).all<Page>();
 
     const rows = sources.results;
@@ -610,7 +610,7 @@ pagesApiRoutes.patch('/pages/batch', async (c) => {
 
   const ids = candidates.map((candidate) => candidate.id);
   const rows = await c.env.DB.prepare(
-    `SELECT * FROM draft_pages WHERE id IN (${ids.map(() => '?').join(',')})`,
+    `SELECT * FROM pages WHERE id IN (${ids.map(() => '?').join(',')})`,
   ).bind(...ids).all<Page>();
   const pageById = new Map(rows.results.map((page) => [page.id, page]));
   const writable: Array<{ index: number; input: PageInput; page: Page }> = [];
@@ -680,7 +680,7 @@ async function updatePage(c: AppContext): Promise<Response> {
   const id = asFiniteNumber(c.req.param('id'));
   if (id === null) return c.json({ error: 'invalid_id' }, 400);
 
-  const page = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?').bind(id).first<Page>();
+  const page = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?').bind(id).first<Page>();
   if (!page) return c.json({ error: 'not_found' }, 404);
   if (!pageTypeScopeAllows(auth.allowedTypes, page.page_type ?? '')) return forbiddenPageType(c, auth, page.page_type ?? '');
 
@@ -712,7 +712,7 @@ async function updatePage(c: AppContext): Promise<Response> {
   const parentId = 'page_id' in body ? asFiniteNumber(body.page_id) : page.page_id;
 
   await c.env.DB.prepare(
-    'UPDATE draft_pages SET name=?, slug=?, weight=?, start=?, end=?, timezone=?, lect=?, page_id=? WHERE id=?',
+    'UPDATE pages SET name=?, slug=?, weight=?, start=?, end=?, timezone=?, lect=?, page_id=? WHERE id=?',
   )
     .bind(name, slug, weight, start, end, timezone, lectVal, parentId, id)
     .run();
@@ -722,7 +722,7 @@ async function updatePage(c: AppContext): Promise<Response> {
 
   await notifyPageSaved(c.env, id);
 
-  const updated = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?').bind(id).first<Page>();
+  const updated = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?').bind(id).first<Page>();
   emitPluginHook(c, 'update', { id, uuid: page.uuid, page_type: pageType, name, slug }, auth.pluginId);
   return c.json({ page: serializePage(updated!) });
 }
@@ -745,7 +745,7 @@ pagesApiRoutes.delete('/pages/batch', async (c) => {
   // Enforce scope: all requested ids must be allowed page types.
   const ph = ids.map(() => '?').join(',');
   const { results: types } = await c.env.DB.prepare(
-    `SELECT id, page_type FROM draft_pages WHERE id IN (${ph})`,
+    `SELECT id, page_type FROM pages WHERE id IN (${ph})`,
   ).bind(...ids).all<{ id: number; page_type: string | null }>();
 
   for (const row of types) {
@@ -772,7 +772,7 @@ pagesApiRoutes.delete('/pages/batch', async (c) => {
 // single batch, so each chunk is a couple of subrequests regardless of size.
 //
 // Bounded to DELETE_CHILDREN_MAX_PER_CALL per request: since trashed rows leave
-// draft_pages, a follow-up call simply picks up whatever remains, so the caller
+// pages, a follow-up call simply picks up whatever remains, so the caller
 // repeats while `done` is false. Registered BEFORE DELETE /pages/:id so
 // "children" is not matched as an id.
 //
@@ -805,7 +805,7 @@ pagesApiRoutes.delete('/pages/children', async (c) => {
   const hookPages: HookPage[] = [];
   while (trashed < DELETE_CHILDREN_MAX_PER_CALL) {
     const { results } = await c.env.DB.prepare(
-      `SELECT id FROM draft_pages WHERE ${selector.sql} AND page_type = ? ORDER BY id ASC LIMIT ?`,
+      `SELECT id FROM pages WHERE ${selector.sql} AND page_type = ? ORDER BY id ASC LIMIT ?`,
     ).bind(...selector.params, pageType, DELETE_CHILDREN_BATCH).all<{ id: number }>();
 
     if (!results.length) { done = true; break; }
@@ -834,7 +834,7 @@ pagesApiRoutes.delete('/pages/:id', async (c) => {
   if (id === null) return c.json({ error: 'invalid_id' }, 400);
 
   // Read first so we can enforce scope before trashing.
-  const existing = await c.env.DB.prepare('SELECT page_type FROM draft_pages WHERE id = ?')
+  const existing = await c.env.DB.prepare('SELECT page_type FROM pages WHERE id = ?')
     .bind(id)
     .first<{ page_type: string | null }>();
   if (!existing) return c.json({ error: 'not_found' }, 404);

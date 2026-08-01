@@ -41,19 +41,19 @@ export async function pullPublishedPageToDraft(
   publishedDb: D1DatabaseClient,
   uuid: string,
 ): Promise<PullPublishedPageResult | null> {
-  const existing = await draftDb.prepare('SELECT * FROM draft_pages WHERE uuid = ?')
+  const existing = await draftDb.prepare('SELECT * FROM pages WHERE uuid = ?')
     .bind(uuid)
     .first<Page>();
   if (existing) return { page: existing, created: false };
 
-  const livePage = await publishedDb.prepare('SELECT * FROM live_pages WHERE uuid = ?')
+  const livePage = await publishedDb.prepare('SELECT * FROM pages WHERE uuid = ?')
     .bind(uuid)
     .first<Page>();
   if (!livePage) return null;
 
   const parentId = await existingDraftParentId(draftDb, livePage.page_id);
   await draftDb.prepare(
-    `INSERT INTO draft_pages (uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+    `INSERT INTO pages (uuid, created_at, updated_at, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
@@ -74,7 +74,7 @@ export async function pullPublishedPageToDraft(
     )
     .run();
 
-  const draftPage = await draftDb.prepare('SELECT * FROM draft_pages WHERE uuid = ?')
+  const draftPage = await draftDb.prepare('SELECT * FROM pages WHERE uuid = ?')
     .bind(uuid)
     .first<Page>();
   if (!draftPage) return null;
@@ -95,7 +95,7 @@ function numericTagIds(tags: unknown[]): number[] {
 
 async function existingDraftParentId(db: D1DatabaseClient, parentId: number | null): Promise<number | null> {
   if (!parentId) return null;
-  const parent = await db.prepare('SELECT id FROM draft_pages WHERE id = ?')
+  const parent = await db.prepare('SELECT id FROM pages WHERE id = ?')
     .bind(parentId)
     .first<{ id: number }>();
   return parent?.id ?? null;

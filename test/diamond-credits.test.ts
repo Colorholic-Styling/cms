@@ -154,7 +154,7 @@ beforeEach(async () => {
   await env.DB.prepare('DELETE FROM shared_credit_ledger').run();
   await env.DB.prepare('DELETE FROM credit_subscriptions').run();
   await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'plugin.credits.%'").run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE page_type = 'broadcast'").run();
+  await env.DB.prepare("DELETE FROM pages WHERE page_type = 'broadcast'").run();
   await seedPool('credit', 0);
   await seedPool('diamond', 0);
   savedSecret = testEnv.PLUGIN_SECRET;
@@ -360,7 +360,7 @@ describe('diamond-priced page creates', () => {
     expect(res.status).toBe(402);
     expect((await res.json() as { credit: unknown }).credit)
       .toEqual({ currency: 'diamond', required: 5, balance: 0, shared_balance: 0 });
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'broadcast'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'broadcast'")
       .first<{ n: number }>();
     expect(count?.n).toBe(0);
   });

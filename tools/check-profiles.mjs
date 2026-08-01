@@ -78,7 +78,7 @@ for (const object of lean) {
   check(full.has(object), `lean profile created "${object}", which the full profile does not`);
 }
 check(lean.has('table users'), 'lean profile is missing the core users table');
-check(lean.has('table draft_pages'), 'lean profile is missing the core draft_pages table');
+check(lean.has('table pages'), 'lean profile is missing the core pages table');
 
 // ── One feature off at a time ────────────────────────────────────────────────
 const owned = new Map();

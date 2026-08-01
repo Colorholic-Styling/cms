@@ -1,6 +1,6 @@
 // ============================================================
 // D1 publish target — the original publish flow, packaged as an
-// adapter. Upserts into the published database's live_pages /
+// adapter. Upserts into the published database's pages /
 // live_page_tags and serves the admin UI's live-state reads.
 // ============================================================
 
@@ -12,7 +12,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
 
     async publish(snapshot: PublishSnapshot): Promise<void> {
       const { page, tags } = snapshot;
-      const existingLivePage = await publishedDb.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+      const existingLivePage = await publishedDb.prepare('SELECT id FROM pages WHERE uuid = ?')
         .bind(page.uuid)
         .first<{ id: number }>();
 
@@ -22,7 +22,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
       await publishedDb.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(page.id).run();
 
       await publishedDb.prepare(
-        `INSERT INTO live_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+        `INSERT INTO pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(uuid) DO UPDATE SET
            id = excluded.id,
@@ -65,14 +65,14 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
     },
 
     async unpublish(uuid: string): Promise<void> {
-      const livePage = await publishedDb.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+      const livePage = await publishedDb.prepare('SELECT id FROM pages WHERE uuid = ?')
         .bind(uuid)
         .first<{ id: number }>();
       if (livePage) {
         await publishedDb.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(livePage.id).run();
       }
 
-      await publishedDb.prepare('DELETE FROM live_pages WHERE uuid = ?')
+      await publishedDb.prepare('DELETE FROM pages WHERE uuid = ?')
         .bind(uuid)
         .run();
     },
@@ -87,9 +87,9 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
         const placeholders = chunk.map(() => '?').join(',');
         await publishedDb.batch([
           publishedDb.prepare(
-            `DELETE FROM live_page_tags WHERE page_id IN (SELECT id FROM live_pages WHERE uuid IN (${placeholders}))`,
+            `DELETE FROM live_page_tags WHERE page_id IN (SELECT id FROM pages WHERE uuid IN (${placeholders}))`,
           ).bind(...chunk),
-          publishedDb.prepare(`DELETE FROM live_pages WHERE uuid IN (${placeholders})`).bind(...chunk),
+          publishedDb.prepare(`DELETE FROM pages WHERE uuid IN (${placeholders})`).bind(...chunk),
         ]);
       }
     },
@@ -99,7 +99,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
     },
 
     async getLiveLect(uuid: string): Promise<string | null> {
-      const row = await publishedDb.prepare('SELECT lect FROM live_pages WHERE uuid = ?')
+      const row = await publishedDb.prepare('SELECT lect FROM pages WHERE uuid = ?')
         .bind(uuid)
         .first<{ lect: string | null }>();
       return row?.lect ?? null;
@@ -109,7 +109,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
       if (!uuids.length) return new Map();
       const placeholders = uuids.map(() => '?').join(',');
       const livePages = await publishedDb.prepare(
-        `SELECT uuid, lect, weight FROM live_pages WHERE uuid IN (${placeholders})`,
+        `SELECT uuid, lect, weight FROM pages WHERE uuid IN (${placeholders})`,
       )
         .bind(...uuids)
         .all<LivePageSnapshot>();
@@ -120,7 +120,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
       if (!pageTypes.length) return [];
       const placeholders = pageTypes.map(() => '?').join(',');
       const livePages = await publishedDb.prepare(
-        `SELECT uuid, lect, weight FROM live_pages WHERE page_type IN (${placeholders})`,
+        `SELECT uuid, lect, weight FROM pages WHERE page_type IN (${placeholders})`,
       )
         .bind(...pageTypes)
         .all<LivePageSnapshot>();

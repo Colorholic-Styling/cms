@@ -72,7 +72,7 @@ export async function ensureUniqueDraftSlug(
   let suffix = 2;
   while (
     await db
-      .prepare('SELECT 1 FROM draft_pages WHERE slug = ? AND (? IS NULL OR id != ?) LIMIT 1')
+      .prepare('SELECT 1 FROM pages WHERE slug = ? AND (? IS NULL OR id != ?) LIMIT 1')
       .bind(candidate, excludeId ?? null, excludeId ?? null)
       .first()
   ) {
@@ -85,7 +85,7 @@ export async function ensureUniqueDraftSlug(
 export async function parentPageOption(db: D1DatabaseClient, pageId: string | number | null | undefined): Promise<Page[]> {
   const id = num(pageId, 0);
   if (!id) return [];
-  const page = await db.prepare('SELECT id, name, slug FROM draft_pages WHERE id = ?')
+  const page = await db.prepare('SELECT id, name, slug FROM pages WHERE id = ?')
     .bind(id)
     .first<Page>();
   return page ? [page] : [];
@@ -94,8 +94,8 @@ export async function parentPageOption(db: D1DatabaseClient, pageId: string | nu
 /**
  * Resolves a submitted parent-page id to one that actually exists, or null.
  *
- * draft_pages.page_id carries no foreign key (it mirrors live_pages), so the
- * database no longer rejects a parent that was deleted between rendering the
+ * DB.pages.page_id carries no foreign key (it mirrors PUBLISHED_DB.pages), so
+ * the database no longer rejects a parent that was deleted between rendering the
  * form and submitting it, or one supplied by a hand-made POST. Storing a
  * dangling id is harmless to read but makes the page look parented in data
  * while showing no parent in the UI, so resolve it at the point of write.
@@ -106,7 +106,7 @@ export async function resolveParentPageId(
 ): Promise<number | null> {
   const id = num(pageId, 0);
   if (!id) return null;
-  const parent = await db.prepare('SELECT id FROM draft_pages WHERE id = ?')
+  const parent = await db.prepare('SELECT id FROM pages WHERE id = ?')
     .bind(id)
     .first<{ id: number }>();
   return parent?.id ?? null;
@@ -170,7 +170,7 @@ export async function savePageVersion(
 /**
  * Soft-deletes a draft page: copies the page, its version history, and its tag
  * links into the trash tables (preserving ids so a restore keeps identity),
- * then removes it from `draft_pages`. Returns the page that was trashed, or
+ * then removes it from `pages`. Returns the page that was trashed, or
  * null when no such page exists. Callers remain responsible for unpublishing
  * and firing the `delete` lifecycle hook — this is the DB-copy half only, shared
  * by the admin delete handler and the plugin write-back API so the trash schema
@@ -183,7 +183,7 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
     `SELECT dp.*,
        EXISTS(SELECT 1 FROM page_versions pv
               WHERE pv.page_id = dp.id AND pv.action IN ('ingest-submission', 'pull-published')) AS submission_origin
-     FROM draft_pages dp WHERE dp.id = ?`,
+     FROM pages dp WHERE dp.id = ?`,
   ).bind(pageId).first<SubmissionPageRef>();
   if (!page) return null;
 
@@ -259,7 +259,7 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
     }
   }
 
-  await db.prepare('DELETE FROM draft_pages WHERE id = ?').bind(pageId).run();
+  await db.prepare('DELETE FROM pages WHERE id = ?').bind(pageId).run();
   return page;
 }
 
@@ -293,7 +293,7 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
     `SELECT dp.id, dp.uuid, dp.name, dp.slug, dp.page_type,
        EXISTS(SELECT 1 FROM page_versions pv
               WHERE pv.page_id = dp.id AND pv.action IN ('ingest-submission', 'pull-published')) AS submission_origin
-     FROM draft_pages dp WHERE dp.id IN (${ph})`,
+     FROM pages dp WHERE dp.id IN (${ph})`,
   ).bind(...ids).all<TrashedPageRef>();
   if (!pages.length) return [];
 
@@ -307,7 +307,7 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
        SELECT dp.id, dp.uuid, dp.name, dp.slug, dp.weight, dp.start, dp.end, dp.timezone, dp.page_type, dp.lect,
          CASE WHEN dp.page_id IS NOT NULL AND EXISTS (SELECT 1 FROM trash_pages tp WHERE tp.id = dp.page_id) THEN dp.page_id ELSE NULL END,
          dp.page_id, dp.creator, dp.editors
-       FROM draft_pages dp WHERE dp.id IN (${foundPh})
+       FROM pages dp WHERE dp.id IN (${foundPh})
        ON CONFLICT(uuid) DO UPDATE SET
          name = excluded.name, slug = excluded.slug, weight = excluded.weight,
          start = excluded.start, end = excluded.end, timezone = excluded.timezone,
@@ -320,7 +320,7 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
       `INSERT OR IGNORE INTO trash_page_versions (id, uuid, created_at, page_id, lect, action)
        SELECT pv.id, pv.uuid, pv.created_at, tp.id, pv.lect, pv.action
        FROM page_versions pv
-       JOIN trash_pages tp ON tp.uuid = (SELECT dp.uuid FROM draft_pages dp WHERE dp.id = pv.page_id)
+       JOIN trash_pages tp ON tp.uuid = (SELECT dp.uuid FROM pages dp WHERE dp.id = pv.page_id)
        WHERE pv.page_id IN (${foundPh})`,
     ).bind(...foundIds),
     // Copy page tags.
@@ -329,7 +329,7 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
        SELECT uuid, page_id, tag_id, weight FROM draft_page_tags WHERE page_id IN (${foundPh})`,
     ).bind(...foundIds),
     // Remove from draft.
-    db.prepare(`DELETE FROM draft_pages WHERE id IN (${foundPh})`).bind(...foundIds),
+    db.prepare(`DELETE FROM pages WHERE id IN (${foundPh})`).bind(...foundIds),
   ]);
 
   return pages;
@@ -369,10 +369,10 @@ export async function restoreTrashedPages(
   await db.batch([
     // 1. Pages back to draft (preserve id; re-link the parent only if it is live).
     db.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
        SELECT tp.id, tp.uuid, tp.name, tp.slug, tp.weight, tp.start, tp.end, tp.timezone, tp.page_type, tp.lect,
          CASE WHEN COALESCE(tp.source_page_id, tp.page_id) IS NOT NULL
-           AND EXISTS (SELECT 1 FROM draft_pages dp WHERE dp.id = COALESCE(tp.source_page_id, tp.page_id))
+           AND EXISTS (SELECT 1 FROM pages dp WHERE dp.id = COALESCE(tp.source_page_id, tp.page_id))
            THEN COALESCE(tp.source_page_id, tp.page_id) ELSE NULL END,
          tp.creator, tp.editors
        FROM trash_pages tp ${where}
@@ -409,7 +409,7 @@ export async function listDashboardDraftPages(
 ): Promise<DashboardListResult> {
   const whereSql = options.pageType ? 'WHERE page_type = ?' : '';
   const baseParams = options.pageType ? [options.pageType] : [];
-  const countRow = await db.prepare(`SELECT COUNT(*) AS total FROM draft_pages ${whereSql}`)
+  const countRow = await db.prepare(`SELECT COUNT(*) AS total FROM pages ${whereSql}`)
     .bind(...baseParams)
     .first<{ total: number }>();
   const total = countRow?.total ?? 0;
@@ -418,7 +418,7 @@ export async function listDashboardDraftPages(
   const currentOffset = (currentPage - 1) * options.limit;
 
   const pages = await db.prepare(
-    `SELECT * FROM draft_pages ${whereSql}
+    `SELECT * FROM pages ${whereSql}
      ORDER BY weight ASC, name ASC, id ASC
      LIMIT ? OFFSET ?`,
   )
@@ -443,7 +443,7 @@ export async function listDashboardDraftPageUuids(
   const whereSql = options.pageType ? 'WHERE page_type = ?' : '';
   const params = options.pageType ? [options.pageType] : [];
   const pages = await db.prepare(
-    `SELECT uuid FROM draft_pages ${whereSql}
+    `SELECT uuid FROM pages ${whereSql}
      ORDER BY weight ASC, name ASC, id ASC`,
   )
     .bind(...params)
@@ -461,7 +461,7 @@ export async function listDashboardDraftPagesByUuids(
   const pageTypeSql = options.pageType ? ' AND page_type = ?' : '';
   const params = options.pageType ? [...uuids, options.pageType] : uuids;
   const pages = await db.prepare(
-    `SELECT * FROM draft_pages
+    `SELECT * FROM pages
      WHERE uuid IN (${placeholders})${pageTypeSql}`,
   )
     .bind(...params)

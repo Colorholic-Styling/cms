@@ -86,13 +86,13 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
   const originalParentId = trashedPage.source_page_id ?? trashedPage.page_id;
   const draftParent = originalParentId == null
     ? null
-    : await c.env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(originalParentId).first<{ id: number }>();
+    : await c.env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(originalParentId).first<{ id: number }>();
   const restoredParentId = draftParent?.id ?? null;
 
   // Restore into draft, preserving the original id so the page keeps the same
   // identity it had before being trashed.
   await c.env.DB.prepare(
-    `INSERT INTO draft_pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+    `INSERT INTO pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(uuid) DO UPDATE SET
        name = excluded.name,
@@ -124,7 +124,7 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
     )
     .run();
 
-  const draftPage = await c.env.DB.prepare('SELECT id FROM draft_pages WHERE uuid = ?')
+  const draftPage = await c.env.DB.prepare('SELECT id FROM pages WHERE uuid = ?')
     .bind(trashedPage.uuid)
     .first<{ id: number }>();
 

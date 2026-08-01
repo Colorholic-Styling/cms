@@ -940,9 +940,9 @@ describe('plugin admin proxy', () => {
     } as unknown as Fetcher);
 
     const insert = await env.DB.prepare(
-      'INSERT INTO draft_pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
     ).bind('Gala', 'gala', 5, 'event', '{}').run();
-    const row = await env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+    const row = await env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
       .bind(insert.meta.last_row_id).first<{ id: number }>();
     const pageId = row!.id;
 
@@ -999,7 +999,7 @@ describe('plugin admin proxy', () => {
       expect(fallbackBody).not.toContain('PLUGIN_EDIT_MARKER');
       expect(fallbackData.page).toMatchObject({ id: pageId, name: 'Gala', slug: 'gala' });
     } finally {
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(pageId).run();
+      await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(pageId).run();
     }
   });
 
@@ -1029,9 +1029,9 @@ describe('plugin admin proxy', () => {
     } as unknown as Fetcher);
 
     const insert = await env.DB.prepare(
-      'INSERT INTO draft_pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
     ).bind('Gala', 'gala', 5, 'event', '{}').run();
-    const row = await env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+    const row = await env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
       .bind(insert.meta.last_row_id).first<{ id: number }>();
     const pageId = row!.id;
 
@@ -1063,7 +1063,7 @@ describe('plugin admin proxy', () => {
       expect(bodyData(editBody).page).toMatchObject({ id: pageId, name: 'Gala', slug: 'gala' });
       expect(captured).toHaveLength(1);
     } finally {
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(pageId).run();
+      await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(pageId).run();
     }
   });
 
@@ -1101,9 +1101,9 @@ describe('plugin admin proxy', () => {
     } as unknown as Fetcher);
 
     const insert = await env.DB.prepare(
-      'INSERT INTO draft_pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
     ).bind('Gala', 'gala', 5, 'event', '{}').run();
-    const row = await env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+    const row = await env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
       .bind(insert.meta.last_row_id).first<{ id: number }>();
     const pageId = row!.id;
 
@@ -1134,7 +1134,7 @@ describe('plugin admin proxy', () => {
         },
       });
     } finally {
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(pageId).run();
+      await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(pageId).run();
     }
   });
 
@@ -1166,9 +1166,9 @@ describe('plugin admin proxy', () => {
     } as unknown as Fetcher);
 
     const insert = await env.DB.prepare(
-      'INSERT INTO draft_pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO pages (name, slug, weight, page_type, lect) VALUES (?, ?, ?, ?, ?)',
     ).bind('Gala', 'gala', 5, 'event', '{}').run();
-    const row = await env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+    const row = await env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
       .bind(insert.meta.last_row_id).first<{ id: number }>();
     const pageId = row!.id;
 
@@ -1218,7 +1218,7 @@ describe('plugin admin proxy', () => {
       expect(fallbackBody).not.toContain('PLUGIN_READ_MARKER');
       expect(fallbackBody).toContain('Read-only');
     } finally {
-      await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(pageId).run();
+      await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(pageId).run();
     }
   });
 

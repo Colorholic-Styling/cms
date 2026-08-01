@@ -45,15 +45,15 @@ async function cleanup(): Promise<void> {
   __clearInjectedFetchers();
   await env.DB.prepare('DELETE FROM plugins').run();
   await env.DB.prepare('DELETE FROM draft_page_tags WHERE page_id = ?').bind(PAGE.id).run();
-  await env.DB.prepare('DELETE FROM draft_pages WHERE id = ?').bind(PAGE.id).run();
+  await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(PAGE.id).run();
   await env.DB.prepare('DELETE FROM tags WHERE id = 42').run();
-  const live = await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?')
+  const live = await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
     .bind(PAGE.uuid)
     .first<{ id: number }>();
   if (live) {
     await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(live.id).run();
   }
-  await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid = ?').bind(PAGE.uuid).run();
+  await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(PAGE.uuid).run();
   await env.MEDIA_BUCKET!.delete(`publish-test/pages/${PAGE.uuid}.json`);
   await env.MEDIA_BUCKET!.delete('publish-test/index.json');
 }
@@ -70,7 +70,7 @@ describe('d1 adapter', () => {
     const adapter = d1Adapter(env.PUBLISHED_DB);
     await adapter.publish(snapshotFor(PAGE));
 
-    const live = await env.PUBLISHED_DB.prepare('SELECT * FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT * FROM pages WHERE uuid = ?')
       .bind(PAGE.uuid)
       .first<Page>();
     expect(live?.id).toBe(PAGE.id);
@@ -78,7 +78,7 @@ describe('d1 adapter', () => {
     expect(live?.lect).toBe(PAGE.lect);
 
     const liveTags = await env.PUBLISHED_DB.prepare(
-      'SELECT page_id, tag_id FROM live_page_tags WHERE page_id = (SELECT id FROM live_pages WHERE uuid = ?)',
+      'SELECT page_id, tag_id FROM live_page_tags WHERE page_id = (SELECT id FROM pages WHERE uuid = ?)',
     )
       .bind(PAGE.uuid)
       .all<{ page_id: number; tag_id: number }>();
@@ -114,7 +114,7 @@ describe('d1 adapter', () => {
 
       await adapter.unpublishMany!([PAGE.uuid, second.uuid]);
 
-      expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM live_pages WHERE uuid IN (?, ?)')
+      expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM pages WHERE uuid IN (?, ?)')
         .bind(PAGE.uuid, second.uuid)
         .first<{ n: number }>()).toEqual({ n: 0 });
       expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM live_page_tags WHERE page_id IN (?, ?)')
@@ -122,7 +122,7 @@ describe('d1 adapter', () => {
         .first<{ n: number }>()).toEqual({ n: 0 });
     } finally {
       await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(second.id).run();
-      await env.PUBLISHED_DB.prepare('DELETE FROM live_pages WHERE uuid = ?').bind(second.uuid).run();
+      await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(second.uuid).run();
     }
   });
 
@@ -137,7 +137,7 @@ describe('d1 adapter', () => {
 
     expect(outcome.refusedCount).toBe(1);
     expect(outcome.failures).toEqual([]);
-    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM live_pages WHERE uuid = ?')
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM pages WHERE uuid = ?')
       .bind(PAGE.uuid)
       .first<{ n: number }>()).toEqual({ n: 0 });
   });
@@ -145,7 +145,7 @@ describe('d1 adapter', () => {
   it('republishes older live rows using the draft page id', async () => {
     const legacyLiveId = PAGE.id + 1;
     await env.PUBLISHED_DB.prepare(
-      `INSERT INTO live_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(legacyLiveId, PAGE.uuid, 'Old', 'old', 9, PAGE.page_type, '{}', PAGE.creator, PAGE.editors)
@@ -157,7 +157,7 @@ describe('d1 adapter', () => {
     const adapter = d1Adapter(env.PUBLISHED_DB);
     await adapter.publish(snapshotFor(PAGE));
 
-    const live = await env.PUBLISHED_DB.prepare('SELECT id, name FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT id, name FROM pages WHERE uuid = ?')
       .bind(PAGE.uuid)
       .first<{ id: number; name: string }>();
     expect(live).toEqual({ id: PAGE.id, name: PAGE.name });
@@ -378,7 +378,7 @@ describe('publish registry', () => {
 
   async function seedDraft(): Promise<void> {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(PAGE.id, PAGE.uuid, PAGE.name, PAGE.slug, PAGE.weight, PAGE.page_type, PAGE.lect, PAGE.creator)
@@ -430,7 +430,7 @@ describe('publish registry', () => {
     expect(outcome!.failures).toEqual(['plugin:ipfs']);
 
     // The d1 target still landed, including denormalized tag links.
-    const live = await env.PUBLISHED_DB.prepare('SELECT name FROM live_pages WHERE uuid = ?')
+    const live = await env.PUBLISHED_DB.prepare('SELECT name FROM pages WHERE uuid = ?')
       .bind(PAGE.uuid)
       .first<{ name: string }>();
     expect(live?.name).toBe('Hello');
@@ -440,7 +440,7 @@ describe('publish registry', () => {
 
     const unpublishOutcome = await unpublishPageFromTargets(testEnv, PAGE.uuid);
     expect(unpublishOutcome.failures).toEqual(['plugin:ipfs']);
-    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM live_pages WHERE uuid = ?').bind(PAGE.uuid).first()).toBeNull();
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?').bind(PAGE.uuid).first()).toBeNull();
   });
 
   it('returns null when the draft page does not exist', async () => {
@@ -486,7 +486,7 @@ describe('publish registry', () => {
 
     async function seedTypedDraft(pageType: string, lect: Record<string, unknown>): Promise<void> {
       await env.DB.prepare(
-        `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator)
+        `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(PAGE.id, PAGE.uuid, PAGE.name, PAGE.slug, PAGE.weight, pageType, JSON.stringify(lect), PAGE.creator)
@@ -501,7 +501,7 @@ describe('publish registry', () => {
       const outcome = await publishPageToTargets(testEnv, PAGE.id);
       expect(outcome?.failures).toEqual([]);
 
-      const live = await env.PUBLISHED_DB.prepare('SELECT lect FROM live_pages WHERE uuid = ?')
+      const live = await env.PUBLISHED_DB.prepare('SELECT lect FROM pages WHERE uuid = ?')
         .bind(PAGE.uuid)
         .first<{ lect: string }>();
       const liveLect = JSON.parse(live!.lect) as Record<string, unknown>;
@@ -518,7 +518,7 @@ describe('publish registry', () => {
         expect(liveLect, `${key} must not be published`).not.toHaveProperty(key);
       }
       // The draft copy is untouched — projection happens only at publish.
-      const draft = await env.DB.prepare('SELECT lect FROM draft_pages WHERE id = ?')
+      const draft = await env.DB.prepare('SELECT lect FROM pages WHERE id = ?')
         .bind(PAGE.id)
         .first<{ lect: string }>();
       expect(JSON.parse(draft!.lect)).toHaveProperty('phone');
@@ -549,7 +549,7 @@ describe('publish registry', () => {
 
       const { draftLectProjector } = await import('../src/core/publish/projection');
       const { withLiveStatus } = await import('../src/core/db/page-logic');
-      const draft = await env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?')
+      const draft = await env.DB.prepare('SELECT * FROM pages WHERE id = ?')
         .bind(PAGE.id)
         .first<Page>();
       const liveMap = await liveMapForDraftPages(testEnv, [draft!]);

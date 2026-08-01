@@ -188,7 +188,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
   // Insert page
   const uniqueSlug = await ensureUniqueDraftSlug(c.env.DB, slug);
   const pageResult = await c.env.DB.prepare(
-    `INSERT INTO draft_pages (name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
+    `INSERT INTO pages (name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
@@ -208,7 +208,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
 
   // The schema uses a custom DEFAULT id expression (not INTEGER PRIMARY KEY),
   // so last_row_id is the internal rowid — we must SELECT the actual id back.
-  const pageRow = await c.env.DB.prepare('SELECT id FROM draft_pages WHERE rowid = ?')
+  const pageRow = await c.env.DB.prepare('SELECT id FROM pages WHERE rowid = ?')
     .bind(pageResult.meta.last_row_id)
     .first<{ id: number }>();
   const pageId = pageRow!.id;
@@ -239,7 +239,7 @@ pageCrudRoutes.post('/pages/batch-weight', requirePermission('content:write'), a
     if (!Number.isInteger(id) || id <= 0 || !Number.isFinite(weight)) {
       return c.json({ error: 'Invalid input' }, 400);
     }
-    statements.push(c.env.DB.prepare('UPDATE draft_pages SET weight = ? WHERE id = ?').bind(weight, id));
+    statements.push(c.env.DB.prepare('UPDATE pages SET weight = ? WHERE id = ?').bind(weight, id));
   }
 
   if (!statements.length) return c.json({ success: true });
@@ -263,7 +263,7 @@ pageCrudRoutes.get('/pages/:id/read', requirePermission('content:read'), async (
   const requestedVersionId = parseInt(c.req.query('version') ?? '', 10);
   const backHref = safeAdminReturnPath(c.req.query('return_to'));
 
-  const page = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?').bind(pageId).first<Page>();
+  const page = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?').bind(pageId).first<Page>();
   if (!page) return c.notFound();
 
   const data = await editorPageData(c, page, page.page_id, requestedVersionId);
@@ -324,7 +324,7 @@ pageCrudRoutes.get('/pages/:id/edit', requirePermission('content:read'), async (
   const flash = c.req.query('flash') ?? '';
   const backHref = safeAdminReturnPath(c.req.query('return_to'));
 
-  const page = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?').bind(pageId).first<Page>();
+  const page = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?').bind(pageId).first<Page>();
   if (!page) return c.notFound();
 
   const data = await editorPageData(c, page, page.page_id, requestedVersionId);
@@ -390,7 +390,7 @@ pageCrudRoutes.post('/pages/:id/weight', requirePermission('content:write'), asy
   const weight = num(form.get('weight'));
   const returnPath = safeAdminReturnPath(form.get('return_to'));
 
-  const result = await c.env.DB.prepare('UPDATE draft_pages SET weight = ? WHERE id = ?')
+  const result = await c.env.DB.prepare('UPDATE pages SET weight = ? WHERE id = ?')
     .bind(weight, pageId)
     .run();
 
@@ -412,7 +412,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
   const slug = str(form.get('slug'));
   const errors = validatePageBasics(name, slug);
 
-  const page = await c.env.DB.prepare('SELECT * FROM draft_pages WHERE id = ?')
+  const page = await c.env.DB.prepare('SELECT * FROM pages WHERE id = ?')
     .bind(pageId)
     .first<Page>();
   if (!page) return c.notFound();
@@ -447,7 +447,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
     // and is appended to history. The pre-revert content stays in history as
     // the snapshot written by the save before this one, so the revert itself
     // is reversible and visible in the version list.
-    await c.env.DB.prepare('UPDATE draft_pages SET lect = ? WHERE id = ?')
+    await c.env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(revertedLect, pageId)
       .run();
     await savePageVersion(c.env.DB, pageId, revertedLect, 'restore');
@@ -512,7 +512,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
   // Update page metadata
   const uniqueSlug = await ensureUniqueDraftSlug(c.env.DB, slug, pageId);
   await c.env.DB.prepare(
-    `UPDATE draft_pages SET name=?, slug=?, weight=?, start=?, end=?, timezone=?, page_type=?, lect=?, page_id=?, editors=? WHERE id=?`,
+    `UPDATE pages SET name=?, slug=?, weight=?, start=?, end=?, timezone=?, page_type=?, lect=?, page_id=?, editors=? WHERE id=?`,
   )
     .bind(
       name,
@@ -550,7 +550,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
 
   const autoRepublish = action !== 'publish'
     && await (coreExtensions().autoPublishesPageType?.(c.env, pageTypeVal) ?? false)
-    && !!await c.env.PUBLISHED_DB.prepare('SELECT 1 FROM live_pages WHERE uuid = ?')
+    && !!await c.env.PUBLISHED_DB.prepare('SELECT 1 FROM pages WHERE uuid = ?')
       .bind(page.uuid)
       .first();
 

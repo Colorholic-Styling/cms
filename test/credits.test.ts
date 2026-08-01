@@ -185,7 +185,7 @@ beforeEach(async () => {
   await env.DB.prepare('DELETE FROM shared_credit_ledger').run();
   await seedSharedPool(0);
   await env.DB.prepare("DELETE FROM settings WHERE key LIKE 'plugin.credits.%' OR key LIKE 'plugin.limits.%'").run();
-  await env.DB.prepare("DELETE FROM draft_pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
+  await env.DB.prepare("DELETE FROM pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
   await env.DB.prepare("DELETE FROM trash_pages WHERE page_type IN ('event','guest','mail_list','contact')").run();
   savedSecret = testEnv.PLUGIN_SECRET;
   testEnv.PLUGIN_SECRET = PLUGIN_SECRET;
@@ -309,7 +309,7 @@ describe('/__cms page-create charging', () => {
     expect(body.error).toBe('insufficient_credits');
     expect(body.credit).toEqual({ currency: 'credit', required: 100, balance: 99, shared_balance: 0 });
 
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'event'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'event'")
       .first<{ n: number }>();
     expect(count?.n).toBe(0);
     expect(await balance(PAYER_ID)).toBe(99);
@@ -343,7 +343,7 @@ describe('/__cms page-create charging', () => {
       pages: [{ page_type: 'mail_list', name: 'L3' }, { page_type: 'mail_list', name: 'L4' }],
     });
     expect(blocked.status).toBe(402);
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'mail_list'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'mail_list'")
       .first<{ n: number }>();
     expect(count?.n).toBe(2);
   });
@@ -426,7 +426,7 @@ describe('admin editor charging', () => {
     expect(res.status).toBe(422);
     expect(await res.text()).toContain('Not enough credits');
     expect(await balance(ADMIN_ID)).toBe(40);
-    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM draft_pages WHERE page_type = 'event'")
+    const count = await env.DB.prepare("SELECT COUNT(*) AS n FROM pages WHERE page_type = 'event'")
       .first<{ n: number }>();
     expect(count?.n).toBe(0);
   });

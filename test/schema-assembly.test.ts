@@ -18,7 +18,7 @@ const FEATURE_MARKERS: Record<string, string[]> = {
   'runtime-content-types': ['CREATE TABLE IF NOT EXISTS page_types(', 'CREATE TABLE IF NOT EXISTS block_types('],
   'media': ['CREATE TABLE IF NOT EXISTS media_files('],
   'plugins': ['CREATE TABLE IF NOT EXISTS plugins(', 'CREATE TABLE IF NOT EXISTS plugin_asset_approvals('],
-  'plugin-pointer-indexes': ['idx_draft_pages_pointer_event'],
+  'plugin-pointer-indexes': ['idx_pages_pointer_event'],
   'jobs': ['CREATE TABLE IF NOT EXISTS admin_jobs('],
   'credits': [
     'CREATE TABLE IF NOT EXISTS credit_wallets(',
@@ -66,7 +66,7 @@ describe('migration assembly', () => {
   it('keeps the core schema in a lean profile', () => {
     // locales/locale_messages are core: the chrome resolves the viewer's
     // locale on every render, so a profile without them cannot serve a page.
-    for (const table of ['users', 'sessions', 'draft_pages', 'page_versions', 'tags', 'taxonomies', 'roles', 'settings', 'locales', 'locale_messages']) {
+    for (const table of ['users', 'sessions', 'pages', 'page_versions', 'tags', 'taxonomies', 'roles', 'settings', 'locales', 'locale_messages']) {
       expect(env.TEST_ASSEMBLED_LEAN_BASELINE).toContain(`CREATE TABLE IF NOT EXISTS ${table}(`);
     }
     expect(env.TEST_ASSEMBLED_LEAN_BASELINE).toContain('CREATE TABLE IF NOT EXISTS audit_log (');
@@ -80,7 +80,7 @@ describe('migration assembly', () => {
   it('orders dependencies before the features that require them', () => {
     // plugin-pointer-indexes declares `-- requires: plugins`.
     const plugins = env.TEST_ASSEMBLED_BASELINE.indexOf('CREATE TABLE IF NOT EXISTS plugins(');
-    const pointers = env.TEST_ASSEMBLED_BASELINE.indexOf('idx_draft_pages_pointer_event');
+    const pointers = env.TEST_ASSEMBLED_BASELINE.indexOf('idx_pages_pointer_event');
     expect(plugins).toBeGreaterThan(-1);
     expect(pointers).toBeGreaterThan(plugins);
   });

@@ -92,7 +92,7 @@ export async function ingestSubmissions(env: Env): Promise<IngestResult> {
 
   const rows = await env.PUBLISHED_DB.prepare(
     `SELECT uuid, created_at, name, slug, weight, start, end, timezone, page_type, lect, page_id
-     FROM live_pages
+     FROM pages
      WHERE created_at > ? OR (created_at = ? AND uuid > ?)
      ORDER BY created_at ASC, uuid ASC
      LIMIT ?`,
@@ -115,13 +115,13 @@ export async function ingestSubmissions(env: Env): Promise<IngestResult> {
   const uuids = rows.results.map((row) => row.uuid);
   const parentIds = [...new Set(rows.results.map((row) => row.page_id).filter((id): id is number => id !== null))];
   const existingUuids = new Set(
-    (await env.DB.prepare(`SELECT uuid FROM draft_pages WHERE uuid IN (${uuids.map(() => '?').join(', ')})`)
+    (await env.DB.prepare(`SELECT uuid FROM pages WHERE uuid IN (${uuids.map(() => '?').join(', ')})`)
       .bind(...uuids)
       .all<{ uuid: string }>()).results.map((row) => row.uuid),
   );
   const existingParents = new Set(
     parentIds.length
-      ? (await env.DB.prepare(`SELECT id FROM draft_pages WHERE id IN (${parentIds.map(() => '?').join(', ')})`)
+      ? (await env.DB.prepare(`SELECT id FROM pages WHERE id IN (${parentIds.map(() => '?').join(', ')})`)
         .bind(...parentIds)
         .all<{ id: number }>()).results.map((row) => row.id)
       : [],
@@ -139,7 +139,7 @@ export async function ingestSubmissions(env: Env): Promise<IngestResult> {
 
     const parentId = row.page_id !== null && existingParents.has(row.page_id) ? row.page_id : null;
     const inserted = await env.DB.prepare(
-      `INSERT OR IGNORE INTO draft_pages (uuid, created_at, name, slug, weight, start, end, timezone, page_type, lect, page_id)
+      `INSERT OR IGNORE INTO pages (uuid, created_at, name, slug, weight, start, end, timezone, page_type, lect, page_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        RETURNING id`,
     )

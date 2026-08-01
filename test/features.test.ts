@@ -252,7 +252,7 @@ describe('page scheduling window and timezone', () => {
 
     expect(response.status).toBe(302);
     const row = await env.DB.prepare(
-      "SELECT start, end, timezone FROM draft_pages WHERE slug = 'scheduled-page'",
+      "SELECT start, end, timezone FROM pages WHERE slug = 'scheduled-page'",
     ).first<{ start: string; end: string; timezone: string }>();
     expect(row).toEqual({
       start: '2026-07-01T10:00',
@@ -270,7 +270,7 @@ describe('page scheduling window and timezone', () => {
 
     expect(response.status).toBe(302);
     const row = await env.DB.prepare(
-      "SELECT timezone FROM draft_pages WHERE slug = 'no-tz'",
+      "SELECT timezone FROM pages WHERE slug = 'no-tz'",
     ).first<{ timezone: string }>();
     expect(row?.timezone).toBe('+0800'); // wrangler.toml DEFAULT_TIMEZONE
   });
@@ -304,7 +304,7 @@ describe('version revert', () => {
     const lectV1 = lectWithName('Original');
     const lectV2 = lectWithName('Changed');
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(111, 'revert-uuid-111', 'Changed', 'revert-page', 5, 'default', lectV2, 1, '1')
@@ -326,7 +326,7 @@ describe('version revert', () => {
     expect(response.headers.get('Location')).toBe('/admin/pages/111/edit?flash=Version+restored');
 
     const page = await env.DB.prepare(
-      'SELECT lect FROM draft_pages WHERE id = 111',
+      'SELECT lect FROM pages WHERE id = 111',
     ).first<{ lect: string }>();
     const lect = JSON.parse(page?.lect ?? '{}') as { name?: Record<string, string> };
     expect(lect.name?.[cmsConfig.defaultLanguage]).toBe('Original');
@@ -349,7 +349,7 @@ describe('version revert', () => {
 
   it('404s a revert to a version belonging to another page', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(112, 'revert-uuid-112', 'Other', 'other-page', 5, 'default', lectWithName('Other'), 1, '1')
@@ -358,7 +358,7 @@ describe('version revert', () => {
       .bind(513, 112, lectWithName('Other'), 'create')
       .run();
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(113, 'revert-uuid-113', 'Mine', 'mine-page', 5, 'default', lectWithName('Mine'), 1, '1')
@@ -375,7 +375,7 @@ describe('version revert', () => {
 
   it('removes one saved version without changing the working copy', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(114, 'version-delete-uuid-114', 'Changed', 'version-delete-page', 5, 'default', lectWithName('Changed'), 1, '1')
@@ -408,7 +408,7 @@ describe('version revert', () => {
     // Deleting the newest snapshot must not roll the page back to the older
     // one: `lect` is the working copy, and history is only a backup log.
     const page = await env.DB.prepare(
-      'SELECT lect FROM draft_pages WHERE id = 114',
+      'SELECT lect FROM pages WHERE id = 114',
     ).first<{ lect: string }>();
     expect(page?.lect).toBe(lectWithName('Changed'));
 
@@ -420,7 +420,7 @@ describe('version revert', () => {
 
   it('cleans all saved versions and leaves the working copy intact', async () => {
     await env.DB.prepare(
-      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
+      `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(115, 'versions-clean-uuid-115', 'Clean Me', 'versions-clean-page', 5, 'default', lectWithName('Clean Me'), 1, '1')
@@ -442,7 +442,7 @@ describe('version revert', () => {
     expect(response.headers.get('Location')).toBe('/admin/pages/115/edit?flash=Versions+cleaned');
 
     const page = await env.DB.prepare(
-      'SELECT lect FROM draft_pages WHERE id = 115',
+      'SELECT lect FROM pages WHERE id = 115',
     ).first<{ lect: string }>();
     expect(page?.lect).toBe(lectWithName('Clean Me'));
 
@@ -684,7 +684,7 @@ async function resetData(): Promise<void> {
     'draft_page_tags',
     'trash_page_tags',
     'page_versions',
-    'draft_pages',
+    'pages',
     'trash_pages',
     'plugins',
     'settings',

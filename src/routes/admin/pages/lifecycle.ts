@@ -31,7 +31,7 @@ pageLifecycleRoutes.post('/pages/:id/publish', requirePermission('content:publis
   const outcome = await publishPageToTargets(c.env, pageId);
   if (!outcome) return c.notFound();
 
-  const page = await c.env.DB.prepare('SELECT uuid, name, slug, page_type FROM draft_pages WHERE id = ?')
+  const page = await c.env.DB.prepare('SELECT uuid, name, slug, page_type FROM pages WHERE id = ?')
     .bind(pageId)
     .first<{ uuid: string; name: string; slug: string; page_type: string | null }>();
   if (!outcome.refused) {
@@ -73,7 +73,7 @@ pageLifecycleRoutes.post('/pages/:id/unpublish', requirePermission('content:publ
   const pageId = parseInt(c.req.param('id'), 10);
   const backHref = safeAdminReturnPath(c.req.query('return_to'));
 
-  const page = await c.env.DB.prepare('SELECT uuid, name, slug, page_type FROM draft_pages WHERE id = ?')
+  const page = await c.env.DB.prepare('SELECT uuid, name, slug, page_type FROM pages WHERE id = ?')
     .bind(pageId)
     .first<{ uuid: string; name: string; slug: string; page_type: string | null }>();
   if (!page) return c.notFound();
