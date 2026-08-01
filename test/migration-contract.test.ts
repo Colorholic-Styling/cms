@@ -66,6 +66,24 @@ describe('flattened migration contract', () => {
     }
   });
 
+  it('gives draft_pages no foreign keys while its dependents keep theirs', async () => {
+    // page_id mirrors live_pages.page_id: a plain column, so a page is handled
+    // independently of its parent's state and a parent delete cannot cascade
+    // its children away (that cascade hard-deleted them past trash entirely).
+    const parentFks = await env.DB.prepare('PRAGMA foreign_key_list(draft_pages)').all();
+    expect(parentFks.results).toEqual([]);
+
+    // The cascade that must stay: deleting a page still cleans up its own
+    // version rows and tag links.
+    for (const table of ['page_versions', 'draft_page_tags']) {
+      const { results } = await env.DB.prepare(`PRAGMA foreign_key_list(${table})`)
+        .all<{ table: string; from: string; on_delete: string }>();
+      expect(results).toEqual([
+        expect.objectContaining({ table: 'draft_pages', from: 'page_id', on_delete: 'CASCADE' }),
+      ]);
+    }
+  });
+
   it('preserves security-critical columns and seed rows', async () => {
     const { results: sessionColumns } = await env.DB.prepare('PRAGMA table_info(sessions)').all<{ name: string }>();
     expect(sessionColumns.map((column) => column.name)).toEqual(expect.arrayContaining([

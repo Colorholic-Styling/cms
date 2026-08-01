@@ -1747,6 +1747,48 @@ describe('admin routes', () => {
     expect(await env.DB.prepare('SELECT id FROM trash_pages WHERE uuid = ?').bind('page-uuid-101').first()).toBeNull();
   });
 
+  it('leaves a child page in place when its parent is deleted', async () => {
+    // draft_pages.page_id carries no foreign key (it mirrors live_pages), so a
+    // parent delete no longer cascades. That cascade destroyed children
+    // outright — trashDraftPage copies only the page it is given, so a child
+    // was hard-deleted with its history and never reached trash.
+    await env.DB.prepare(
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, creator)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(150, 'parent-uuid-150', 'Parent', 'parent-150', 5, 'default', basePageLect, 1).run();
+    await env.DB.prepare(
+      `INSERT INTO draft_pages (id, uuid, name, slug, weight, page_type, lect, page_id, creator)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(151, 'child-uuid-151', 'Child', 'child-151', 5, 'default', basePageLect, 150, 1).run();
+    await env.DB.prepare('INSERT INTO page_versions (id, page_id, lect, action) VALUES (?, ?, ?, ?)')
+      .bind(551, 151, basePageLect, 'create').run();
+
+    const response = await fetchWorker('/admin/pages/150/delete', {
+      method: 'POST',
+      headers: { Cookie: await authCookie() },
+    });
+    expect(response.status).toBe(302);
+
+    const child = await env.DB.prepare('SELECT id, page_id FROM draft_pages WHERE id = ?')
+      .bind(151).first<{ id: number; page_id: number }>();
+    // The child survives, still pointing at the id its parent had. Readers
+    // resolve that to "no parent" rather than treating it as an error.
+    expect(child).toMatchObject({ id: 151, page_id: 150 });
+    expect(await env.DB.prepare('SELECT id FROM page_versions WHERE id = ?').bind(551).first())
+      .toMatchObject({ id: 551 });
+
+    // The parent's own rows still cascade-clean: page_versions and
+    // draft_page_tags keep their foreign keys, only the self-reference went.
+    expect(await env.DB.prepare('SELECT id FROM draft_pages WHERE id = ?').bind(150).first()).toBeNull();
+
+    // The orphan renders as parentless instead of erroring.
+    const editor = await fetchWorker('/admin/pages/151/edit', {
+      headers: { Cookie: await authCookie() },
+    });
+    expect(editor.status).toBe(200);
+    expect(bodyData(await editor.text()).parentOptions).toEqual([]);
+  });
+
 
 
 

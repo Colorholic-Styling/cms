@@ -110,10 +110,22 @@ CREATE TABLE IF NOT EXISTS draft_pages(
     -- column, older rows are restore candidates. There is deliberately no
     -- current-version pointer — it could name a snapshot other than `lect`.
     lect TEXT,
+    -- Parent page. Deliberately NOT a foreign key, which makes this table's
+    -- shape identical to live_pages(page_id) and lets a page be handled
+    -- independently of its parent's state. Two consequences:
+    --
+    --   * Deleting a parent no longer cascade-deletes its children. That
+    --     cascade destroyed them outright — trashDraftPage copies only the page
+    --     it was given, so children were hard-deleted, never reaching trash.
+    --     They are now left in place with a page_id that resolves to nothing,
+    --     which every reader already tolerates (parentPageOption returns no
+    --     option, restore re-links only a parent that is live again).
+    --   * Nothing rejects a parent id that does not exist, so writers validate
+    --     it themselves: resolveParentPageId() on the admin form path, and an
+    --     explicit existence check in the plugin create API.
     page_id INTEGER,
     creator INTEGER,
-    editors TEXT,
-    FOREIGN KEY (page_id) REFERENCES draft_pages (id) ON DELETE CASCADE
+    editors TEXT
 );
 
 -- 7. Page Versions – supports version browsing and snapshots

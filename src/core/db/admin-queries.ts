@@ -91,6 +91,27 @@ export async function parentPageOption(db: D1DatabaseClient, pageId: string | nu
   return page ? [page] : [];
 }
 
+/**
+ * Resolves a submitted parent-page id to one that actually exists, or null.
+ *
+ * draft_pages.page_id carries no foreign key (it mirrors live_pages), so the
+ * database no longer rejects a parent that was deleted between rendering the
+ * form and submitting it, or one supplied by a hand-made POST. Storing a
+ * dangling id is harmless to read but makes the page look parented in data
+ * while showing no parent in the UI, so resolve it at the point of write.
+ */
+export async function resolveParentPageId(
+  db: D1DatabaseClient,
+  pageId: string | number | null | undefined,
+): Promise<number | null> {
+  const id = num(pageId, 0);
+  if (!id) return null;
+  const parent = await db.prepare('SELECT id FROM draft_pages WHERE id = ?')
+    .bind(id)
+    .first<{ id: number }>();
+  return parent?.id ?? null;
+}
+
 async function uniqueTagSlug(db: D1DatabaseClient, baseSlug: string): Promise<string> {
   let slug = baseSlug || 'tag';
   let suffix = 1;

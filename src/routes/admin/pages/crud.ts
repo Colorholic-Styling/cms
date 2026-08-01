@@ -17,7 +17,7 @@ import type { Env, Variables, Page, PageVersion } from '../../../types';
 import { appendQuery, editorsFromForm, languageFromRequest, nullableStr, num, safeAdminReturnPath, str, userIdFromContext } from '../../../core/http/forms';
 import { validatePageBasics } from '../../../core/db/validation';
 import { applyStructuredAction, isStructuredEditorAction, lectForPage, lectFromForm, withDraftMetadata } from '../../../core/db/page-logic';
-import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption, savePageVersion } from '../../../core/db/admin-queries';
+import { editorTaxonomy, ensureUniqueDraftSlug, fetchEditorUsers, fetchUserName, parentPageOption, resolveParentPageId, savePageVersion } from '../../../core/db/admin-queries';
 import { publishPageToTargets } from '../../../core/publish';
 import { renderPage } from '../../../core/render/chrome';
 import { uiTranslator } from '../../../core/i18n';
@@ -200,7 +200,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
       timezoneVal,
       pageTypeVal,
       lectVal,
-      pageIdVal ? parseInt(pageIdVal, 10) : null,
+      await resolveParentPageId(c.env.DB, pageIdVal),
       creator || null,
       editorsVal,
     )
@@ -523,7 +523,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
       timezoneVal,
       pageTypeVal,
       lectVal,
-      pageIdVal ? parseInt(pageIdVal, 10) : null,
+      await resolveParentPageId(c.env.DB, pageIdVal),
       editorsVal,
       pageId,
     )
