@@ -12,15 +12,15 @@ They live here rather than in the view tree because `wrangler.toml` serves the
 assets directory in full — sources placed there would be published.
 
 Both write into `dist/views`, which `npm run build:views` assembles from
-`views/` plus the enabled features' `src/features/<id>/views/`. Run the
+`src/core/views/` plus the enabled features' `src/features/<id>/views/`. Run the
 assembler first: `build:css` reads `tailwind-sources.css`, which it generates
 from `cms.features.json`, so a stale list compiles the wrong feature profile.
 `tailwind-sources.css` is generated — edit `cms.features.json`, not that file.
 
-Most small CMS browser scripts can live directly in `views/assets` (or a
-feature's `src/features/<id>/views/assets`, declared in its manifest's
-`clientAssets`). The rich
-text editor is different because `richtext-md.js` imports the npm packages
+Most small CMS browser scripts can live directly in `src/core/views/assets` (or
+a feature's `src/features/<id>/views/assets`, declared in its manifest's
+`clientAssets`). The rich text editor is different: `richtext-md.js` imports the
+npm packages
 `marked` and `turndown`. Browsers cannot resolve those package names through the
 Worker's `/assets` route, so esbuild combines the editor and its dependencies
 into one self-contained file:

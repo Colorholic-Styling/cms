@@ -257,23 +257,28 @@ for (const id of routerIds) {
 // /features/trash/sections/trash.liquid — so ownership is not visible in the
 // reference itself. These rules recover it from the assembled tree.
 
+/** Where a slice keeps its views. Core is a slice like any other, so this is
+ *  the same shape build-views.mjs assembles from. */
+const viewsDirOf = (owner) => (owner === 'core'
+  ? path.join(rootDir, 'src', 'core', 'views')
+  : path.join(rootDir, 'src', 'features', owner, 'views'));
+
 /** relative view path (e.g. "sections/trash.liquid") -> 'core' | feature id. */
 const viewOwners = new Map();
 (function collectViews() {
-  const record = (dir, owner, prefix = '') => {
+  const record = (owner, prefix = '') => {
+    const dir = path.join(viewsDirOf(owner), prefix);
     if (!existsSync(dir)) return;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (entry.name.startsWith('.')) continue;
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) record(path.join(dir, entry.name), owner, rel);
+      if (entry.isDirectory()) record(owner, rel);
       else viewOwners.set(rel, owner);
     }
   };
-  record(path.join(rootDir, 'views'), 'core');
-  const featuresRoot = path.join(rootDir, 'src', 'features');
-  for (const entry of readdirSync(featuresRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    record(path.join(featuresRoot, entry.name, 'views'), entry.name);
+  record('core');
+  for (const entry of readdirSync(path.join(rootDir, 'src', 'features'), { withFileTypes: true })) {
+    if (entry.isDirectory()) record(entry.name);
   }
 })();
 
@@ -302,9 +307,7 @@ for (const file of files) {
 //     gone.
 for (const [rel, owner] of viewOwners) {
   if (!rel.startsWith('templates/') || !rel.endsWith('.json')) continue;
-  const source = owner === 'core'
-    ? path.join(rootDir, 'views', rel)
-    : path.join(rootDir, 'src', 'features', owner, 'views', rel);
+  const source = path.join(viewsDirOf(owner), rel);
   let parsed;
   try {
     parsed = JSON.parse(readFileSync(source, 'utf8'));
@@ -331,9 +334,7 @@ for (const [rel, owner] of viewOwners) {
 const viewStringKey = /view_strings\.([\w]+)\./g;
 for (const [rel, owner] of viewOwners) {
   if (!rel.endsWith('.liquid')) continue;
-  const source = owner === 'core'
-    ? path.join(rootDir, 'views', rel)
-    : path.join(rootDir, 'src', 'features', owner, 'views', rel);
+  const source = path.join(viewsDirOf(owner), rel);
   const seen = new Set();
   for (const [, key] of readFileSync(source, 'utf8').matchAll(viewStringKey)) {
     if (seen.has(key)) continue;

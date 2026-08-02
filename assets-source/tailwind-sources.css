@@ -6,8 +6,7 @@
    dist/ is ignored — Tailwind sees nothing there. Listing the enabled
    features explicitly gets the same pruning by a route Tailwind can walk. */
 
-@source "../views";
-@source "../src/core/**/*.ts";
+@source "../src/core";
 @source "../src/templates/**/*.ts";
 @source "../src/routes/**/*.ts";
 @source "../src/features/credits";

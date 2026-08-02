@@ -1,7 +1,7 @@
 // ============================================================
 // Single-use form-submit tokens ("_cms_once") — server side of the
 // double-submit protection that complements the client-side guard in
-// views/layout/default.liquid.
+// src/core/views/layout/default.liquid.
 //
 // Lifecycle:
 //   - buildBaseProps() mints a signed page token per admin page render

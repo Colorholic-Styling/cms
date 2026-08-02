@@ -119,7 +119,7 @@ apiRoutes.get('/api/users', requirePermission('content:write'), async (c) => {
 });
 
 // Pages of a given type, for the page-reference field's search combobox
-// (views/snippets/pagefield/page/basic.liquid). `q` filters by name/slug; `id`
+// (src/core/views/snippets/pagefield/page/basic.liquid). `q` filters by name/slug; `id`
 // resolves a single page (used to label the current selection). With neither,
 // returns the most-recently-updated pages of the type.
 apiRoutes.get('/api/pages/:type', requirePermission('content:read'), async (c) => {

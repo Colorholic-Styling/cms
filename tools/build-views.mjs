@@ -1,16 +1,17 @@
 // ============================================================
 // View assembler.
 //
-// src/ is feature-sliced but views/ was not, so every Liquid section, template
-// JSON, snippet and locale string shipped whether or not its feature was
-// installed: `rm -rf src/features/trash` left views/sections/trash.liquid and
+// src/ is feature-sliced but the view tree was not, so every Liquid section,
+// template JSON, snippet and locale string shipped whether or not its feature
+// was installed: `rm -rf src/features/trash` left sections/trash.liquid and
 // four locales' worth of trash.* keys behind, and nothing failed.
 //
 // This script gives views the same droppability contract the schema fragments
-// already have. A feature keeps its views next to its code, and the build
-// flattens the enabled ones into the single directory wrangler uploads:
+// already have — and the same shape, deliberately, so the two assemblers read
+// alike (compare build-migrations.mjs: src/core/schema.sql + the enabled
+// src/features/<id>/schema.sql):
 //
-//   views/**                          the core chrome, always included
+//   src/core/views/**                 the core chrome, always included
 //   src/features/<id>/views/**        merged in when <id> is enabled
 //   -> dist/views/**                  what [assets] points at
 //
@@ -50,8 +51,8 @@ import { fileURLToPath } from 'node:url';
 import { readManifest } from './build-migrations.mjs';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
-const coreViewsDir = path.join(rootDir, 'views');
 const featuresDir = path.join(rootDir, 'src', 'features');
+const coreViewsDir = path.join(rootDir, 'src', 'core', 'views');
 const distDir = path.join(rootDir, 'dist', 'views');
 const tailwindSources = path.join(rootDir, 'assets-source', 'tailwind-sources.css');
 const LOCALES = 'locales';
@@ -140,10 +141,10 @@ export function assembleViews(features) {
 
   const add = (rel, contents, owner) => {
     if (files.has(rel)) {
-      throw new Error(`${owner} and ${owners.get(rel)} both provide views/${rel}`);
+      throw new Error(`${owner} and ${owners.get(rel)} both provide ${rel}`);
     }
     if (GENERATED.has(rel)) {
-      throw new Error(`${owner} provides views/${rel}, which is a build output; edit assets-source/ instead`);
+      throw new Error(`${owner} provides ${rel}, which is a build output; edit assets-source/ instead`);
     }
     files.set(rel, contents);
     owners.set(rel, owner);
@@ -163,7 +164,7 @@ export function assembleViews(features) {
     add(rel, readFileSync(path.join(coreViewsDir, rel)), 'core');
   }
 
-  if (catalogs.size === 0) throw new Error('views/locales holds no catalogs; the core catalog defines the supported languages');
+  if (catalogs.size === 0) throw new Error('src/core/views/locales holds no catalogs; the core catalog defines the supported languages');
 
   for (const id of enabled) {
     const dir = path.join(featuresDir, id, 'views');
@@ -214,8 +215,7 @@ export function buildTailwindSources(features) {
     '   dist/ is ignored — Tailwind sees nothing there. Listing the enabled',
     '   features explicitly gets the same pruning by a route Tailwind can walk. */',
     '',
-    '@source "../views";',
-    '@source "../src/core/**/*.ts";',
+    '@source "../src/core";',
     '@source "../src/templates/**/*.ts";',
     '@source "../src/routes/**/*.ts";',
   ];
