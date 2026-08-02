@@ -367,6 +367,19 @@ describe('Plugin API create / read / list / update / delete', () => {
     expect(read.lect['@status']).toBe('confirmed');
   });
 
+  it('creates and deduplicates pages whose generated slug exceeds D1\'s LIKE pattern limit', async () => {
+    const name = 'Your Hong Kong Wine Arrival from Berry Bros. & Rudd – [shipment_aid]';
+    const baseSlug = 'your-hong-kong-wine-arrival-from-berry-bros-rudd-shipment-aid';
+
+    const firstRes = await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name });
+    expect(firstRes.status).toBe(201);
+    expect((await firstRes.json() as { page: { slug: string } }).page.slug).toBe(baseSlug);
+
+    const secondRes = await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name });
+    expect(secondRes.status).toBe(201);
+    expect((await secondRes.json() as { page: { slug: string } }).page.slug).toBe(`${baseSlug}-2`);
+  });
+
   it('returns a JSON conflict when an imported explicit id is already used', async () => {
     const legacyId = 710001;
     const firstRes = await cmsApi('POST', '/__cms/pages', {

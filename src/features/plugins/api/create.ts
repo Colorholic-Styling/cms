@@ -370,8 +370,12 @@ export async function existingSlugSet(db: D1DatabaseClient, baseSlugs: string[])
   const out = new Set<string>();
   for (let index = 0; index < bases.length; index += 25) {
     const chunk = bases.slice(index, index + 25);
-    const where = chunk.map(() => '(slug = ? OR slug LIKE ?)').join(' OR ');
-    const params = chunk.flatMap((base) => [base, `${base}-%`]);
+    // D1 caps LIKE/GLOB patterns at 50 bytes, which is shorter than a valid
+    // generated slug (for example a shipment EDM subject). Use an indexed
+    // lexical range for the `<base>-*` suffixes instead. Slugs contain only
+    // [a-z0-9-], so `.` is the exclusive upper bound immediately after `-`.
+    const where = chunk.map(() => '(slug = ? OR (slug >= ? AND slug < ?))').join(' OR ');
+    const params = chunk.flatMap((base) => [base, `${base}-`, `${base}.`]);
     const rows = await db.prepare(`SELECT slug FROM pages WHERE ${where}`)
       .bind(...params)
       .all<{ slug: string }>();
