@@ -181,17 +181,17 @@ apiRoutes.post('/api/page/:pageId/tag/:tagId', requirePermission('content:write'
   const pageId = parseInt(c.req.param('pageId'), 10);
   const tagId = parseInt(c.req.param('tagId'), 10);
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM draft_page_tags WHERE page_id = ? AND tag_id = ?',
+    'SELECT id FROM page_tags WHERE page_id = ? AND tag_id = ?',
   )
     .bind(pageId, tagId)
     .first<{ id: number }>();
   if (existing) {
     return c.json({ type: 'ADD_PAGE_TAG', payload: { success: false, message: 'tag exist', id: existing.id } });
   }
-  const result = await c.env.DB.prepare('INSERT INTO draft_page_tags (page_id, tag_id) VALUES (?, ?)')
+  const result = await c.env.DB.prepare('INSERT INTO page_tags (page_id, tag_id) VALUES (?, ?)')
     .bind(pageId, tagId)
     .run();
-  const pageTag = await c.env.DB.prepare('SELECT id FROM draft_page_tags WHERE rowid = ?')
+  const pageTag = await c.env.DB.prepare('SELECT id FROM page_tags WHERE rowid = ?')
     .bind(result.meta.last_row_id)
     .first<{ id: number }>();
   await c.env.DB.prepare('UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(pageId).run();
@@ -203,10 +203,10 @@ apiRoutes.delete('/api/page_tag/:id', requirePermission('content:write'), async 
 
 async function deletePageTagApi(c: AppContext) {
   const id = parseInt(c.req.param('id') ?? '', 10);
-  const pageTag = await c.env.DB.prepare('SELECT page_id FROM draft_page_tags WHERE id = ?')
+  const pageTag = await c.env.DB.prepare('SELECT page_id FROM page_tags WHERE id = ?')
     .bind(id)
     .first<{ page_id: number }>();
-  await c.env.DB.prepare('DELETE FROM draft_page_tags WHERE id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM page_tags WHERE id = ?').bind(id).run();
   if (pageTag) {
     await c.env.DB.prepare('UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .bind(pageTag.page_id)

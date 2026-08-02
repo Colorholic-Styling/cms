@@ -155,7 +155,7 @@ export async function pageTagsByPageId(db: D1DatabaseClient, pageIds: number[]):
   // would otherwise exceed D1's 100-bound-parameters-per-query limit.
   const rows = await db.prepare(
     `SELECT dpt.page_id, t.id, t.name, tt.name AS taxonomy, tt.slug AS taxonomy_slug
-     FROM draft_page_tags dpt
+     FROM page_tags dpt
      JOIN tags t ON t.id = dpt.tag_id
      LEFT JOIN taxonomies tt ON tt.slug = t.taxonomy_slug
      WHERE dpt.page_id IN (SELECT value FROM json_each(?))`,

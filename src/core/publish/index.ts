@@ -80,7 +80,7 @@ async function buildSnapshot(env: Env, pageId: number): Promise<PublishSnapshot 
 
   const tags = await env.DB.prepare(
     `SELECT pt.uuid, pt.tag_id, pt.weight, t.slug, t.name
-     FROM draft_page_tags pt
+     FROM page_tags pt
      LEFT JOIN tags t ON t.id = pt.tag_id
      WHERE pt.page_id = ?
      ORDER BY pt.weight ASC, pt.id ASC`,

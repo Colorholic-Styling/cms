@@ -330,7 +330,7 @@ export async function createPages(c: AppContext, auth: PluginAuth, items: PageIn
       lect: item.lect, parentId: item.parentId,
     }));
     for (const tagId of item.tags) {
-      statements.push(c.env.DB.prepare('INSERT OR IGNORE INTO draft_page_tags (page_id, tag_id) VALUES (?, ?)')
+      statements.push(c.env.DB.prepare('INSERT OR IGNORE INTO page_tags (page_id, tag_id) VALUES (?, ?)')
         .bind(id, tagId));
     }
 

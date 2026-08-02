@@ -681,7 +681,7 @@ async function completeMockedLogin(userinfo: Record<string, unknown>): Promise<R
 
 async function resetData(): Promise<void> {
   const adminTables = [
-    'draft_page_tags',
+    'page_tags',
     'trash_page_tags',
     'page_versions',
     'pages',

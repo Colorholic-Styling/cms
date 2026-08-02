@@ -359,7 +359,7 @@ pagesApiRoutes.get('/pages/:id', async (c) => {
   if (!page) return c.json({ error: 'not_found' }, 404);
   if (!pageTypeScopeAllows(auth.readableTypes, page.page_type ?? '')) return forbiddenPageType(c, auth, page.page_type ?? '');
 
-  const tags = await c.env.DB.prepare('SELECT tag_id FROM draft_page_tags WHERE page_id = ?')
+  const tags = await c.env.DB.prepare('SELECT tag_id FROM page_tags WHERE page_id = ?')
     .bind(id)
     .all<{ tag_id: number }>();
   const includeLiveStatus = c.req.query('include_live_status') === '1';

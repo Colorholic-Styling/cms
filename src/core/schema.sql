@@ -130,8 +130,9 @@ CREATE TABLE IF NOT EXISTS page_versions(
     FOREIGN KEY (page_id) REFERENCES pages (id) ON DELETE CASCADE
 );
 
--- 8. Draft Page Tags
-CREATE TABLE IF NOT EXISTS draft_page_tags(
+-- 8. Page Tags — same name and shape as PUBLISHED_DB.page_tags, so tag links
+--    chain host-to-host alongside the pages they belong to.
+CREATE TABLE IF NOT EXISTS page_tags(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
     uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
     || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
@@ -223,8 +224,8 @@ CREATE TRIGGER IF NOT EXISTS page_versions_updated_at AFTER UPDATE ON page_versi
     UPDATE page_versions SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS draft_page_tags_updated_at AFTER UPDATE ON draft_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE draft_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+CREATE TRIGGER IF NOT EXISTS page_tags_updated_at AFTER UPDATE ON page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
 
 CREATE TRIGGER IF NOT EXISTS user_oauth_identities_updated_at

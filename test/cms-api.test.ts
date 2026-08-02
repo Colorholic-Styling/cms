@@ -1163,7 +1163,7 @@ describe('bulk trash restore', () => {
 // content metadata, tag ensure-by-name, and list lookup/tag projections.
 describe('Plugin API content-meta, tag ensure, and lookup projections', () => {
   beforeEach(async () => {
-    await env.DB.prepare("DELETE FROM draft_page_tags WHERE tag_id IN (SELECT id FROM tags WHERE taxonomy_slug = 'topic')").run();
+    await env.DB.prepare("DELETE FROM page_tags WHERE tag_id IN (SELECT id FROM tags WHERE taxonomy_slug = 'topic')").run();
     await env.DB.prepare("DELETE FROM tags WHERE taxonomy_slug = 'topic'").run();
     await env.DB.prepare("DELETE FROM taxonomies WHERE slug = 'topic'").run();
   });

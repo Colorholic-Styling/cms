@@ -223,7 +223,7 @@ tagsRoutes.post('/tags/:id', requirePermission('tag:write'), async (c) => {
 tagsRoutes.post('/tags/:id/delete', requirePermission('tag:write'), async (c) => {
   const id = parseInt(c.req.param('id'), 10);
   await Promise.all([
-    c.env.DB.prepare('DELETE FROM draft_page_tags WHERE tag_id = ?').bind(id).run(),
+    c.env.DB.prepare('DELETE FROM page_tags WHERE tag_id = ?').bind(id).run(),
     removeTagFromTargets(c.env, id),
     c.env.DB.prepare('DELETE FROM trash_page_tags WHERE tag_id = ?').bind(id).run(),
     c.env.DB.prepare('UPDATE tags SET parent_tag = NULL WHERE parent_tag = ?').bind(id).run(),

@@ -44,14 +44,14 @@ function snapshotFor(page: Page): PublishSnapshot {
 async function cleanup(): Promise<void> {
   __clearInjectedFetchers();
   await env.DB.prepare('DELETE FROM plugins').run();
-  await env.DB.prepare('DELETE FROM draft_page_tags WHERE page_id = ?').bind(PAGE.id).run();
+  await env.DB.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(PAGE.id).run();
   await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(PAGE.id).run();
   await env.DB.prepare('DELETE FROM tags WHERE id = 42').run();
   const live = await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
     .bind(PAGE.uuid)
     .first<{ id: number }>();
   if (live) {
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(live.id).run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(live.id).run();
   }
   await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(PAGE.uuid).run();
   await env.MEDIA_BUCKET!.delete(`publish-test/pages/${PAGE.uuid}.json`);
@@ -78,7 +78,7 @@ describe('d1 adapter', () => {
     expect(live?.lect).toBe(PAGE.lect);
 
     const liveTags = await env.PUBLISHED_DB.prepare(
-      'SELECT page_id, tag_id FROM live_page_tags WHERE page_id = (SELECT id FROM pages WHERE uuid = ?)',
+      'SELECT page_id, tag_id FROM page_tags WHERE page_id = (SELECT id FROM pages WHERE uuid = ?)',
     )
       .bind(PAGE.uuid)
       .all<{ page_id: number; tag_id: number }>();
@@ -92,7 +92,7 @@ describe('d1 adapter', () => {
     expect(byType.some((row) => row.uuid === PAGE.uuid)).toBe(true);
 
     await adapter.removeTag!(42);
-    const afterRemove = await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM live_page_tags WHERE tag_id = 42')
+    const afterRemove = await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM page_tags WHERE tag_id = 42')
       .first<{ n: number }>();
     expect(afterRemove?.n).toBe(0);
 
@@ -117,11 +117,11 @@ describe('d1 adapter', () => {
       expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM pages WHERE uuid IN (?, ?)')
         .bind(PAGE.uuid, second.uuid)
         .first<{ n: number }>()).toEqual({ n: 0 });
-      expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM live_page_tags WHERE page_id IN (?, ?)')
+      expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM page_tags WHERE page_id IN (?, ?)')
         .bind(PAGE.id, second.id)
         .first<{ n: number }>()).toEqual({ n: 0 });
     } finally {
-      await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(second.id).run();
+      await env.PUBLISHED_DB.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(second.id).run();
       await env.PUBLISHED_DB.prepare('DELETE FROM pages WHERE uuid = ?').bind(second.uuid).run();
     }
   });
@@ -150,7 +150,7 @@ describe('d1 adapter', () => {
     )
       .bind(legacyLiveId, PAGE.uuid, 'Old', 'old', 9, PAGE.page_type, '{}', PAGE.creator, PAGE.editors)
       .run();
-    await env.PUBLISHED_DB.prepare('INSERT INTO live_page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
+    await env.PUBLISHED_DB.prepare('INSERT INTO page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
       .bind('legacy-tag-link', legacyLiveId, 99, 1)
       .run();
 
@@ -162,7 +162,7 @@ describe('d1 adapter', () => {
       .first<{ id: number; name: string }>();
     expect(live).toEqual({ id: PAGE.id, name: PAGE.name });
 
-    const liveTags = await env.PUBLISHED_DB.prepare('SELECT page_id, tag_id FROM live_page_tags WHERE uuid IN (?, ?)')
+    const liveTags = await env.PUBLISHED_DB.prepare('SELECT page_id, tag_id FROM page_tags WHERE uuid IN (?, ?)')
       .bind('legacy-tag-link', 'tag-link-uuid')
       .all<{ page_id: number; tag_id: number }>();
     expect(liveTags.results).toEqual([{ page_id: PAGE.id, tag_id: 42 }]);
@@ -384,7 +384,7 @@ describe('publish registry', () => {
       .bind(PAGE.id, PAGE.uuid, PAGE.name, PAGE.slug, PAGE.weight, PAGE.page_type, PAGE.lect, PAGE.creator)
       .run();
     await env.DB.prepare("INSERT INTO tags (id, name, slug) VALUES (42, 'News', 'news')").run();
-    await env.DB.prepare('INSERT INTO draft_page_tags (page_id, tag_id, weight) VALUES (?, 42, 1)')
+    await env.DB.prepare('INSERT INTO page_tags (page_id, tag_id, weight) VALUES (?, 42, 1)')
       .bind(PAGE.id)
       .run();
   }

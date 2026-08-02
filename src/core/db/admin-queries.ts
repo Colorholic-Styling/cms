@@ -247,7 +247,7 @@ export async function trashDraftPage(db: D1DatabaseClient, pageId: number): Prom
         .run();
     }
 
-    const pageTags = await db.prepare('SELECT * FROM draft_page_tags WHERE page_id = ?')
+    const pageTags = await db.prepare('SELECT * FROM page_tags WHERE page_id = ?')
       .bind(pageId)
       .all<PageTag>();
     for (const pt of pageTags.results) {
@@ -326,7 +326,7 @@ export async function trashDraftPages(db: D1DatabaseClient, ids: number[]): Prom
     // Copy page tags.
     db.prepare(
       `INSERT OR IGNORE INTO trash_page_tags (uuid, page_id, tag_id, weight)
-       SELECT uuid, page_id, tag_id, weight FROM draft_page_tags WHERE page_id IN (${foundPh})`,
+       SELECT uuid, page_id, tag_id, weight FROM page_tags WHERE page_id IN (${foundPh})`,
     ).bind(...foundIds),
     // Remove from draft.
     db.prepare(`DELETE FROM pages WHERE id IN (${foundPh})`).bind(...foundIds),
@@ -390,7 +390,7 @@ export async function restoreTrashedPages(
     ).bind(...params),
     // 3. Tags.
     db.prepare(
-      `INSERT OR IGNORE INTO draft_page_tags (uuid, page_id, tag_id, weight)
+      `INSERT OR IGNORE INTO page_tags (uuid, page_id, tag_id, weight)
        SELECT uuid, page_id, tag_id, weight FROM trash_page_tags
        WHERE page_id IN (${idSubquery})`,
     ).bind(...params),

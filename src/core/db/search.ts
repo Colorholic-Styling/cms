@@ -252,7 +252,7 @@ export function advancedSearchCondition(
   if (criterion.tags.length > 0) {
     const placeholders = criterion.tags.map(() => '?').join(',');
     conditions.push(`${pageAlias}.id IN (
-      SELECT page_id FROM draft_page_tags
+      SELECT page_id FROM page_tags
       WHERE tag_id IN (${placeholders})
       GROUP BY page_id
       HAVING COUNT(DISTINCT tag_id) = ?

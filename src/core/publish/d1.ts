@@ -1,7 +1,7 @@
 // ============================================================
 // D1 publish target — the original publish flow, packaged as an
 // adapter. Upserts into the published database's pages /
-// live_page_tags and serves the admin UI's live-state reads.
+// page_tags and serves the admin UI's live-state reads.
 // ============================================================
 
 import type { LivePageSnapshot, PublishAdapter, PublishSnapshot } from './adapter';
@@ -17,9 +17,9 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
         .first<{ id: number }>();
 
       if (existingLivePage) {
-        await publishedDb.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(existingLivePage.id).run();
+        await publishedDb.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(existingLivePage.id).run();
       }
-      await publishedDb.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(page.id).run();
+      await publishedDb.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(page.id).run();
 
       await publishedDb.prepare(
         `INSERT INTO pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, page_id, creator, editors)
@@ -57,7 +57,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
 
       for (const tag of tags) {
         await publishedDb.prepare(
-          'INSERT INTO live_page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)',
+          'INSERT INTO page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)',
         )
           .bind(tag.uuid, page.id, tag.tag_id, tag.weight)
           .run();
@@ -69,7 +69,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
         .bind(uuid)
         .first<{ id: number }>();
       if (livePage) {
-        await publishedDb.prepare('DELETE FROM live_page_tags WHERE page_id = ?').bind(livePage.id).run();
+        await publishedDb.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(livePage.id).run();
       }
 
       await publishedDb.prepare('DELETE FROM pages WHERE uuid = ?')
@@ -87,7 +87,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
         const placeholders = chunk.map(() => '?').join(',');
         await publishedDb.batch([
           publishedDb.prepare(
-            `DELETE FROM live_page_tags WHERE page_id IN (SELECT id FROM pages WHERE uuid IN (${placeholders}))`,
+            `DELETE FROM page_tags WHERE page_id IN (SELECT id FROM pages WHERE uuid IN (${placeholders}))`,
           ).bind(...chunk),
           publishedDb.prepare(`DELETE FROM pages WHERE uuid IN (${placeholders})`).bind(...chunk),
         ]);
@@ -95,7 +95,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
     },
 
     async removeTag(tagId: number): Promise<void> {
-      await publishedDb.prepare('DELETE FROM live_page_tags WHERE tag_id = ?').bind(tagId).run();
+      await publishedDb.prepare('DELETE FROM page_tags WHERE tag_id = ?').bind(tagId).run();
     },
 
     async getLiveLect(uuid: string): Promise<string | null> {

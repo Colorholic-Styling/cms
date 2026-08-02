@@ -1238,7 +1238,7 @@ describe('admin routes', () => {
   });
 
   it('POST /admin/pages/:id/publish writes published content to PUBLISHED_DB only', async () => {
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags').run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM page_tags').run();
     await env.PUBLISHED_DB.prepare('DELETE FROM pages').run();
 
     const response = await fetchWorker('/admin/pages/101/publish', {
@@ -1256,7 +1256,7 @@ describe('admin routes', () => {
       });
     expect(await env.PUBLISHED_DB.prepare(
       `SELECT lpt.tag_id
-       FROM live_page_tags lpt
+       FROM page_tags lpt
        JOIN pages lp ON lp.id = lpt.page_id
        WHERE lp.uuid = ?`,
     )
@@ -1361,7 +1361,7 @@ describe('admin routes', () => {
   it('POST /admin/advanced-search/:pageType/bulk publishes and unpublishes selected pages', async () => {
     const { queue, sent } = queueStub<CmsAdminJobMessage>();
     (env as unknown as { ADMIN_JOBS_QUEUE?: Queue<CmsAdminJobMessage> }).ADMIN_JOBS_QUEUE = queue;
-    await env.PUBLISHED_DB.prepare('DELETE FROM live_page_tags').run();
+    await env.PUBLISHED_DB.prepare('DELETE FROM page_tags').run();
     await env.PUBLISHED_DB.prepare('DELETE FROM pages').run();
     const query = 'operator=AND&pagesize=20&sort=updated_at&order=DESC&search1=About&path1=';
     const cookie = await authCookie();
@@ -1649,7 +1649,7 @@ describe('admin routes', () => {
     )
       .bind(920, 'live-only-uuid', 'Live Only', 'live-only', 12, 'default', basePageLect, 1, '1')
       .run();
-    await env.PUBLISHED_DB.prepare('INSERT INTO live_page_tags (id, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
+    await env.PUBLISHED_DB.prepare('INSERT INTO page_tags (id, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
       .bind(921, 920, 301, 4)
       .run();
 
@@ -1673,7 +1673,7 @@ describe('admin routes', () => {
       weight: 12,
       page_type: 'default',
     });
-    expect(await env.DB.prepare('SELECT tag_id, weight FROM draft_page_tags WHERE page_id = ?')
+    expect(await env.DB.prepare('SELECT tag_id, weight FROM page_tags WHERE page_id = ?')
       .bind(draft.id)
       .first<{ tag_id: number; weight: number }>()).toEqual({ tag_id: 301, weight: 4 });
     // The pull is recorded as the page's first (and so newest) snapshot.
@@ -1694,14 +1694,16 @@ describe('admin routes', () => {
     expect(payload.layoutData.userInitial).toBe('A');
   });
 
-  it('CMS DB migration does not create live or runtime presence tables', async () => {
-    // `pages` is deliberately the name in both databases now, so it can no
-    // longer be the marker for "the published schema was applied here" —
-    // live_page_tags is.
+  it('CMS DB migration does not create the runtime presence table', async () => {
+    // The published schema's tables are now named exactly like the CMS's
+    // (`pages`, `page_tags`) — deliberately, so a published database can be the
+    // next host's working set. No table name distinguishes the two databases
+    // any more, so "did the published schema land here?" is asserted by the
+    // exact table set in migration-contract.test.ts instead. What is still
+    // uniquely wrong here is a runtime table: presence lives in a Durable
+    // Object, never in D1.
     const tables = await env.DB.prepare(
-      `SELECT name FROM sqlite_master
-       WHERE type = 'table' AND name IN ('live_page_tags', 'presence')
-       ORDER BY name`,
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'presence'`,
     ).all<{ name: string }>();
 
     expect(tables.results).toEqual([]);
@@ -1781,7 +1783,7 @@ describe('admin routes', () => {
       .toMatchObject({ id: 551 });
 
     // The parent's own rows still cascade-clean: page_versions and
-    // draft_page_tags keep their foreign keys, only the self-reference went.
+    // page_tags keep their foreign keys, only the self-reference went.
     expect(await env.DB.prepare('SELECT id FROM pages WHERE id = ?').bind(150).first()).toBeNull();
 
     // The orphan renders as parentless instead of erroring.
@@ -2093,7 +2095,7 @@ describe('admin routes', () => {
   });
 
   it('POST /admin/api/page/:pageId/tag/:tagId reports duplicate tag links', async () => {
-    await env.DB.prepare('INSERT INTO draft_page_tags (id, page_id, tag_id) VALUES (?, ?, ?)')
+    await env.DB.prepare('INSERT INTO page_tags (id, page_id, tag_id) VALUES (?, ?, ?)')
       .bind(402, 101, 301)
       .run();
 
@@ -3169,7 +3171,7 @@ async function completeMockedOAuthLogin(): Promise<Response> {
 
 async function resetData(): Promise<void> {
   const adminTables = [
-    'draft_page_tags',
+    'page_tags',
     'trash_page_tags',
     'page_versions',
     'media_files',
@@ -3192,7 +3194,7 @@ async function resetData(): Promise<void> {
   }
 
   const publishedTables = [
-    'live_page_tags',
+    'page_tags',
     'pages',
   ];
   for (const table of publishedTables) {
@@ -3256,7 +3258,7 @@ async function seedBaseData(): Promise<void> {
   )
     .bind(201, 'trash-uuid-201', 'Old Page', 'old-page', 5, 'default', basePageLect, 1, '1')
     .run();
-  await env.DB.prepare('INSERT INTO draft_page_tags (id, page_id, tag_id) VALUES (?, ?, ?)')
+  await env.DB.prepare('INSERT INTO page_tags (id, page_id, tag_id) VALUES (?, ?, ?)')
     .bind(401, 101, 302)
     .run();
 }

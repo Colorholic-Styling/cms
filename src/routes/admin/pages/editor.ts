@@ -139,7 +139,7 @@ export async function editorPageData(
       .bind(page.id)
       .all<PageVersion>(),
     getLiveLect(c.env, page.uuid),
-    c.env.DB.prepare('SELECT tag_id FROM draft_page_tags WHERE page_id = ?')
+    c.env.DB.prepare('SELECT tag_id FROM page_tags WHERE page_id = ?')
       .bind(page.id)
       .all<{ tag_id: number }>(),
     draftLectProjector(c.env),

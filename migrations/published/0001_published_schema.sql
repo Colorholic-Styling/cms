@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS pages(
     editors TEXT
 );
 
-CREATE TABLE IF NOT EXISTS live_page_tags(
+CREATE TABLE IF NOT EXISTS page_tags(
     id INTEGER UNIQUE DEFAULT ((( strftime('%s','now') - 1563741060 ) * 100000) + (RANDOM() & 65535)) NOT NULL,
     uuid TEXT UNIQUE DEFAULT (lower(hex( randomblob(4)) || '-' || hex( randomblob(2)) || '-' || '4' || substr( hex( randomblob(2)), 2)
     || '-' || substr('AB89', 1 + (abs(random()) % 4) , 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6))) ) NOT NULL,
@@ -57,13 +57,13 @@ CREATE INDEX IF NOT EXISTS idx_pages_page_type_slug ON pages(page_type, slug);
 CREATE INDEX IF NOT EXISTS idx_pages_page_type_page_id ON pages(page_type, page_id);
 CREATE INDEX IF NOT EXISTS idx_pages_page_type_created_at ON pages(page_type, created_at);
 CREATE INDEX IF NOT EXISTS idx_pages_created_at_uuid ON pages(created_at, uuid);
-CREATE INDEX IF NOT EXISTS idx_live_page_tags_page_id ON live_page_tags(page_id);
-CREATE INDEX IF NOT EXISTS idx_live_page_tags_tag_id ON live_page_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_page_tags_page_id ON page_tags(page_id);
+CREATE INDEX IF NOT EXISTS idx_page_tags_tag_id ON page_tags(tag_id);
 
 CREATE TRIGGER IF NOT EXISTS pages_updated_at AFTER UPDATE ON pages WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
     UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS live_page_tags_updated_at AFTER UPDATE ON live_page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
-    UPDATE live_page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
+CREATE TRIGGER IF NOT EXISTS page_tags_updated_at AFTER UPDATE ON page_tags WHEN old.updated_at < CURRENT_TIMESTAMP BEGIN
+    UPDATE page_tags SET updated_at = CURRENT_TIMESTAMP WHERE id = old.id;
 END;

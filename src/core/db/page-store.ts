@@ -10,13 +10,13 @@ export async function setDraftPageTags(
 ): Promise<void> {
   if (!Array.isArray(tags)) return;
   if (replace) {
-    await db.prepare('DELETE FROM draft_page_tags WHERE page_id = ?')
+    await db.prepare('DELETE FROM page_tags WHERE page_id = ?')
       .bind(pageId)
       .run();
   }
 
   for (const tagId of numericTagIds(tags)) {
-    await db.prepare('INSERT OR IGNORE INTO draft_page_tags (page_id, tag_id) VALUES (?, ?)')
+    await db.prepare('INSERT OR IGNORE INTO page_tags (page_id, tag_id) VALUES (?, ?)')
       .bind(pageId, tagId)
       .run();
   }
@@ -108,14 +108,14 @@ async function copyPublishedTagsToDraft(
   draftPageId: number,
 ): Promise<void> {
   const tags = await publishedDb.prepare(
-    'SELECT uuid, tag_id, weight FROM live_page_tags WHERE page_id = ? ORDER BY weight ASC, id ASC',
+    'SELECT uuid, tag_id, weight FROM page_tags WHERE page_id = ? ORDER BY weight ASC, id ASC',
   )
     .bind(livePageId)
     .all<Pick<PageTag, 'uuid' | 'tag_id' | 'weight'>>();
 
   for (const tag of tags.results) {
     await draftDb.prepare(
-      'INSERT OR IGNORE INTO draft_page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)',
+      'INSERT OR IGNORE INTO page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)',
     )
       .bind(tag.uuid, draftPageId, tag.tag_id, tag.weight)
       .run();

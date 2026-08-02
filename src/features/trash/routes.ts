@@ -149,7 +149,7 @@ trashRoutes.post('/trash/:id/restore', requirePermission('trash:restore'), async
       .all<PageTag>();
     for (const pt of trashTags.results) {
       await c.env.DB.prepare(
-        `INSERT OR IGNORE INTO draft_page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO page_tags (uuid, page_id, tag_id, weight) VALUES (?, ?, ?, ?)`,
       )
         .bind(pt.uuid, draftPage.id, pt.tag_id, pt.weight)
         .run();
