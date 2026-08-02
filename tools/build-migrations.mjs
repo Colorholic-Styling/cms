@@ -35,6 +35,7 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeIfChanged } from './write-if-changed.mjs';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const srcDir = path.join(rootDir, 'src');
@@ -253,9 +254,7 @@ function main() {
   }
 
   for (const [file, content] of outputs) {
-    mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, content);
-    console.log(`wrote ${path.relative(rootDir, file)}`);
+    if (writeIfChanged(file, content)) console.log(`wrote ${path.relative(rootDir, file)}`);
   }
 }
 

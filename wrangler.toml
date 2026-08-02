@@ -10,6 +10,13 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 # below still resolve.
 minify = true
 
+# Assets and the bundle are both build outputs, so wrangler builds them itself.
+# Without this, a bare `wrangler deploy` (a CI job, a Workers Builds pipeline,
+# or just running the binary directly) fails on a missing dist/views: the
+# directory is generated, not committed.
+[build]
+command = "npm run build"
+
 [assets]
 directory = "./dist/views"
 binding = "VIEWS"

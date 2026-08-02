@@ -32,9 +32,10 @@
 //   node scripts/build-features.mjs --check   # exit 1 if they are stale
 // ============================================================
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeIfChanged } from './write-if-changed.mjs';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const featuresDir = path.join(rootDir, 'src', 'features');
@@ -206,8 +207,9 @@ function main() {
 
   mkdirSync(outDir, { recursive: true });
   for (const [file, content] of outputs) {
-    writeFileSync(file, content);
-    console.log(`wrote ${path.relative(rootDir, file)}`);
+    // Unchanged output is left alone: these land in src/, which wrangler dev
+    // watches to decide when to re-run the build. See tools/write-if-changed.mjs.
+    if (writeIfChanged(file, content)) console.log(`wrote ${path.relative(rootDir, file)}`);
   }
 }
 

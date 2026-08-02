@@ -45,10 +45,11 @@
 //   node tools/build-views.mjs --check   # exit 1 if the outputs are stale
 // ============================================================
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readManifest } from './build-migrations.mjs';
+import { writeIfChanged } from './write-if-changed.mjs';
 
 const rootDir = fileURLToPath(new URL('..', import.meta.url));
 const featuresDir = path.join(rootDir, 'src', 'features');
@@ -236,10 +237,7 @@ function write(files) {
   }
 
   for (const [rel, contents] of files) {
-    const target = path.join(distDir, rel);
-    mkdirSync(path.dirname(target), { recursive: true });
-    if (existsSync(target) && Buffer.compare(readFileSync(target), Buffer.from(contents)) === 0) continue;
-    writeFileSync(target, contents);
+    writeIfChanged(path.join(distDir, rel), contents);
   }
 
   pruneEmptyDirs(distDir);
@@ -290,7 +288,7 @@ function main() {
   }
 
   write(files);
-  writeFileSync(tailwindSources, sources);
+  writeIfChanged(tailwindSources, sources);
   const enabled = featuresWithViews(features);
   const dropped = availableViewFeatures().filter((id) => !enabled.includes(id));
   const bytes = [...files.values()].reduce((sum, contents) => sum + Buffer.byteLength(contents), 0);
