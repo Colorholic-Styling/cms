@@ -200,8 +200,9 @@ export function assembleViews(features) {
 }
 
 /**
- * The `@source` list admin.css imports: the core chrome, the core server-side
- * renderers, and one entry per enabled feature. A feature that is switched off
+ * The `@source` list admin.css imports: the core tree (chrome, views and the
+ * core server-side renderers under core/templates/), the admin routers, and one
+ * entry per enabled feature. A feature that is switched off
  * — or deleted — contributes no selectors, so the stylesheet shrinks with the
  * profile instead of carrying utilities only its screens ever used.
  */
@@ -217,7 +218,6 @@ export function buildTailwindSources(features) {
     '   features explicitly gets the same pruning by a route Tailwind can walk. */',
     '',
     '@source "../src/core";',
-    '@source "../src/templates/**/*.ts";',
     '@source "../src/routes/**/*.ts";',
   ];
   for (const id of enabled) {

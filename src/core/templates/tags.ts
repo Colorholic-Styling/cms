@@ -1,6 +1,6 @@
-import { adminLayout, type BaseTemplateProps } from '../core/render/layout';
-import { renderView } from '../core/render/liquid';
-import type { Tag } from '../types';
+import { adminLayout, type BaseTemplateProps } from '../render/layout';
+import { renderView } from '../render/liquid';
+import type { Tag } from '../../types';
 
 export interface TagTaxonomyOption {
   id: string;

@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { profilePage } from '../../templates/profile';
+import { profilePage } from '../../core/templates/profile';
 import type { Env, Variables, User } from '../../types';
 import { renderPage } from '../../core/render/chrome';
 import { ROLE_LABELS } from '../../core/auth/roles';

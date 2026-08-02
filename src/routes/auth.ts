@@ -25,7 +25,7 @@ import { normalizeRoles } from '../core/auth/roles';
 import { loadAppBrandingSettings } from '../core/db/settings';
 import { viewRevision } from '../core/http/view-revision';
 import { buildTranslationCatalog, resolveUiLocale } from '../core/i18n';
-import { loginPage } from '../templates/login';
+import { loginPage } from '../core/templates/login';
 import type { Env, Variables, JWTPayload } from '../types';
 import type { AppContext } from '../core/http/context';
 import {

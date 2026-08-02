@@ -1,10 +1,10 @@
 // Tag and taxonomy management.
 
 import { Hono } from 'hono';
-import { taxonomyFormPage, taxonomiesPage } from '../../templates/taxonomies';
-import type { TaxonomyFormData } from '../../templates/taxonomies';
-import { tagFormPage, tagsPage } from '../../templates/tags';
-import type { TagTaxonomyOption } from '../../templates/tags';
+import { taxonomyFormPage, taxonomiesPage } from '../../core/templates/taxonomies';
+import type { TaxonomyFormData } from '../../core/templates/taxonomies';
+import { tagFormPage, tagsPage } from '../../core/templates/tags';
+import type { TagTaxonomyOption } from '../../core/templates/tags';
 import { cmsConfig } from '../../cms-config';
 import {
   getLectLocalizedValue,

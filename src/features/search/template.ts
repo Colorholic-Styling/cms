@@ -1,6 +1,6 @@
 import { adminLayout, type BaseTemplateProps } from '../../core/render/layout';
 import { renderView } from '../../core/render/liquid';
-import type { DashboardPage } from '../../templates/dashboard';
+import type { DashboardPage } from '../../core/templates/dashboard';
 
 interface AdvancedSearchTagOption {
   id: number;

@@ -5,8 +5,8 @@
 // the order is local and visible.
 
 import { Hono } from 'hono';
-import { editorPage } from '../../../templates/editor';
-import { readPage } from '../../../templates/read';
+import { editorPage } from '../../../core/templates/editor';
+import { readPage } from '../../../core/templates/read';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { announcePageEvent } from '../../../core/page-events';
 import { viewSourceFor } from '../../../core/render/view-source';

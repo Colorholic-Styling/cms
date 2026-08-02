@@ -4,17 +4,17 @@
 // client-side snippet loading, CRDT, or presence — so it is safe to show a page
 // without any risk of accidental edits.
 
-import { adminLayout, escHtml, type BaseTemplateProps } from '../core/render/layout';
+import { adminLayout, escHtml, type BaseTemplateProps } from '../render/layout';
 import {
   renderStructuredEditor,
   type ItemGroupRenderModel,
   type PageFieldRenderModel,
   type StructuredEditorRenderModel,
 } from './editor';
-import type { Page, PageVersion, Tag, Taxonomy } from '../types';
-import type { BlueprintProps, Lect } from '../core/db/lect';
-import type { CmsConfig } from '../cms-config';
-import type { UiTranslator } from '../core/i18n';
+import type { Page, PageVersion, Tag, Taxonomy } from '../../types';
+import type { BlueprintProps, Lect } from '../db/lect';
+import type { CmsConfig } from '../../cms-config';
+import type { UiTranslator } from '../i18n';
 
 type ItemRowRenderModel = ItemGroupRenderModel['rows'][number];
 

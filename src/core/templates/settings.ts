@@ -1,5 +1,5 @@
-import { adminLayout, type BaseTemplateProps } from '../core/render/layout';
-import { renderView } from '../core/render/liquid';
+import { adminLayout, type BaseTemplateProps } from '../render/layout';
+import { renderView } from '../render/liquid';
 
 export interface SystemSettingsMenuOption {
   value: string;

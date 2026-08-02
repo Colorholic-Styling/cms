@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requirePermission } from '../../core/auth/guards';
 import { coreExtensions } from '../../core/extensions';
 import { featureInstalled } from '../../features';
-import { systemSettingsPage } from '../../templates/settings';
+import { systemSettingsPage } from '../../core/templates/settings';
 import type { Env, Variables } from '../../types';
 import { logAudit } from '../../core/db/audit';
 import { renderPage } from '../../core/render/chrome';

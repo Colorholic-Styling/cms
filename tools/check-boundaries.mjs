@@ -118,8 +118,8 @@ for (const forbidden of FORBIDDEN_IN_CHROME) {
   if (full.has(forbidden)) failures.push(`${CHROME} reaches ${forbidden}; every admin render would pay for it`);
 }
 
-// 3. Nothing outside src/features/ may reach into it — not core, routes,
-//    templates or the entrypoint — except the generated registries.
+// 3. Nothing outside src/features/ may reach into it — not core, routes or
+//    the entrypoint — except the generated registries.
 //
 //    This is what makes a feature droppable: `rm -rf src/features/<id>` plus
 //    its key in cms.features.json has to leave a tree that still compiles.
@@ -131,7 +131,6 @@ const OUTSIDE_FEATURES = (file) => (
   (
     file.startsWith('src/core/')
     || file.startsWith('src/routes/')
-    || file.startsWith('src/templates/')
     || file === 'src/index.ts'
   )
 );

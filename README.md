@@ -717,8 +717,8 @@ dependency, validated by `assertFeatureRegistry` at startup; today none
 declares one.
 
 `npm run check:boundaries` enforces this. Nothing outside `src/features/` may
-import a feature — not `src/core/`, not `src/routes/`, not `src/templates/`,
-not `src/index.ts` — and no feature may import a sibling it has not declared.
+import a feature — not `src/core/`, not `src/routes/`, not `src/index.ts` —
+and no feature may import a sibling it has not declared.
 Type-only imports count, because `tsc` fails on those too: an `import type`
 reaching into a feature is exactly how a feature stays undroppable while
 looking clean.
@@ -934,6 +934,7 @@ features on and off.
 │   │   ├── schema.sql     # Core tables (users, pages, tags, roles, locales…)
 │   │   ├── views/         # The core slice of the view tree — layout, sections,
 │   │   │                  #   template maps, snippets, locales, browser scripts
+│   │   ├── templates/     # Server renderers for the core admin screens
 │   │   ├── http/          # Headers, rate limit, request context, D1 sessions, forms
 │   │   ├── auth/          # JWT, sessions, cookies, guards, roles, permissions
 │   │   ├── db/            # Page/tag stores, lect, search, settings, content config
@@ -952,11 +953,11 @@ features on and off.
 │   │   ├── runtime-content-types/  # Admin for DB-defined page/block types
 │   │   ├── i18n/          # Languages and translations admin
 │   │   └── users-roles/   # User and role administration
-│   ├── routes/
-│   │   ├── auth.ts        # OAuth 2.1 login / callback / logout / refresh
-│   │   └── admin/         # Capability-protected admin routes (pages, tags,
-│   │                      #   settings, profile, JSON API)
-│   └── templates/         # Server renderers for core admin screens
+│   └── routes/            # The composition root: the only hand-written code
+│       ├── auth.ts        #   that mounts feature routers and calls feature
+│       └── admin/         #   services. OAuth 2.1 login / callback / logout /
+│                          #   refresh, and the capability-protected admin
+│                          #   routes (pages, tags, settings, profile, JSON API)
 ├── assets-source/         # Sources compiled into dist/views/assets/ — kept OUT
 │   ├── admin.css          #   of the view tree because wrangler serves the
 │   └── richtext-md.js     #   assets directory publicly

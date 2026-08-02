@@ -1,15 +1,15 @@
-import { adminLayout, escHtml, type BaseTemplateProps } from '../core/render/layout';
-import { renderView } from '../core/render/liquid';
-import type { Page, PageVersion, Tag, Taxonomy } from '../types';
+import { adminLayout, escHtml, type BaseTemplateProps } from '../render/layout';
+import { renderView } from '../render/liquid';
+import type { Page, PageVersion, Tag, Taxonomy } from '../../types';
 import {
   getLectBlocks,
   getLectItems,
   getLectLocalizedValue,
   getLectPointer,
   getLectScalar,
-} from '../core/db/lect';
-import type { BlueprintProps, FieldProps, Lect, LectItem } from '../core/db/lect';
-import type { CmsConfig } from '../cms-config';
+} from '../db/lect';
+import type { BlueprintProps, FieldProps, Lect, LectItem } from '../db/lect';
+import type { CmsConfig } from '../../cms-config';
 
 interface RenderedLectFields {
   settingsFields: PageFieldRenderModel[];

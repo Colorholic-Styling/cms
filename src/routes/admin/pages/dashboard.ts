@@ -2,7 +2,7 @@
 // create-by-type entry points.
 
 import { Hono } from 'hono';
-import { dashboardPage } from '../../../templates/dashboard';
+import { dashboardPage } from '../../../core/templates/dashboard';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { advancedSearchPageTypes } from '../../../core/db/search';
 import { announcePageEvent } from '../../../core/page-events';
