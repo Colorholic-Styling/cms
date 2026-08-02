@@ -1,0 +1,22 @@
+/* GENERATED FILE — do not edit. Written by `npm run build:views` from
+   cms.features.json; imported by admin.css.
+
+   Tailwind scans these paths for class names. They are the *source* trees,
+   not the assembled dist/views, because `@source` honours .gitignore and
+   dist/ is ignored — Tailwind sees nothing there. Listing the enabled
+   features explicitly gets the same pruning by a route Tailwind can walk. */
+
+@source "../views";
+@source "../src/core/**/*.ts";
+@source "../src/templates/**/*.ts";
+@source "../src/routes/**/*.ts";
+@source "../src/features/credits";
+@source "../src/features/i18n";
+@source "../src/features/jobs";
+@source "../src/features/media";
+@source "../src/features/plugin-pointer-indexes";
+@source "../src/features/plugins";
+@source "../src/features/runtime-content-types";
+@source "../src/features/search";
+@source "../src/features/trash";
+@source "../src/features/users-roles";

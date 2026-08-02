@@ -1,0 +1,28 @@
+{
+  "trash": {
+    "all_types": "所有類型",
+    "last_hour": "最近一小時",
+    "page_in_trash": "個垃圾桶頁面",
+    "pages_in_trash": "個垃圾桶頁面",
+    "restore_last_hour": "還原最近一小時"
+  },
+  "view_strings": {
+    "sections_trash.actions": "操作",
+    "sections_trash.back_to_pages": "返回頁面",
+    "sections_trash.delete_forever": "永久刪除",
+    "sections_trash.deleted": "刪除時間",
+    "sections_trash.empty_all": "全部清空",
+    "sections_trash.first": "首頁",
+    "sections_trash.last": "末頁",
+    "sections_trash.next": "下一頁",
+    "sections_trash.page": "頁面",
+    "sections_trash.permanently_delete_this_page_this_cannot_be_undone": "要永久刪除此頁面嗎？此操作無法復原。",
+    "sections_trash.previous": "上一頁",
+    "sections_trash.restore": "還原",
+    "sections_trash.restore_all": "全部還原",
+    "sections_trash.show_only_this_type": "只顯示此類型",
+    "sections_trash.trash": "垃圾桶",
+    "sections_trash.trash_is_empty": "垃圾桶是空的。",
+    "sections_trash.type": "類型"
+  }
+}

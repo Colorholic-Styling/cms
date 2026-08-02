@@ -5,10 +5,11 @@
   "scripts": {
     "setup": "node tools/install.mjs",
     "dev": "npm run build && wrangler dev --local",
-    "build": "npm run build:features && npm run build:migrations && npm run build:css && npm run build:js",
+    "build": "npm run build:features && npm run build:migrations && npm run build:views && npm run build:css && npm run build:js",
     "build:migrations": "node tools/build-migrations.mjs",
-    "build:css": "tailwindcss -i assets-source/admin.css -o views/assets/admin.css --minify",
-    "build:js": "esbuild assets-source/richtext-md.js --bundle --minify --format=iife --outfile=views/assets/richtext-md.js",
+    "build:views": "node tools/build-views.mjs",
+    "build:css": "tailwindcss -i assets-source/admin.css -o dist/views/assets/admin.css --minify",
+    "build:js": "esbuild assets-source/richtext-md.js --bundle --minify --format=iife --outfile=dist/views/assets/richtext-md.js",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate": "wrangler d1 migrations apply cms --local && wrangler d1 migrations apply cms-published --local",
     "db:migrate:admin": "wrangler d1 migrations apply cms --local",
@@ -19,7 +20,7 @@
     "check:profiles": "node tools/check-profiles.mjs --quiet",
     "check:boundaries": "node tools/check-boundaries.mjs --quiet",
     "build:features": "node tools/build-features.mjs",
-    "check:generated": "node tools/build-features.mjs --check && node tools/build-migrations.mjs --check"
+    "check:generated": "node tools/build-features.mjs --check && node tools/build-migrations.mjs --check && node tools/build-views.mjs --check"
   },
   "dependencies": {
     "hono": "^4.12.33"

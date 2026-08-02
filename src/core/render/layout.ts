@@ -11,6 +11,32 @@ export interface SidebarNavItem {
   isActive?: boolean;
 }
 
+/**
+ * Browser scripts the core chrome always loads. Features append to this via
+ * CmsFeature.clientAssets; the combined list drives both the bootstrap shell
+ * below and the `<script>` tags in layout/default.liquid, which used to be two
+ * hand-maintained copies of the same seven paths.
+ */
+export const CORE_CLIENT_ASSETS: readonly string[] = [
+  '/assets/table-filter.js',
+  '/assets/privacy-table.js',
+  '/assets/color-tag.js',
+  '/assets/picture-field.js',
+  '/assets/page-ref.js',
+  '/assets/richtext-md.js',
+];
+
+/**
+ * The engine and the renderer, loaded before anything else and only in the
+ * bootstrap: client-render.js replaces the whole document with the rendered
+ * layout, so re-listing them in default.liquid would reload the renderer into
+ * the page it just produced.
+ */
+const BOOTSTRAP_CLIENT_ASSETS: readonly string[] = [
+  '/assets/liquid.browser.min.js',
+  '/assets/client-render.js',
+];
+
 /** A compact balance contributed to the sidebar by an optional feature. */
 export interface SidebarWallet {
   currency: string;
@@ -95,6 +121,8 @@ export interface BaseTemplateProps extends NavFlags {
   catalogHref: string;
   /** IANA timezone used by client-side date/time localization. */
   systemTimezone: string;
+  /** Core scripts plus every installed feature's; built by buildBaseProps. */
+  clientAssets?: readonly string[];
   canManageUsers: boolean;
   canManageRoles: boolean;
   canManagePlugins: boolean;
@@ -145,6 +173,7 @@ export async function adminLayout(
     uiLocaleReturnTo: base.uiLocaleReturnTo,
     catalogHref: base.catalogHref,
     systemTimezone: base.systemTimezone,
+    clientAssets: base.clientAssets,
     approvedPluginAssets: opts.approvedPluginAssets,
     editorSync: opts.editorSync ?? false,
   });
@@ -187,6 +216,9 @@ export interface LayoutOptions extends NavFlags {
   uiLocaleReturnTo?: string;
   catalogHref?: string;
   systemTimezone?: string;
+  /** Core + installed features' browser scripts. Defaults to CORE_CLIENT_ASSETS
+   *  for renders with no chrome behind them (the login page). */
+  clientAssets?: readonly string[];
   /** Admin-approved plugin assets available to the current page's plugin (if any). */
   approvedPluginAssets?: ApprovedPluginAssets;
   /** Load the CMS-owned live editor presence/sync script for plugin edit views. */
@@ -205,6 +237,11 @@ export async function layout(views: Fetcher, opts: LayoutOptions): Promise<strin
   const nonce = currentCspNonce();
   const revision = opts.viewRevision || 'dev';
   const revisionQuery = assetRevisionQuery(revision);
+  // The bootstrap shell and the document client-render.js swaps in need the
+  // same scripts, minus the engine (already running) and plus editor-sync
+  // (request-scoped: only plugin edit views ask for it).
+  const installedAssets = opts.clientAssets ?? CORE_CLIENT_ASSETS;
+  const documentAssets = opts.editorSync ? [...installedAssets, '/assets/editor-sync.js'] : [...installedAssets];
   const layoutData = {
     ...opts,
     body: isClientView(opts.body) ? '' : opts.body,
@@ -247,6 +284,7 @@ export async function layout(views: Fetcher, opts: LayoutOptions): Promise<strin
     uiLocaleAction: opts.uiLocaleAction || '/admin/profile/locale',
     uiLocaleReturnTo: opts.uiLocaleReturnTo || '/admin',
     systemTimezone: opts.systemTimezone || '+0000',
+    clientAssets: documentAssets,
   };
   const payload = {
     nonce,
@@ -272,14 +310,9 @@ export async function layout(views: Fetcher, opts: LayoutOptions): Promise<strin
   <div id="cms-client-root" class="min-h-full">${loadingMarkup('100vh')}</div>
   <script id="cms-render-payload" type="application/json" nonce="${escHtml(nonce)}">${jsonScript(payload)}</script>
   ${admin ? `<script nonce="${escHtml(nonce)}">${adminSessionKeepaliveScript()}</script>` : ''}
-  <script src="/assets/liquid.browser.min.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/client-render.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/table-filter.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/privacy-table.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/color-tag.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/picture-field.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/page-ref.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
-  <script src="/assets/richtext-md.js${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>
+  ${[...BOOTSTRAP_CLIENT_ASSETS, ...installedAssets]
+    .map((src) => `<script src="${escHtml(src)}${escHtml(revisionQuery)}" nonce="${escHtml(nonce)}" defer></script>`)
+    .join('\n  ')}
 </body>
 </html>`;
 }

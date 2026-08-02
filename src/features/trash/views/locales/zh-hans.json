@@ -1,0 +1,28 @@
+{
+  "trash": {
+    "all_types": "所有类型",
+    "last_hour": "最近一小时",
+    "page_in_trash": "个回收站页面",
+    "pages_in_trash": "个回收站页面",
+    "restore_last_hour": "恢复最近一小时"
+  },
+  "view_strings": {
+    "sections_trash.actions": "操作",
+    "sections_trash.back_to_pages": "返回页面",
+    "sections_trash.delete_forever": "永久删除",
+    "sections_trash.deleted": "删除时间",
+    "sections_trash.empty_all": "全部清空",
+    "sections_trash.first": "首页",
+    "sections_trash.last": "末页",
+    "sections_trash.next": "下一页",
+    "sections_trash.page": "页面",
+    "sections_trash.permanently_delete_this_page_this_cannot_be_undone": "要永久删除此页面吗？此操作无法撤销。",
+    "sections_trash.previous": "上一页",
+    "sections_trash.restore": "恢复",
+    "sections_trash.restore_all": "全部恢复",
+    "sections_trash.show_only_this_type": "仅显示此类型",
+    "sections_trash.trash": "回收站",
+    "sections_trash.trash_is_empty": "回收站为空。",
+    "sections_trash.type": "类型"
+  }
+}

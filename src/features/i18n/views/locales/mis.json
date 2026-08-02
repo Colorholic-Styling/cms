@@ -1,0 +1,30 @@
+{
+  "i18n": {
+    "fields": {
+      "code": "Locale code",
+      "content_enabled": "Content language",
+      "direction": "Direction",
+      "fallback": "Fallback",
+      "file_value": "Locale file value",
+      "key": "Translation key",
+      "label": "Label",
+      "locale": "Locale",
+      "override_value": "Database override",
+      "ui_enabled": "CMS interface",
+      "value": "Translated value",
+      "weight": "Weight"
+    },
+    "languages": {
+      "add": "Add language",
+      "description": "Manage content languages and CMS interface locales stored in the database.",
+      "title": "Languages"
+    },
+    "translations": {
+      "description": "Database values override bundled locale files. Missing values fall back to English, then to the translation key.",
+      "empty": "No bundled or database translations for this locale.",
+      "manage": "Manage translations",
+      "save": "Save translation",
+      "title": "Translations"
+    }
+  }
+}

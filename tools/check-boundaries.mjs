@@ -14,7 +14,7 @@
 // Usage: node scripts/check-boundaries.mjs [--quiet]
 // ============================================================
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -243,6 +243,108 @@ const routerIds = [...(readFileSync(path.join(rootDir, ROUTERS), 'utf8').matchAl
 for (const id of routerIds) {
   if (!featureIds.includes(id)) {
     failures.push(`${ROUTERS} mounts a router for "${id}", which is not installed in ${REGISTRY}`);
+  }
+}
+
+// ── View ownership ───────────────────────────────────────────────────────────
+//
+// Views are feature-sliced the same way code is (see tools/build-views.mjs),
+// and the same accretion applies: nothing fails when a core screen starts
+// rendering a feature's section or using its translation key, right up until
+// that feature is dropped and the screen 404s or renders a raw key.
+//
+// Paths are flat at runtime — /sections/trash.liquid, not
+// /features/trash/sections/trash.liquid — so ownership is not visible in the
+// reference itself. These rules recover it from the assembled tree.
+
+/** relative view path (e.g. "sections/trash.liquid") -> 'core' | feature id. */
+const viewOwners = new Map();
+(function collectViews() {
+  const record = (dir, owner, prefix = '') => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name.startsWith('.')) continue;
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) record(path.join(dir, entry.name), owner, rel);
+      else viewOwners.set(rel, owner);
+    }
+  };
+  record(path.join(rootDir, 'views'), 'core');
+  const featuresRoot = path.join(rootDir, 'src', 'features');
+  for (const entry of readdirSync(featuresRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    record(path.join(featuresRoot, entry.name, 'views'), entry.name);
+  }
+})();
+
+/** The feature that owns a source file, or 'core'. */
+const ownerOfSource = (file) => featureOf(file) ?? 'core';
+
+// V1. A view path named in TypeScript must belong to the naming file's own
+//     slice (or to core, which everything may use). This is rule 3 for views:
+//     a core screen that renders a feature's section is a screen that breaks
+//     when the feature is dropped, and tsc cannot see it.
+const VIEW_PATH = /'(\/(?:templates|sections|snippets)\/[\w\-/.]+\.(?:json|liquid))'/g;
+for (const file of files) {
+  const caller = ownerOfSource(file);
+  for (const [, literal] of readFileSync(path.join(rootDir, file), 'utf8').matchAll(VIEW_PATH)) {
+    const owner = viewOwners.get(literal.slice(1));
+    if (!owner) {
+      failures.push(`${file} names ${literal}, which no views/ directory provides`);
+    } else if (owner !== 'core' && owner !== caller) {
+      failures.push(`${file} names ${literal}, owned by the "${owner}" feature; move the view or the caller`);
+    }
+  }
+}
+
+// V2. Same rule one level down: a JSON template names section types, and a
+//     core template naming a feature's section fails only once that feature is
+//     gone.
+for (const [rel, owner] of viewOwners) {
+  if (!rel.startsWith('templates/') || !rel.endsWith('.json')) continue;
+  const source = owner === 'core'
+    ? path.join(rootDir, 'views', rel)
+    : path.join(rootDir, 'src', 'features', owner, 'views', rel);
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(source, 'utf8'));
+  } catch (error) {
+    failures.push(`${path.relative(rootDir, source)} is not valid JSON: ${error.message}`);
+    continue;
+  }
+  for (const section of Object.values(parsed.sections ?? {})) {
+    if (!section?.type) continue;
+    const sectionOwner = viewOwners.get(`sections/${section.type}.liquid`);
+    if (!sectionOwner) {
+      failures.push(`${path.relative(rootDir, source)} uses section "${section.type}", which no views/ directory provides`);
+    } else if (sectionOwner !== 'core' && sectionOwner !== owner) {
+      failures.push(`${path.relative(rootDir, source)} uses section "${section.type}", owned by the "${sectionOwner}" feature`);
+    }
+  }
+}
+
+// V3. Translation keys travel with the view that uses them. `view_strings` keys
+//     are named after the view file (view_strings.sections_trash.*), so a key
+//     used by a feature's section must live in that feature's catalog — and a
+//     core template must not reach for a feature's key, which would render as
+//     the raw key once the feature is dropped.
+const viewStringKey = /view_strings\.([\w]+)\./g;
+for (const [rel, owner] of viewOwners) {
+  if (!rel.endsWith('.liquid')) continue;
+  const source = owner === 'core'
+    ? path.join(rootDir, 'views', rel)
+    : path.join(rootDir, 'src', 'features', owner, 'views', rel);
+  const seen = new Set();
+  for (const [, key] of readFileSync(source, 'utf8').matchAll(viewStringKey)) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    // A key names a view file: sections_trash -> sections/trash.liquid.
+    const [kind, ...rest] = key.split('_');
+    const named = `${kind}/${rest.join('-')}.liquid`;
+    const keyOwner = viewOwners.get(named);
+    if (keyOwner && keyOwner !== 'core' && keyOwner !== owner) {
+      failures.push(`${path.relative(rootDir, source)} uses view_strings.${key}.*, named after a view the "${keyOwner}" feature owns`);
+    }
   }
 }
 

@@ -1,0 +1,30 @@
+{
+  "i18n": {
+    "fields": {
+      "code": "語言代碼",
+      "content_enabled": "內容語言",
+      "direction": "方向",
+      "fallback": "後備語言",
+      "file_value": "語言檔內容",
+      "key": "翻譯鍵",
+      "label": "標籤",
+      "locale": "語言",
+      "override_value": "資料庫覆蓋值",
+      "ui_enabled": "CMS 介面",
+      "value": "翻譯內容",
+      "weight": "權重"
+    },
+    "languages": {
+      "add": "新增語言",
+      "description": "管理資料庫中的內容語言及 CMS 介面語言。",
+      "title": "語言"
+    },
+    "translations": {
+      "description": "資料庫中的值會覆蓋內置語言檔。缺少的值會先回退至英文，最後顯示翻譯鍵。",
+      "empty": "此語言沒有內置或資料庫翻譯。",
+      "manage": "管理翻譯",
+      "save": "儲存翻譯",
+      "title": "翻譯"
+    }
+  }
+}

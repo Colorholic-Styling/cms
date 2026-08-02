@@ -59,7 +59,7 @@ import {
   type PluginCreditRow,
   type PluginLimitRow,
   type PluginListItem,
-} from '../../../templates/plugins-manage';
+} from '../templates/manage';
 import type { PluginManifest, PluginPageTypeAccess } from '../types';
 
 export const pluginsManageRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();

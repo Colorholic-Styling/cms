@@ -1,0 +1,30 @@
+{
+  "i18n": {
+    "fields": {
+      "code": "语言代码",
+      "content_enabled": "内容语言",
+      "direction": "方向",
+      "fallback": "回退语言",
+      "file_value": "语言文件内容",
+      "key": "翻译键",
+      "label": "标签",
+      "locale": "语言",
+      "override_value": "数据库覆盖值",
+      "ui_enabled": "CMS 界面",
+      "value": "翻译内容",
+      "weight": "权重"
+    },
+    "languages": {
+      "add": "添加语言",
+      "description": "管理数据库中的内容语言和 CMS 界面语言。",
+      "title": "语言"
+    },
+    "translations": {
+      "description": "数据库中的值会覆盖内置语言文件。缺失的值会回退到英语，最后显示翻译键。",
+      "empty": "此语言没有内置或数据库翻译。",
+      "manage": "管理翻译",
+      "save": "保存翻译",
+      "title": "翻译"
+    }
+  }
+}

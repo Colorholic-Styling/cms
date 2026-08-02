@@ -27,6 +27,7 @@ import {
   type SidebarMenuItemKey,
 } from '../db/settings';
 
+import { CORE_CLIENT_ASSETS } from './layout';
 import type { BaseTemplateProps, SidebarNavItem } from './layout';
 import { withActiveSidebarItems } from './sidebar';
 import { localeRegistry, resolveUiLocale } from '../i18n';
@@ -185,6 +186,7 @@ export async function buildBaseProps(c: AppContext): Promise<BaseTemplateProps> 
     uiLocaleReturnTo: `${requestUrl.pathname}${requestUrl.search}`,
     catalogHref: `/admin/i18n/catalog/${encodeURIComponent(uiLocale.code)}`,
     systemTimezone,
+    clientAssets: [...CORE_CLIENT_ASSETS, ...features.flatMap((feature) => feature.clientAssets ?? [])],
     canManageUsers: permissions.has('users:manage'),
     canManageRoles: permissions.has('roles:manage'),
     canManagePlugins: permissions.has('plugin:manage'),

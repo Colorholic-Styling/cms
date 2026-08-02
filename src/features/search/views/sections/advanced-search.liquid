@@ -204,28 +204,28 @@
       <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div class="grid gap-3 sm:grid-cols-[minmax(9rem,12rem)_minmax(12rem,16rem)]">
           <label class="block">
-            <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.sections_advanced_search.bulk_action" | t }}</span>
+            <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.shared_bulk_actions.bulk_action" | t }}</span>
             <select name="bulk_action" data-bulk-action class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="publish">{{ "view_strings.sections_advanced_search.publish" | t }}</option>
-              <option value="unpublish">{{ "view_strings.sections_advanced_search.unpublish" | t }}</option>
-              <option value="delete">{{ "view_strings.sections_advanced_search.move_to_trash" | t }}</option>
+              <option value="publish">{{ "view_strings.shared_bulk_actions.publish" | t }}</option>
+              <option value="unpublish">{{ "view_strings.shared_bulk_actions.unpublish" | t }}</option>
+              <option value="delete">{{ "view_strings.shared_bulk_actions.move_to_trash" | t }}</option>
             </select>
           </label>
           <label class="block">
-            <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.sections_advanced_search.apply_to" | t }}</span>
+            <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.shared_bulk_actions.apply_to" | t }}</span>
             <select name="scope" data-bulk-scope class="h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-indigo-500">
-              <option value="selected">{{ "view_strings.sections_advanced_search.selected_items" | t }}</option>
+              <option value="selected">{{ "view_strings.shared_bulk_actions.selected_items" | t }}</option>
               <option value="all">All {{ count }} results</option>
             </select>
           </label>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div class="text-sm text-gray-500"><span data-selected-count>0</span> {{ "view_strings.sections_advanced_search.selected" | t }}</div>
+          <div class="text-sm text-gray-500"><span data-selected-count>0</span> {{ "view_strings.shared_bulk_actions.selected" | t }}</div>
           <button type="submit"
-                  title="{{ "view_strings.sections_advanced_search.apply_bulk_action" | t }}"
-                  aria-label="{{ "view_strings.sections_advanced_search.apply_bulk_action" | t }}"
+                  title="{{ "view_strings.shared_bulk_actions.apply_bulk_action" | t }}"
+                  aria-label="{{ "view_strings.shared_bulk_actions.apply_bulk_action" | t }}"
                   class="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700">
-            {{ "view_strings.sections_advanced_search.apply" | t }}
+            {{ "view_strings.shared_bulk_actions.apply" | t }}
           </button>
         </div>
       </div>
@@ -238,7 +238,7 @@
         <tr>
           <th class="w-12 px-6 py-3">
             {% if hasResults %}
-              <input type="checkbox" data-bulk-select-all title="{{ "view_strings.sections_advanced_search.select_all_visible_pages" | t }}" aria-label="{{ "view_strings.sections_advanced_search.select_all_visible_pages" | t }}"
+              <input type="checkbox" data-bulk-select-all title="{{ "view_strings.shared_bulk_actions.select_all_visible_pages" | t }}" aria-label="{{ "view_strings.shared_bulk_actions.select_all_visible_pages" | t }}"
                      class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
             {% endif %}
           </th>
@@ -311,18 +311,18 @@
                   </a>
                   {% if page.isPublished %}
                     <form method="POST" action="{{ page.unpublishAction }}" class="inline shrink-0" data-confirm="{{ "view_strings.sections_advanced_search.unpublish_this_page" | t }}">
-                      <button type="submit" title="{{ "view_strings.sections_advanced_search.unpublish" | t }}" aria-label="Unpublish {{ page.name }}"
+                      <button type="submit" title="{{ "view_strings.shared_bulk_actions.unpublish" | t }}" aria-label="Unpublish {{ page.name }}"
                               class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-yellow-600 transition-colors hover:bg-yellow-50 hover:text-yellow-800">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#eye-off"></use></svg>
-                        <span class="sr-only">{{ "view_strings.sections_advanced_search.unpublish" | t }}</span>
+                        <span class="sr-only">{{ "view_strings.shared_bulk_actions.unpublish" | t }}</span>
                       </button>
                     </form>
                   {% else %}
                     <form method="POST" action="{{ page.publishAction }}" class="inline shrink-0">
-                      <button type="submit" title="{{ "view_strings.sections_advanced_search.publish" | t }}" aria-label="Publish {{ page.name }}"
+                      <button type="submit" title="{{ "view_strings.shared_bulk_actions.publish" | t }}" aria-label="Publish {{ page.name }}"
                               class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-green-600 transition-colors hover:bg-green-50 hover:text-green-800">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#cloud-upload"></use></svg>
-                        <span class="sr-only">{{ "view_strings.sections_advanced_search.publish" | t }}</span>
+                        <span class="sr-only">{{ "view_strings.shared_bulk_actions.publish" | t }}</span>
                       </button>
                     </form>
                   {% endif %}

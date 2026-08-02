@@ -131,6 +131,30 @@ describe('sidebar menu items by profile', () => {
     expect(keys).toContain('system');
   });
 
+  it('drives both script lists from one source', async () => {
+    // The bootstrap shell and layout/default.liquid used to hold two
+    // hand-maintained copies of the same paths; they now come from
+    // clientAssets, so a feature's script cannot reach one and miss the other.
+    const { CORE_CLIENT_ASSETS } = await import('../src/core/render/layout');
+    const html = await (await adminGet('/admin/trash')).text();
+    const bootstrap = [...html.matchAll(/<script src="([^"?]+)/g)].map((match) => match[1]);
+    const expected = [...CORE_CLIENT_ASSETS, ...features.flatMap((feature) => feature.clientAssets ?? [])];
+
+    expect(layoutData(html).clientAssets).toEqual(expected);
+    // The engine and the renderer load first and only here: client-render.js
+    // replaces the document with what default.liquid renders.
+    expect(bootstrap).toEqual(['/assets/liquid.browser.min.js', '/assets/client-render.js', ...expected]);
+  });
+
+  it('ships every declared client asset', async () => {
+    // A feature declaring a script the assembler does not place would render a
+    // <script> tag pointing at a 404 on every admin page.
+    for (const asset of features.flatMap((feature) => feature.clientAssets ?? [])) {
+      const response = await env.VIEWS.fetch(`https://views.local${asset}`);
+      expect(response.status, `${asset} is declared but not assembled`).toBe(200);
+    }
+  });
+
   it('tags every feature-owned entry with an id its feature claims', () => {
     // A typo'd `feature` would silently hide the entry in every profile.
     const owned = new Set(features.flatMap((feature) => feature.navKeys ?? []));

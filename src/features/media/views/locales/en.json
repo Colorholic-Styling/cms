@@ -1,0 +1,18 @@
+{
+  "view_strings": {
+    "sections_content_list.actions": "Actions",
+    "sections_content_list.content_list": "Content List",
+    "sections_content_list.delete": "Delete",
+    "sections_content_list.delete_file": "Delete file",
+    "sections_content_list.delete_this_file_this_cannot_be_undone_and_may_break_pages_that_referenc": "Delete this file? This cannot be undone and may break pages that reference it.",
+    "sections_content_list.linked_pages": "Linked pages",
+    "sections_content_list.media": "Media",
+    "sections_content_list.media_files_in_the_bucket_and_the_current_pages_that_reference_them_unli": "Media files in the bucket and the current pages that reference them. Unlinked files can be removed manually from the bucket.",
+    "sections_content_list.next_page": "Next page",
+    "sections_content_list.no_linked_pages": "No linked pages",
+    "sections_content_list.no_media_files_in_the_bucket": "No media files in the bucket.",
+    "sections_content_list.size": "Size",
+    "sections_content_list.the_media_bucket_is_not_configured_for_this_cms": "The media bucket is not configured for this CMS.",
+    "sections_content_list.uploaded": "Uploaded"
+  }
+}

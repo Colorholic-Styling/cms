@@ -1,0 +1,66 @@
+{
+  "types": {
+    "block_types": {
+      "description": "Reusable block definitions. Database blocks are editable here; config-file and plugin blocks are read-only.",
+      "edit_title": "Edit Block Type",
+      "new": "New Block Type",
+      "new_title": "New Block Type",
+      "title": "Block Types",
+      "view_title": "View Block Type"
+    },
+    "page_types": {
+      "description": "Database page types are editable here; config-file and plugin page types are read-only.",
+      "edit_title": "Edit Page Type",
+      "new": "New Page Type",
+      "new_title": "New Page Type",
+      "title": "Page Types",
+      "view_title": "View Page Type"
+    },
+    "source": {
+      "config": "Config",
+      "database": "Database",
+      "plugin": "Plugin"
+    }
+  },
+  "view_strings": {
+    "sections_block_type_form.blueprint_json_array": "Blueprint (JSON array)",
+    "sections_block_type_form.cannot_collide_with_a_config_or_existing_block": "). Cannot collide with a config or existing block.",
+    "sections_block_type_form.delete": "Delete",
+    "sections_block_type_form.delete_this_block_type_pages_using_it_keep_their_stored_content": "Delete this block type? Pages using it keep their stored content.",
+    "sections_block_type_form.field_definitions_for_this_block_e_g": "Field definitions for this block, e.g.",
+    "sections_block_type_form.logos": "logos",
+    "sections_block_type_form.name": "Name",
+    "sections_block_type_form.save": "Save",
+    "sections_block_type_form.slug": "Slug",
+    "sections_block_type_form.the_block_key_referenced_by_a_page_type_s_block_list_e_g": "The block key referenced by a page type's block list (e.g.",
+    "sections_block_type_form.this_block_type_is_defined_in_the_config_file_and_cannot_be_edited_here": "This block type is defined in the config file and cannot be edited here.",
+    "sections_block_type_form.weight": "Weight",
+    "sections_page_type_form.block_types": "Block Types",
+    "sections_page_type_form.blocks": "Blocks",
+    "sections_page_type_form.blocks_available_to_pages_of_this_type": "Blocks available to pages of this type.",
+    "sections_page_type_form.blueprint_json_array": "Blueprint (JSON array)",
+    "sections_page_type_form.cannot_collide_with_a_config_or_existing_type": "). Cannot collide with a config or existing type.",
+    "sections_page_type_form.delete": "Delete",
+    "sections_page_type_form.delete_this_page_type_existing_pages_keep_their_type_string": "Delete this page type? Existing pages keep their type string.",
+    "sections_page_type_form.event": "event",
+    "sections_page_type_form.field_definitions_e_g": "Field definitions, e.g.",
+    "sections_page_type_form.name": "Name",
+    "sections_page_type_form.no_block_types_defined_yet_add_some_under": "No block types defined yet. Add some under",
+    "sections_page_type_form.no_taxonomies_defined_yet_add_some_under": "No taxonomies defined yet. Add some under",
+    "sections_page_type_form.save": "Save",
+    "sections_page_type_form.slug": "Slug",
+    "sections_page_type_form.taxonomies": "Taxonomies",
+    "sections_page_type_form.taxonomies_shown_when_editing_pages_of_this_type": "Taxonomies shown when editing pages of this type.",
+    "sections_page_type_form.the_page_type_key_used_on_pages_e_g": "The page-type key used on pages (e.g.",
+    "sections_page_type_form.this_page_type_is_defined_in_the_config_file_and_cannot_be_edited_here": "This page type is defined in the config file and cannot be edited here.",
+    "sections_page_type_form.this_page_type_is_defined_in_the_config_file_or_a_plugin_you_can_enable_additional_blocks_and_taxonomies_below": "This page type is defined in the config file or a plugin. Its fields are read-only, but you can enable additional blocks and taxonomies below.",
+    "sections_page_type_form.weight": "Weight",
+    "sections_type_list.config": "config",
+    "sections_type_list.db": "db",
+    "sections_type_list.name": "Name",
+    "sections_type_list.nothing_here_yet": "Nothing here yet.",
+    "sections_type_list.slug": "Slug",
+    "sections_type_list.source": "Source",
+    "sections_type_list.view": "View"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "types": {
+    "block_types": {
+      "description": "可复用的区块定义。可在此编辑数据库区块；配置文件和插件提供的区块为只读。",
+      "edit_title": "编辑区块类型",
+      "new": "新建区块类型",
+      "new_title": "新建区块类型",
+      "title": "区块类型",
+      "view_title": "查看区块类型"
+    },
+    "page_types": {
+      "description": "可在此编辑数据库页面类型；配置文件和插件提供的页面类型为只读。",
+      "edit_title": "编辑页面类型",
+      "new": "新建页面类型",
+      "new_title": "新建页面类型",
+      "title": "页面类型",
+      "view_title": "查看页面类型"
+    },
+    "source": {
+      "config": "配置",
+      "database": "数据库",
+      "plugin": "插件"
+    }
+  },
+  "view_strings": {
+    "sections_block_type_form.blueprint_json_array": "Blueprint (JSON array)",
+    "sections_block_type_form.cannot_collide_with_a_config_or_existing_block": "). Cannot collide with a config or existing block.",
+    "sections_block_type_form.delete": "删除",
+    "sections_block_type_form.delete_this_block_type_pages_using_it_keep_their_stored_content": "Delete this block type? Pages using it keep their stored content.",
+    "sections_block_type_form.field_definitions_for_this_block_e_g": "Field definitions for this block, e.g.",
+    "sections_block_type_form.logos": "logos",
+    "sections_block_type_form.name": "名称",
+    "sections_block_type_form.save": "保存",
+    "sections_block_type_form.slug": "别名",
+    "sections_block_type_form.the_block_key_referenced_by_a_page_type_s_block_list_e_g": "The block key referenced by a page type's block list (e.g.",
+    "sections_block_type_form.this_block_type_is_defined_in_the_config_file_and_cannot_be_edited_here": "This block type is defined in the config file and cannot be edited here.",
+    "sections_block_type_form.weight": "权重",
+    "sections_page_type_form.block_types": "区块类型",
+    "sections_page_type_form.blocks": "区块",
+    "sections_page_type_form.blocks_available_to_pages_of_this_type": "Blocks available to pages of this type.",
+    "sections_page_type_form.blueprint_json_array": "Blueprint (JSON array)",
+    "sections_page_type_form.cannot_collide_with_a_config_or_existing_type": "). Cannot collide with a config or existing type.",
+    "sections_page_type_form.delete": "删除",
+    "sections_page_type_form.delete_this_page_type_existing_pages_keep_their_type_string": "Delete this page type? Existing pages keep their type string.",
+    "sections_page_type_form.event": "event",
+    "sections_page_type_form.field_definitions_e_g": "Field definitions, e.g.",
+    "sections_page_type_form.name": "名称",
+    "sections_page_type_form.no_block_types_defined_yet_add_some_under": "No block types defined yet. Add some under",
+    "sections_page_type_form.no_taxonomies_defined_yet_add_some_under": "No taxonomies defined yet. Add some under",
+    "sections_page_type_form.save": "保存",
+    "sections_page_type_form.slug": "别名",
+    "sections_page_type_form.taxonomies": "分类法",
+    "sections_page_type_form.taxonomies_shown_when_editing_pages_of_this_type": "Taxonomies shown when editing pages of this type.",
+    "sections_page_type_form.the_page_type_key_used_on_pages_e_g": "The page-type key used on pages (e.g.",
+    "sections_page_type_form.this_page_type_is_defined_in_the_config_file_and_cannot_be_edited_here": "This page type is defined in the config file and cannot be edited here.",
+    "sections_page_type_form.this_page_type_is_defined_in_the_config_file_or_a_plugin_you_can_enable_additional_blocks_and_taxonomies_below": "此页面类型由配置文件或插件定义。其字段为只读，但你可以在下方启用额外的区块和分类。",
+    "sections_page_type_form.weight": "权重",
+    "sections_type_list.config": "config",
+    "sections_type_list.db": "db",
+    "sections_type_list.name": "名称",
+    "sections_type_list.nothing_here_yet": "暂无内容。",
+    "sections_type_list.slug": "别名",
+    "sections_type_list.source": "来源",
+    "sections_type_list.view": "查看"
+  }
+}

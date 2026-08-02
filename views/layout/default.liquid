@@ -475,13 +475,13 @@
     })();
   </script>
   <link rel="stylesheet" href="/assets/admin.css{{ assetRevisionQuery }}">
-  <script src="/assets/table-filter.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  <script src="/assets/privacy-table.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  <script src="/assets/color-tag.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  <script src="/assets/picture-field.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  <script src="/assets/page-ref.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  <script src="/assets/richtext-md.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
-  {% if editorSync %}<script src="/assets/editor-sync.js{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>{% endif %}
+  {%- comment -%}
+    Core scripts plus every installed feature's, and editor-sync when the page
+    asked for it. Built server-side in core/render/layout.ts so this list and
+    the bootstrap shell's cannot drift apart.
+  {%- endcomment -%}
+  {% for asset in clientAssets %}<script src="{{ asset }}{{ assetRevisionQuery }}" nonce="{{ nonce }}" defer></script>
+  {% endfor %}
 </head>
 <body class="h-full overflow-x-hidden">
   {% if admin %}

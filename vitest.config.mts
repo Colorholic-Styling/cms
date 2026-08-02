@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-pool-workers';
 import { defineConfig } from 'vitest/config';
 import { availableFeatures, baselinePaths, buildCms, readManifest } from './tools/build-migrations.mjs';
+import { assembleViews, availableViewFeatures } from './tools/build-views.mjs';
 
 const rootDir = fileURLToPath(new URL('.', import.meta.url));
 
@@ -13,6 +14,14 @@ const rootDir = fileURLToPath(new URL('.', import.meta.url));
 // against a fresh assembly, and check that a lean profile really does drop
 // the disabled features' objects.
 const leanProfile = Object.fromEntries(availableFeatures().map((id) => [id, false]));
+
+// The view assembler is the same story: it runs in Node, so the assembled file
+// lists cross into workerd as bindings. A lean profile must leave no
+// feature-owned section, template or locale key behind.
+const viewLeanProfile = Object.fromEntries(availableViewFeatures().map((id) => [id, false]));
+const viewPaths = (features: Record<string, boolean>) => [...assembleViews(features).keys()].join(',');
+const assembledLocale = (features: Record<string, boolean>) =>
+  new TextDecoder().decode(assembleViews(features).get('locales/en.json'));
 
 export default defineConfig({
   plugins: [
@@ -41,6 +50,11 @@ export default defineConfig({
           TEST_ASSEMBLED_BASELINE: buildCms(readManifest()),
           TEST_ASSEMBLED_LEAN_BASELINE: buildCms(leanProfile),
           TEST_AVAILABLE_FEATURES: availableFeatures().join(','),
+          TEST_AVAILABLE_VIEW_FEATURES: availableViewFeatures().join(','),
+          TEST_ASSEMBLED_VIEW_PATHS: viewPaths(readManifest()),
+          TEST_ASSEMBLED_LEAN_VIEW_PATHS: viewPaths(viewLeanProfile),
+          TEST_ASSEMBLED_VIEW_LOCALE: assembledLocale(readManifest()),
+          TEST_ASSEMBLED_LEAN_VIEW_LOCALE: assembledLocale(viewLeanProfile),
         },
       },
     })),

@@ -24,6 +24,14 @@ export interface CmsFeature {
    */
   readonly navKeys?: readonly string[];
   /**
+   * Browser scripts this feature's screens need, as `/assets/<file>.js` paths
+   * served from its views/assets/. They are appended to the core list on every
+   * admin page, so an uninstalled feature's script is neither requested nor
+   * assembled — the two used to be independent, and a dropped feature left a
+   * `<script>` tag pointing at a file the build no longer shipped.
+   */
+  readonly clientAssets?: readonly string[];
+  /**
    * Extra props merged into every admin render. Runs in parallel with the
    * chrome's own queries, so keep it to a bounded, cheap lookup.
    */

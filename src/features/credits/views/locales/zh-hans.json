@@ -1,0 +1,62 @@
+{
+  "credits": {
+    "currency": {
+      "credit": "点数",
+      "diamond": "钻石"
+    },
+    "currency_description": {
+      "credit": "部分操作会消耗点数。如需充值，请联系管理员。",
+      "diamond": "高级操作（例如发送短信和 WhatsApp 消息）会消耗钻石。如需充值，请联系管理员。"
+    },
+    "summary": {
+      "free": "免费",
+      "metered_per": "按以下单位计费：",
+      "monthly_advance_per": "每月预付，按以下单位计费：",
+      "monthly_arrears_per": "每月后付，按以下单位计费：",
+      "on_create": "创建时：",
+      "per": "每个",
+      "per_parent_page": "每个父页面",
+      "per_second": "每秒",
+      "total": "总计",
+      "unlimited": "无限制"
+    },
+    "unit": {
+      "credit": "点",
+      "diamond": "钻"
+    },
+    "wallet": {
+      "adjust_description": "正数为发放，负数为扣除；余额不会低于零。",
+      "donate_confirm": "要将该金额移入共享池吗？此操作无法撤销。",
+      "donate_title": "捐赠到共享池",
+      "grant_confirm": "要从共享池向该用户发放此金额吗？",
+      "grant_description": "将该金额从站点共享池转入此用户的余额。",
+      "grant_submit": "从共享池发放",
+      "no_activity": "暂无活动记录。",
+      "no_pool_activity": "暂无共享池活动。",
+      "send_confirm": "要发送该金额吗？此操作无法撤销。",
+      "send_description": "通过电子邮件将余额转移给其他用户。管理员不能接收转账。",
+      "send_title": "转给其他用户",
+      "shared_pool_description": "共享池属于所有用户；当个人余额用尽时，它会支付收费操作。您可以将部分余额移入其中。",
+      "shared_pool_title": "共享池"
+    }
+  },
+  "view_strings": {
+    "sections_credit_summary.action": "操作",
+    "sections_credit_summary.all_chargeable_actions_declared_by_enabled_plugins_and_the_prices_curren": "所有已启用插件声明的收费操作，以及 CMS 当前采用的价格。",
+    "sections_credit_summary.chargeable_actions": "收费操作",
+    "sections_credit_summary.charged": "收费方式",
+    "sections_credit_summary.configure": "配置",
+    "sections_credit_summary.credit_summary": "点数摘要",
+    "sections_credit_summary.effective_limit": "实际限制",
+    "sections_credit_summary.effective_price": "实际价格",
+    "sections_credit_summary.limit": "限制",
+    "sections_credit_summary.manage_plugins": "管理插件",
+    "sections_credit_summary.no_enabled_plugin_declares_chargeable_actions": "没有已启用的插件声明收费操作。",
+    "sections_credit_summary.no_enabled_plugin_declares_usage_limits": "没有已启用的插件声明用量限制。",
+    "sections_credit_summary.paid_actions": "收费操作",
+    "sections_credit_summary.plugin": "插件",
+    "sections_credit_summary.plugins_with_charges": "包含收费项目的插件",
+    "sections_credit_summary.scope": "范围",
+    "sections_credit_summary.usage_limits": "用量限制"
+  }
+}

@@ -1,6 +1,7 @@
-/* Admin UI stylesheet – compiled by `npm run build:css` into views/assets/admin.css.
-   Lives outside views/ because wrangler serves that whole directory as public assets.
-   Replaces the Tailwind Play CDN so the CSP can drop remote and inline script sources.
+/* Admin UI stylesheet – compiled by `npm run build:css` into dist/views/assets/admin.css.
+   Lives outside the view tree because wrangler serves that whole directory as
+   public assets. Replaces the Tailwind Play CDN so the CSP can drop remote and
+   inline script sources.
 
    Theme: a dark "sports-TV / scoreboard" skin — near-black navy canvas, a single
    electric-lime accent, monospaced upper-case labels and tight display headings.
@@ -9,7 +10,14 @@
    neutrals whose intent conflicts (e.g. text-gray-900 headings vs bg-gray-900
    sidebar) need explicit overrides at the bottom of this file. No markup changes. */
 
-@import "tailwindcss";
+/* Class detection is scoped deliberately, so the stylesheet prunes with the
+   feature profile instead of always carrying every screen's utilities.
+   Automatic detection is off (`source(none)`); the scanned paths come from
+   tailwind-sources.css, which `npm run build:views` regenerates from
+   cms.features.json and which therefore lists only the enabled features.
+   Run that before build:css — a stale list compiles the wrong profile. */
+@import "tailwindcss" source(none);
+@import "./tailwind-sources.css";
 
 [data-richtext-preview]:empty::before {
   color: var(--color-gray-400);
@@ -46,10 +54,6 @@
 .rating-stars label:hover,
 .rating-stars label:hover ~ label { color: var(--color-amber-400); }
 .rating-stars input:focus-visible + label { outline: 2px solid var(--color-indigo-500); outline-offset: 2px; border-radius: 0.25rem; }
-
-/* Scan templates and the TS files that emit HTML markup. */
-@source "../views";
-@source "../src";
 
 @theme {
   /* ---- Typography ------------------------------------------------------- */

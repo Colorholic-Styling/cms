@@ -1,0 +1,28 @@
+{
+  "trash": {
+    "all_types": "All types",
+    "last_hour": "Last Hour",
+    "page_in_trash": "page in trash",
+    "pages_in_trash": "pages in trash",
+    "restore_last_hour": "Restore Last Hour"
+  },
+  "view_strings": {
+    "sections_trash.actions": "Actions",
+    "sections_trash.back_to_pages": "Back to Pages",
+    "sections_trash.delete_forever": "Delete Forever",
+    "sections_trash.deleted": "Deleted",
+    "sections_trash.empty_all": "Empty All",
+    "sections_trash.first": "First",
+    "sections_trash.last": "Last",
+    "sections_trash.next": "Next",
+    "sections_trash.page": "Page",
+    "sections_trash.permanently_delete_this_page_this_cannot_be_undone": "Permanently delete this page? This cannot be undone.",
+    "sections_trash.previous": "Previous",
+    "sections_trash.restore": "Restore",
+    "sections_trash.restore_all": "Restore All",
+    "sections_trash.show_only_this_type": "Show only this type",
+    "sections_trash.trash": "Trash",
+    "sections_trash.trash_is_empty": "Trash is empty.",
+    "sections_trash.type": "Type"
+  }
+}
