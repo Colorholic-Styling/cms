@@ -78,6 +78,11 @@ describe('view assembly', () => {
     }
   });
 
+  it('does not ship source-only locale catalogs', () => {
+    expect(full).not.toContain('locales/en.default.json');
+    expect(lean).not.toContain('locales/en.default.json');
+  });
+
   it('merges each feature\'s locale fragment into the shared catalog', () => {
     const catalog = JSON.parse(env.TEST_ASSEMBLED_VIEW_LOCALE);
     expect(catalog.trash).toBeDefined();

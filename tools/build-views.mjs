@@ -71,6 +71,15 @@ function isIgnored(name) {
   return name.startsWith('.');
 }
 
+/**
+ * Source-only locale catalogs are used by Liquid/static checks but are not
+ * runtime view assets. Keep them in the source tree without treating their
+ * suffix as a UI language (or shipping them to dist/views).
+ */
+function isSourceOnlyLocale(rel) {
+  return rel.startsWith(`${LOCALES}/`) && rel.endsWith('.default.json');
+}
+
 /** Every file under `dir`, as paths relative to it, sorted. */
 function walk(dir, prefix = '') {
   if (!existsSync(dir)) return [];
@@ -157,6 +166,7 @@ export function assembleViews(features) {
   const localeOf = (rel) => (rel.startsWith(`${LOCALES}/`) && rel.endsWith('.json') ? rel.slice(LOCALES.length + 1, -'.json'.length) : null);
 
   for (const rel of walk(coreViewsDir)) {
+    if (isSourceOnlyLocale(rel)) continue;
     const lang = localeOf(rel);
     if (lang) {
       catalogs.set(lang, JSON.parse(readFileSync(path.join(coreViewsDir, rel), 'utf8')));
@@ -171,6 +181,7 @@ export function assembleViews(features) {
     const dir = path.join(featuresDir, id, 'views');
     const seenLangs = new Set();
     for (const rel of walk(dir)) {
+      if (isSourceOnlyLocale(rel)) continue;
       const lang = localeOf(rel);
       if (lang) {
         if (!catalogs.has(lang)) {
