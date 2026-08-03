@@ -26,7 +26,7 @@ import {
   generatePluginSecret,
   type PluginInput,
 } from '../store';
-import { approveAsset, computeIntegrity, getAssetApproval, listApprovals, revokeAllAssets, revokeAsset } from '../assets';
+import { approveAsset, computeIntegrity, getAssetApproval, inspectAssetHealth, listApprovals, revokeAllAssets, revokeAsset } from '../assets';
 import {
   approvePageTypeAccess,
   getPageTypeApproval,
@@ -151,15 +151,19 @@ function readForm(form: FormData): { input: PluginInput | null; error: string | 
 pluginsManageRoutes.get('/plugins-manage', async (c) => {
   const [rows, resolved] = await Promise.all([listPlugins(c.env.DB), getPlugins(c.env)]);
   // resolved plugins are keyed by their base URL (ResolvedPlugin.binding).
-  const byUrl = new Map(resolved.map((p) => [p.binding, p.manifest]));
+  const byUrl = new Map(resolved.map((p) => [p.binding, p]));
 
-  const plugins: PluginListItem[] = rows.map((row) => {
-    const manifest = byUrl.get(row.url);
+  const plugins: PluginListItem[] = await Promise.all(rows.map(async (row) => {
+    const plugin = byUrl.get(row.url);
+    const manifest = plugin?.manifest;
     const status: PluginListItem['status'] = !row.enabled
       ? 'disabled'
       : manifest
         ? 'active'
         : 'unreachable';
+    const assetHealth = plugin && manifest?.assets?.length
+      ? await inspectAssetHealth(c.env.DB, manifest.id, plugin.fetcher, manifest.assets)
+      : undefined;
     return {
       id: row.id,
       label: row.label,
@@ -178,8 +182,11 @@ pluginsManageRoutes.get('/plugins-manage', async (c) => {
       ),
       hasLimits: !!manifest?.limits?.length,
       hasCredits: !!manifest?.credits?.length,
+      assetNeedsApproval: !!assetHealth?.needsApproval,
+      assetNeedsUpdate: !!assetHealth?.needsUpdate,
+      assetStatusError: !!assetHealth?.fetchError,
     };
-  });
+  }));
 
   return renderPage(c, pluginsManagePage, { plugins });
 });

@@ -13,6 +13,10 @@ export interface PluginListItem {
   version?: string;
   /** True when the manifest declares candidate JS/CSS assets to approve. */
   hasAssets?: boolean;
+  /** Live approval health for the manifest-declared assets. */
+  assetNeedsApproval?: boolean;
+  assetNeedsUpdate?: boolean;
+  assetStatusError?: boolean;
   /** True when the manifest defines page types/taxonomies or declares delegated access. */
   hasPageTypes?: boolean;
   /** True when the manifest declares configurable quota limits. */
@@ -45,6 +49,9 @@ export async function pluginsManagePage(views: Fetcher, opts: BaseTemplateProps 
       editHref: `/admin/plugins-manage/${plugin.id}/edit`,
       deleteAction: `/admin/plugins-manage/${plugin.id}/delete`,
       hasAssets: !!plugin.hasAssets,
+      assetNeedsApproval: !!plugin.assetNeedsApproval,
+      assetNeedsUpdate: !!plugin.assetNeedsUpdate,
+      assetStatusError: !!plugin.assetStatusError,
       assetsHref: `/admin/plugins-manage/${plugin.id}/assets`,
       hasPageTypes: !!plugin.hasPageTypes,
       pageTypesHref: `/admin/plugins-manage/${plugin.id}/page-types`,

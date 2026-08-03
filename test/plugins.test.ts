@@ -1258,6 +1258,50 @@ describe('plugin admin proxy', () => {
     ]));
   });
 
+  it('shows asset approval and update requirements on the plugin list', async () => {
+    const url = 'https://plugin-asset-status.local';
+    const manifest = {
+      id: 'asset-status',
+      name: 'Asset status',
+      version: '1.0.0',
+      assets: [
+        { path: '/assets/new.js', label: 'New asset' },
+        { path: '/assets/changed.js', label: 'Changed asset' },
+      ],
+    };
+    await env.DB.prepare('INSERT INTO plugins (label, url, enabled) VALUES (?, ?, 1)').bind('Asset status', url).run();
+    __injectPluginFetcher(url, {
+      fetch: async (input: RequestInfo | URL): Promise<Response> => {
+        const path = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url).pathname;
+        if (path === '/__plugin/manifest') return Response.json(manifest);
+        if (path === '/assets/new.js') return new Response('console.log("new")');
+        if (path === '/assets/changed.js') return new Response('console.log("changed")');
+        return new Response('nf', { status: 404 });
+      },
+    } as unknown as Fetcher);
+    const changedIntegrity = await computeIntegrity(new TextEncoder().encode('console.log("old")').buffer);
+    await approveAsset(env.DB, 'asset-status', '/assets/changed.js', changedIntegrity, 'admin@example.com');
+
+    const now = Math.floor(Date.now() / 1000);
+    const token = await signJWT({
+      sub: '1', email: 'admin@example.com', name: 'Admin User', role: 'admin',
+      type: 'access', exp: now + 900, iat: now,
+    }, env.JWT_SECRET);
+    const response = await worker.fetch(new Request('http://localhost/admin/plugins-manage', {
+      headers: { Cookie: `access_token=${token}`, 'Sec-Fetch-Site': 'same-origin' },
+    }));
+
+    expect(response.status).toBe(200);
+    const data = bodyData(await response.text());
+    expect(data.plugins).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        assetNeedsApproval: true,
+        assetNeedsUpdate: true,
+        assetStatusError: false,
+      }),
+    ]));
+  });
+
   it('shows plugin-contributed taxonomies and offers them on page types', async () => {
     const url = 'https://plugin-taxonomies.local';
     await env.DB.prepare('INSERT INTO plugins (label, url, enabled) VALUES (?, ?, 1)').bind('Event tools', url).run();

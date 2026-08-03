@@ -9,6 +9,13 @@
 // ============================================================
 
 import type { PluginAssetApproval } from './types';
+import { PLUGIN_ORIGIN } from './registry';
+
+export interface PluginAssetHealth {
+  needsApproval: boolean;
+  needsUpdate: boolean;
+  fetchError: boolean;
+}
 
 function missingTable(error: unknown): boolean {
   return error instanceof Error && /no such table: plugin_asset_approvals/i.test(error.message);
@@ -38,6 +45,47 @@ export async function getAssetApproval(db: D1DatabaseClient, pluginId: string, p
     if (missingTable(error)) return null;
     throw error;
   }
+}
+
+/**
+ * Checks the current files for an asset-bearing plugin without changing any
+ * approval. Unapproved files do not need to be fetched: their status is known
+ * from the approval table, while approved files must be re-hashed to detect a
+ * deploy that requires re-approval.
+ */
+export async function inspectAssetHealth(
+  db: D1DatabaseClient,
+  pluginId: string,
+  fetcher: Fetcher,
+  assets: Array<{ path: string }>,
+): Promise<PluginAssetHealth> {
+  const approvals = new Map((await listApprovals(db, pluginId)).map((approval) => [approval.path, approval]));
+  const checks = await Promise.all(assets.map(async (asset) => {
+    const approval = approvals.get(asset.path);
+    if (!approval) return { needsApproval: true, needsUpdate: false, fetchError: false };
+
+    try {
+      const upstream = await fetcher.fetch(`${PLUGIN_ORIGIN}${asset.path}`);
+      if (!upstream.ok) return { needsApproval: false, needsUpdate: false, fetchError: true };
+      const currentIntegrity = await computeIntegrity(await upstream.arrayBuffer());
+      return {
+        needsApproval: false,
+        needsUpdate: currentIntegrity !== approval.integrity,
+        fetchError: false,
+      };
+    } catch {
+      return { needsApproval: false, needsUpdate: false, fetchError: true };
+    }
+  }));
+
+  return checks.reduce(
+    (health, check) => ({
+      needsApproval: health.needsApproval || check.needsApproval,
+      needsUpdate: health.needsUpdate || check.needsUpdate,
+      fetchError: health.fetchError || check.fetchError,
+    }),
+    { needsApproval: false, needsUpdate: false, fetchError: false },
+  );
 }
 
 /** Approves (or re-approves) a plugin asset, pinning the given integrity hash. */
