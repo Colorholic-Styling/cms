@@ -1,10 +1,18 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "width": "2xl",
+        "title": "{{ headingKey | t }}"
+      }
+    },
+    "content": {
       "type": "page-type-form"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

@@ -1,10 +1,33 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_taxonomies.taxonomies' | t }}",
+        "description": "{{ 'view_strings.sections_taxonomies.database_taxonomies_are_editable_here_config_file_and_plugin_taxonomies_' | t }}"
+      },
+      "blocks": {
+        "new": {
+          "type": "link",
+          "settings": {
+            "show": "{% if canWrite %}yes{% else %}no{% endif %}",
+            "href": "/admin/taxonomies/new",
+            "label": "{{ 'view_strings.sections_taxonomies.new_taxonomy' | t }}",
+            "icon": "plus",
+            "variant": "primary"
+          }
+        }
+      },
+      "block_order": [
+        "new"
+      ]
+    },
+    "content": {
       "type": "taxonomies"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

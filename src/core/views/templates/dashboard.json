@@ -1,10 +1,18 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ pageTitle }}",
+        "description": "{{ pageCountLabel }}"
+      }
+    },
+    "content": {
       "type": "dashboard"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

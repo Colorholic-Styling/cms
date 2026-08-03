@@ -1,10 +1,10 @@
 {
   "sections": {
-    "main": {
+    "content": {
       "type": "editor"
     }
   },
   "order": [
-    "main"
+    "content"
   ]
 }

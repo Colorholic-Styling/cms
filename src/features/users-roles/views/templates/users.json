@@ -1,10 +1,18 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_users.users' | t }}",
+        "description": "{{ 'view_strings.sections_users.users_are_created_on_first_sign_in_assign_their_roles_here' | t }}"
+      }
+    },
+    "content": {
       "type": "users"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

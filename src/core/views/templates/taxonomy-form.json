@@ -1,10 +1,34 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "width": "xl",
+        "title": "{{ heading }}"
+      }
+    },
+    "content": {
       "type": "taxonomy-form"
+    },
+    "actions": {
+      "type": "form-actions",
+      "settings": {
+        "width": "xl",
+        "formId": "taxonomy-form",
+        "showSave": "{% unless readOnly %}yes{% else %}no{% endunless %}",
+        "saveLabel": "{{ 'view_strings.sections_taxonomy_form.save' | t }}",
+        "cancelHref": "/admin/taxonomies",
+        "cancelLabel": "{% if readOnly %}{{ 'common.back' | t }}{% else %}{{ 'common.cancel' | t }}{% endif %}",
+        "deleteFormId": "taxonomy-delete-form",
+        "deleteAction": "{% if isEdit and readOnly == false %}{{ deleteAction }}{% endif %}",
+        "deleteConfirm": "{{ 'view_strings.sections_taxonomy_form.delete_this_taxonomy_its_tags_are_kept_but_no_longer_grouped_under_it' | t }}",
+        "deleteLabel": "{{ 'view_strings.sections_taxonomy_form.delete' | t }}"
+      }
     }
   },
   "order": [
-    "main"
+    "header",
+    "content",
+    "actions"
   ]
 }

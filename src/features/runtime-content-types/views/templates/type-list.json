@@ -1,10 +1,33 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ titleKey | t }}",
+        "description": "{{ descriptionKey | t }}"
+      },
+      "blocks": {
+        "new": {
+          "type": "link",
+          "settings": {
+            "show": "{% if canWrite %}yes{% else %}no{% endif %}",
+            "href": "{{ newHref }}",
+            "label": "{{ newLabelKey | t }}",
+            "icon": "plus",
+            "variant": "primary"
+          }
+        }
+      },
+      "block_order": [
+        "new"
+      ]
+    },
+    "content": {
       "type": "type-list"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

@@ -1,1 +1,31 @@
-{"sections":{"main":{"type":"languages"}},"order":["main"]}
+{
+  "sections": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'i18n.languages.title' | t }}",
+        "description": "{{ 'i18n.languages.description' | t }}"
+      },
+      "blocks": {
+        "translations": {
+          "type": "link",
+          "settings": {
+            "href": "/admin/settings/translations",
+            "label": "{{ 'i18n.translations.title' | t }}",
+            "variant": "secondary"
+          }
+        }
+      },
+      "block_order": [
+        "translations"
+      ]
+    },
+    "content": {
+      "type": "languages"
+    }
+  },
+  "order": [
+    "header",
+    "content"
+  ]
+}

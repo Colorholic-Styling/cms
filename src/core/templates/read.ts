@@ -293,7 +293,7 @@ export async function readPage(
       </div>`
     : '';
 
-  const body = `<div class="min-w-0 max-w-4xl px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
+  const body = `<div class="min-w-0 max-w-4xl my-4 px-4 sm:px-6 lg:px-8">
     <div class="mb-6 flex items-center gap-3">
       <a href="${escHtml(backHref)}" class="shrink-0 text-gray-400 transition-colors hover:text-gray-600" aria-label="${escHtml(t('common.back', 'Back'))}">
         <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><use href="/assets/icons.svg#arrow-left"></use></svg>

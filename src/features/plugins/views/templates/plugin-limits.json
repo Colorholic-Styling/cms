@@ -1,10 +1,20 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "backHref": "{{ backHref }}",
+        "backLabel": "{{ 'view_strings.sections_plugin_limits.plugins' | t }}",
+        "title": "{{ pluginLabel }} · {{ 'view_strings.sections_plugin_limits.limits' | t }}",
+        "description": "{{ 'view_strings.sections_plugin_limits.quotas_and_operational_limits_this_plugin_declares_page_quotas_are_enfor' | t }}"
+      }
+    },
+    "content": {
       "type": "plugin-limits"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

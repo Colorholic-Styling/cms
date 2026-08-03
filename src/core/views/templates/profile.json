@@ -1,10 +1,19 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "width": "4xl",
+        "title": "{{ 'profile.title' | t }}",
+        "description": "{{ 'profile.description' | t }}"
+      }
+    },
+    "content": {
       "type": "profile"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

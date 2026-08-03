@@ -1,10 +1,32 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_plugins_manage.plugins' | t }}",
+        "description": "{{ 'view_strings.sections_plugins_manage.registered_over_https_added_here_without_a_cms_redeploy' | t }}"
+      },
+      "blocks": {
+        "register": {
+          "type": "link",
+          "settings": {
+            "href": "/admin/plugins-manage/new",
+            "label": "{{ 'view_strings.sections_plugins_manage.register_plugin' | t }}",
+            "icon": "plus",
+            "variant": "primary"
+          }
+        }
+      },
+      "block_order": [
+        "register"
+      ]
+    },
+    "content": {
       "type": "plugins-manage"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

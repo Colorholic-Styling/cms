@@ -1,10 +1,43 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ pageTitle }}",
+        "description": "{{ resultCountLabel }}"
+      },
+      "blocks": {
+        "export": {
+          "type": "link",
+          "settings": {
+            "show": "{% if hasExportHref %}yes{% else %}no{% endif %}",
+            "href": "{{ exportHref }}",
+            "label": "{{ 'view_strings.sections_advanced_search.export' | t }}",
+            "icon": "download",
+            "variant": "secondary"
+          }
+        },
+        "list": {
+          "type": "link",
+          "settings": {
+            "href": "{{ listHref }}",
+            "label": "{{ 'view_strings.sections_advanced_search.list' | t }}",
+            "icon": "list",
+            "variant": "secondary"
+          }
+        }
+      },
+      "block_order": [
+        "export",
+        "list"
+      ]
+    },
+    "content": {
       "type": "advanced-search"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

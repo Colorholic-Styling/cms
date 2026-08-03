@@ -1,10 +1,34 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "width": "2xl",
+        "title": "{{ headingKey | t }}"
+      }
+    },
+    "content": {
       "type": "tag-form"
+    },
+    "actions": {
+      "type": "form-actions",
+      "settings": {
+        "width": "2xl",
+        "formId": "tag-form",
+        "showSave": "yes",
+        "saveLabel": "{{ 'view_strings.sections_tag_form.save' | t }}",
+        "cancelHref": "/admin/tags",
+        "cancelLabel": "{{ 'view_strings.sections_tag_form.cancel' | t }}",
+        "deleteFormId": "tag-delete-form",
+        "deleteAction": "{{ deleteAction }}",
+        "deleteConfirm": "{{ 'view_strings.sections_tag_form.delete_this_tag_it_will_be_removed_from_all_pages_that_use_it' | t }}",
+        "deleteLabel": "{{ 'view_strings.sections_tag_form.delete' | t }}"
+      }
     }
   },
   "order": [
-    "main"
+    "header",
+    "content",
+    "actions"
   ]
 }

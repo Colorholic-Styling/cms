@@ -1,10 +1,41 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_tags.tags' | t }}"
+      },
+      "blocks": {
+        "taxonomies": {
+          "type": "link",
+          "settings": {
+            "href": "/admin/taxonomies",
+            "label": "{{ 'view_strings.sections_tags.taxonomies' | t }}",
+            "icon": "tag",
+            "variant": "secondary"
+          }
+        },
+        "new": {
+          "type": "link",
+          "settings": {
+            "href": "/admin/tags/new",
+            "label": "{{ 'view_strings.sections_tags.new_tag' | t }}",
+            "icon": "plus",
+            "variant": "primary"
+          }
+        }
+      },
+      "block_order": [
+        "taxonomies",
+        "new"
+      ]
+    },
+    "content": {
       "type": "tags"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

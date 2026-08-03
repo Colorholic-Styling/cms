@@ -1,10 +1,19 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "width": "xl",
+        "title": "{{ name }}",
+        "description": "{{ email }}"
+      }
+    },
+    "content": {
       "type": "user-form"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

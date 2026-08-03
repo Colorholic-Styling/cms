@@ -1,8 +1,18 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_content_list.content_list' | t }}",
+        "description": "{{ 'view_strings.sections_content_list.media_files_in_the_bucket_and_the_current_pages_that_reference_them_unli' | t }}"
+      }
+    },
+    "content": {
       "type": "content-list"
     }
   },
-  "order": ["main"]
+  "order": [
+    "header",
+    "content"
+  ]
 }

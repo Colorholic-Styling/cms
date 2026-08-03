@@ -1,10 +1,18 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_trash.trash' | t }}",
+        "description": "{{ pageCountLabel }}"
+      }
+    },
+    "content": {
       "type": "trash"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

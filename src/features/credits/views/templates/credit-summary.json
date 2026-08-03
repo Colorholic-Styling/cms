@@ -1,10 +1,33 @@
 {
   "sections": {
-    "main": {
+    "header": {
+      "type": "page-header",
+      "settings": {
+        "title": "{{ 'view_strings.sections_credit_summary.credit_summary' | t }}",
+        "description": "{{ 'view_strings.sections_credit_summary.all_chargeable_actions_declared_by_enabled_plugins_and_the_prices_curren' | t }}"
+      },
+      "blocks": {
+        "manage": {
+          "type": "link",
+          "settings": {
+            "show": "{% if canConfigure %}yes{% else %}no{% endif %}",
+            "href": "/admin/plugins-manage",
+            "label": "{{ 'view_strings.sections_credit_summary.manage_plugins' | t }}",
+            "icon": "beaker",
+            "variant": "secondary"
+          }
+        }
+      },
+      "block_order": [
+        "manage"
+      ]
+    },
+    "content": {
       "type": "credit-summary"
     }
   },
   "order": [
-    "main"
+    "header",
+    "content"
   ]
 }

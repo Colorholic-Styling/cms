@@ -1,9 +1,5 @@
-<div class="px-4 py-5 sm:px-6 sm:py-8 lg:px-8">
-  <div class="flex flex-col gap-3 mb-6 sm:flex-row sm:items-start sm:justify-between">
-    <div>
-      <h2 class="text-2xl font-bold text-gray-900">{{ "view_strings.sections_trash.trash" | t }}</h2>
-      <p class="text-sm text-gray-500 mt-1">{{ total }} {% if filterType != '' %}{{ filterType }} {% endif %}{% if singularCount %}{{ "trash.page_in_trash" | t }}{% else %}{{ "trash.pages_in_trash" | t }}{% endif %}</p>
-    </div>
+<div class="my-4 px-4 sm:px-6 lg:px-8">
+  <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-end">
     <div class="flex flex-col gap-2 items-start sm:items-end">
       {% if anyTrash %}
         {% if hasTypeFilter %}
