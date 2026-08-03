@@ -9,6 +9,7 @@
   data-privacy-hide-fields-label="{{ "privacy.hide_fields" | t }}"
 >
 <head>
+  {{ content_for_header }}
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }} - {{ siteTitle }}</title>
@@ -484,6 +485,7 @@
   {% endfor %}
 </head>
 <body class="h-full overflow-x-hidden">
+  {{ content_for_layout }}
   {% if admin %}
     <header class="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-gray-700 bg-gray-900 px-4 py-3 text-white shadow-xl md:hidden" data-admin-mobile-bar>
       <a href="/admin" aria-label="{{ "shell.go_to_dashboard" | t }}" class="flex min-w-0 items-center gap-3">
@@ -569,6 +571,7 @@
               <img src="{{ userAvatar }}"
                    class="w-8 h-8 rounded-full object-cover"
                    alt="{{ "profile.avatar" | t }}"
+                   width="10" height="10"
                    data-avatar-img>
               <div class="hidden w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-sm font-bold"
                    data-avatar-fallback>{{ userInitial }}</div>
@@ -663,7 +666,7 @@
     </aside>
   {% endif %}
   <div class="{{ contentClass }} min-h-full min-w-0" data-admin-content>
-    {{ body | raw }}
+    {{ body }}
   </div>
   {% if admin %}<div class="fixed z-50 rounded-md bg-gray-900 px-2.5 py-1.5 text-sm font-medium text-white shadow-xl"
                           data-sidebar-tooltip-layer
