@@ -23,11 +23,11 @@
     "check:generated": "node tools/build-features.mjs --check && node tools/build-migrations.mjs --check && node tools/build-views.mjs --check"
   },
   "dependencies": {
-    "hono": "^4.12.33"
+    "hono": "^4.12.34"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.20.1",
-    "@cloudflare/workers-types": "^5.20260731.1",
+    "@cloudflare/workers-types": "^5.20260801.1",
     "@tailwindcss/cli": "^4.3.3",
     "marked": "^18.0.7",
     "turndown": "^7.2.4",
