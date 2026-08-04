@@ -73,6 +73,8 @@ import TurndownService from 'turndown';
     const markdown = root.querySelector('[data-richtext-markdown]');
     const source = root.querySelector('[data-richtext-source]');
     const modes = root.querySelectorAll('[data-richtext-mode]');
+    const wordCount = root.querySelector('[data-richtext-word-count]');
+    const characterCount = root.querySelector('[data-richtext-character-count]');
     if (!preview || !markdown || !source || !modes.length) return;
 
     root.dataset.richtextReady = 'true';
@@ -89,22 +91,46 @@ import TurndownService from 'turndown';
       notifySource();
     }
 
+    function plainTextFromNode(node) {
+      if (node.nodeType === 3) return node.nodeValue || '';
+      if (node.nodeType !== 1) return '';
+      const element = node;
+      if (element.tagName === 'BR') return '\n';
+      let text = '';
+      element.childNodes.forEach((child) => {
+        text += plainTextFromNode(child);
+      });
+      if (/^(P|H[1-6]|LI|BLOCKQUOTE|PRE|DIV)$/.test(element.tagName)) text += '\n';
+      return text;
+    }
+
+    function updateCounts() {
+      if (!wordCount && !characterCount) return;
+      const text = plainTextFromNode(preview).replace(/\u00a0/g, ' ').trim();
+      const words = text.match(/[\p{L}\p{N}]+(?:['’\-][\p{L}\p{N}]+)*/gu) || [];
+      if (wordCount) wordCount.textContent = String(words.length);
+      if (characterCount) characterCount.textContent = String(Array.from(text).length);
+    }
+
     function syncFromPreview() {
       const markdownValue = htmlToMarkdown(preview.innerHTML);
       markdown.value = markdownValue;
       setSourceHtml(markdownToHtml(markdownValue));
+      updateCounts();
     }
 
     function syncFromMarkdown() {
       const html = markdownToHtml(markdown.value);
       preview.innerHTML = html;
       setSourceHtml(html);
+      updateCounts();
     }
 
     function syncFromSource() {
       source.value = encodeWordJoiners(source.value);
       preview.innerHTML = source.value;
       markdown.value = htmlToMarkdown(source.value);
+      updateCounts();
     }
 
     function showMode(mode) {

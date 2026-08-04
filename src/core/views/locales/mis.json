@@ -413,6 +413,8 @@
     "snippets_pagefield_richtext_md.markdown": "Markdown",
     "snippets_pagefield_richtext_md.markdown_html": "Markdown / HTML",
     "snippets_pagefield_richtext_md.rich_text": "Rich text",
+    "snippets_pagefield_richtext_md.words": "Words",
+    "snippets_pagefield_richtext_md.characters": "Characters",
     "snippets_pagefield_switch_basic.no": "No",
     "snippets_pagefield_switch_basic.yes": "Yes",
     "snippets_structured_editor.add_block": "Add Block",

@@ -7,20 +7,21 @@
 {%- endcomment -%}
 {%- assign range_min = field.min | default: 0 -%}
 {%- assign range_max = field.max | default: 10 -%}
-<fieldset class="min-w-0 block">
-  <legend class="block text-sm font-medium text-gray-700 mb-1">{% if field.labelKey != blank %}{{ field.labelKey | t }}{% else %}{{ field.label }}{% endif %}{% if field.required %} *{% endif %}</legend>
+<div>
+<fieldset class="min-w-0 block lg:grid lg:grid-cols-[100px_minmax(0,1fr)] lg:gap-2">
+  <legend class="w-full lg:max-w-[100px] lg:me-2 block text-sm font-medium text-gray-700 leading-[1.2] mb-1 lg:mb-0 overflow-hidden">{% if field.labelKey != blank %}{{ field.labelKey | t }}{% else %}{{ field.label }}{% endif %}{% if field.required %} *{% endif %}</legend>
   <div class="flex flex-wrap items-end gap-3">
     {% if field.minLabel != blank %}<span class="text-sm text-gray-500">{{ field.minLabel }}</span>{% endif %}
     {% if field.points %}
       {% for point in field.points %}
-        <label class="inline-flex flex-col items-center gap-1 text-sm text-gray-700">
+        <label class="inline-flex flex-col items-center gap-1 text-sm leading-[1.2] text-gray-700">
           <span>{{ point.label | default: point.value }}</span>
           <input type="radio" name="{{ field.inputName }}" value="{{ point.value }}"{% if point.selected %} checked{% endif %}{% if field.required %} required{% endif %}>
         </label>
       {% endfor %}
     {% else %}
       {% for offset in (range_min..range_max) %}
-        <label class="inline-flex flex-col items-center gap-1 text-sm text-gray-700">
+        <label class="inline-flex flex-col items-center gap-1 text-sm leading-[1.2] text-gray-700">
           <span>{{ offset }}</span>
           <input type="radio" name="{{ field.inputName }}" value="{{ offset }}"{% if field.value == offset %} checked{% endif %}{% if field.required %} required{% endif %}>
         </label>
@@ -29,3 +30,4 @@
     {% if field.maxLabel != blank %}<span class="text-sm text-gray-500">{{ field.maxLabel }}</span>{% endif %}
   </div>
 </fieldset>
+</div>

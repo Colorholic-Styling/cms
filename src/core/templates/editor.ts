@@ -8,6 +8,7 @@ import {
   getLectPointer,
   getLectScalar,
 } from '../db/lect';
+import { publicationStatusForPage, type PagePublicationStatus } from '../db/page-logic';
 import type { BlueprintProps, FieldProps, Lect, LectItem } from '../db/lect';
 import type { CmsConfig } from '../../cms-config';
 
@@ -399,7 +400,7 @@ function fieldId(name: string): string {
 }
 
 function fieldLabel(name: string): string {
-  return name.replace(/__/g, '.');
+  return name.replace(/__/g, '.').replace(/_/g, ' ').trim();
 }
 
 function editorChips(editors: string | null | undefined): string[] {
@@ -548,6 +549,7 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
   isVersionPreview?: boolean;
   liveVersionId?: number;
   isPublished?: boolean;
+  publicationStatus?: PagePublicationStatus;
   isLiveSynced?: boolean;
   parentPages: Page[];
   tags: Tag[];
@@ -599,6 +601,9 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
   } = opts;
 
   const isEdit = !!page;
+  const publicationStatus: PagePublicationStatus = page
+    ? opts.publicationStatus ?? publicationStatusForPage(page, isPublished)
+    : 'draft';
   const selectedVersion = isVersionPreview && version ? version : undefined;
   const pageTitle = isEdit ? `Edit: ${page.name}` : 'New Page';
   const pageType = (structured ? getLectScalar(structured.lect, '_type') : '') || page?.page_type || defaultPageType || 'default';
@@ -654,6 +659,7 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
           currentHref: page ? `/admin/pages/${page.id}/edit` : action,
         }
       : undefined,
+    publicationStatus,
     errors,
     hasErrors: errors.length > 0,
     flash,

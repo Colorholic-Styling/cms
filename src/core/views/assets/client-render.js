@@ -427,12 +427,11 @@
   }
 
   async function renderPageField(model) {
-    if (model.templatePath) {
-      try {
-        return await renderLiquid(model.templatePath, model.data);
-      } catch (error) {
-        if (!(error instanceof TemplateNotFoundError)) console.error(error);
-      }
+    const templatePath = model.templatePath || '/snippets/pagefield/text/basic.liquid';
+    try {
+      return await renderLiquid(templatePath, model.data);
+    } catch (error) {
+      if (!(error instanceof TemplateNotFoundError)) console.error(error);
     }
     return renderInput(model.inputName, model.label, model.value, model.type, model.placeholder);
   }

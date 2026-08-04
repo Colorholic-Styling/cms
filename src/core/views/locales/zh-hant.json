@@ -413,6 +413,8 @@
     "snippets_pagefield_richtext_md.markdown": "Markdown",
     "snippets_pagefield_richtext_md.markdown_html": "Markdown / HTML",
     "snippets_pagefield_richtext_md.rich_text": "Rich text",
+    "snippets_pagefield_richtext_md.words": "字數",
+    "snippets_pagefield_richtext_md.characters": "字元",
     "snippets_pagefield_switch_basic.no": "否",
     "snippets_pagefield_switch_basic.yes": "是",
     "snippets_structured_editor.add_block": "新增區塊",

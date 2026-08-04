@@ -124,11 +124,38 @@ describe('view assembly', () => {
     expect(editorScript).not.toMatch(/{{|{%/);
   });
 
+  it('uses the shared text field snippet when a field has no renderer', async () => {
+    const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
+    expect(renderer).toContain("const templatePath = model.templatePath || '/snippets/pagefield/text/basic.liquid';");
+    expect(renderer).toContain('return await renderLiquid(templatePath, model.data);');
+  });
+
+  it('aligns multiline field labels to the top while keeping text labels centered', async () => {
+    const [textField, textareaField, richtextField] = await Promise.all([
+      env.VIEWS.fetch('https://views.local/snippets/pagefield/text/basic.liquid').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/snippets/pagefield/textarea/basic.liquid').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/snippets/pagefield/richtext/md.liquid').then((response) => response.text()),
+    ]);
+    expect(textField).toContain('lg:flex items-center');
+    expect(textareaField).toContain('lg:flex items-start');
+    expect(richtextField).toContain('flex items-start justify-between');
+  });
+
   it('places the editable page type below the slug as a compact badge', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
     expect(editor.indexOf('id="page_type"')).toBeGreaterThan(editor.indexOf('id="slug"'));
     expect(editor).toContain('rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700');
     expect(editor).toContain('sm:text-xs');
+  });
+
+  it('shows the publication status after the editable page type', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    const pageType = editor.indexOf('id="page_type"');
+    expect(editor.indexOf('publicationStatus == \'scheduled\'')).toBeGreaterThan(pageType);
+    expect(editor).toContain('pages.status.scheduled');
+    expect(editor).toContain('pages.status.ended');
+    expect(editor).toContain('pages.status.live');
+    expect(editor).toContain('pages.status.draft');
   });
 
   it('keeps the editor whitelist control beside the bottom page metadata', async () => {
@@ -166,6 +193,17 @@ describe('view assembly', () => {
     const group = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item-group.liquid')).text();
     expect(group).toContain('{{ iconHrefPrefix }}#blocks');
     expect(group.indexOf('{{ iconHrefPrefix }}#blocks')).toBeLessThan(group.indexOf('{{ group.name }}'));
+  });
+
+  it('marks page references with a link icon while keeping the full label accessible', async () => {
+    const [icons, pageField] = await Promise.all([
+      env.VIEWS.fetch('https://views.local/assets/icons.svg').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/snippets/pagefield/page/basic.liquid').then((response) => response.text()),
+    ]);
+    expect(icons).toContain('<symbol id="link"');
+    expect(pageField).toContain('{{ field.label | remove: " reference" }}');
+    expect(pageField).toContain('{{ iconHrefPrefix }}#link');
+    expect(pageField).toContain('<span class="sr-only">{{ field.label }}</span>');
   });
 
   it('makes structured item groups and items collapsible by their summaries', async () => {

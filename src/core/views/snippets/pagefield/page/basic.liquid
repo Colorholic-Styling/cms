@@ -8,9 +8,16 @@
   layout), which binds every [data-page-ref] — inline scripts don't survive
   client rendering / plugin-view sanitizing.
 {%- endcomment -%}
-<label for="{{ field.id }}" class="min-w-0 block">
-  <span class="block text-sm font-medium text-gray-700 mb-1">{{ field.label }}</span>
-  <div id="{{ field.id }}__ref" class="relative min-w-0"
+<div>
+<label for="{{ field.id }}" class="min-w-0 block lg:flex items-center">
+  <span class="w-full lg:max-w-[100px] lg:me-2 block text-sm font-medium text-gray-700 leading-[1.2] mb-1 lg:mb-0 overflow-hidden">
+    <span aria-hidden="true" class="inline-flex max-w-full items-center gap-1">
+      <span class="leading-[1.2]">{{ field.label | remove: " reference" }}</span>
+      <svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#link"></use></svg>
+    </span>
+    <span class="sr-only">{{ field.label }}</span>
+  </span>
+  <div id="{{ field.id }}__ref" class="relative min-w-0 w-full"
        data-page-ref data-page-ref-type="{{ field.name }}"
        data-page-ref-empty-text="{{ "view_strings.sections_editor.no_matching_pages" | t }}">
     <input type="hidden" name="{{ field.inputName }}" value="{{ field.value }}" data-page-ref-id>
@@ -31,3 +38,4 @@
     </div>
   </div>
 </label>
+</div>

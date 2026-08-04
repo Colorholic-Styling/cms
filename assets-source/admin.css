@@ -31,7 +31,7 @@
 .richtext-md-preview h4,
 .richtext-md-preview h5,
 .richtext-md-preview h6 { font-size: 1rem; font-weight: 700; }
-.richtext-md-preview p,
+.richtext-md-preview p { margin-bottom: 1rem; }
 .richtext-md-preview blockquote,
 .richtext-md-preview pre,
 .richtext-md-preview ul,

@@ -62,7 +62,7 @@
         <input type="text" id="page-name" name="name" required
               value="{{ page.name }}"
               placeholder="{{ "view_strings.sections_editor.my_awesome_page" | t }}"
-              class="w-full border-b border-transparent bg-transparent p-0 !text-[2rem] font-bold text-gray-900 focus:border-indigo-500 focus:outline-none">
+              class="truncate w-full border-b border-transparent bg-transparent p-0 !text-[2rem] font-bold text-gray-900 focus:border-indigo-500 focus:outline-none">
               <!-- auto slug -->
               <div>
                 <div class="flex min-w-0 flex-wrap items-center gap-1 text-xs font-mono text-gray-500">
@@ -80,7 +80,7 @@
                 </div>
               </div>
 
-        <div class="mt-2 flex min-w-0 flex-wrap items-center gap-2 justify-between">
+        <div class="mt-2 flex min-w-0 flex-wrap items-center gap-2">
           <div class="inline-flex max-w-full items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
             <label for="page_type" class="sr-only">{{ "view_strings.sections_editor.page_type" | t }}</label>
             <input type="text" id="page_type" name="page_type" list="page_type_options"
@@ -88,6 +88,23 @@
                   placeholder="{{ "view_strings.sections_editor.default" | t }}"
                   class="w-full min-w-0 border-0 bg-transparent p-0 text-sm font-medium text-indigo-700 outline-none focus:border-transparent focus:outline-none focus:ring-0 sm:text-xs">
           </div>
+          {% if publicationStatus == 'scheduled' %}
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-blue-100 text-blue-600">
+              <span class="h-1.5 w-1.5 rounded-full bg-blue-500"></span>{{ "pages.status.scheduled" | t }}
+            </span>
+          {% elsif publicationStatus == 'ended' %}
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-gray-100 text-gray-700">
+              <span class="h-1.5 w-1.5 rounded-full bg-gray-500"></span>{{ "pages.status.ended" | t }}
+            </span>
+          {% elsif publicationStatus == 'live' %}
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-green-100 text-green-800">
+              <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>{{ "pages.status.live" | t }}
+            </span>
+          {% else %}
+            <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-800">
+              <span class="h-1.5 w-1.5 rounded-full bg-yellow-500"></span>{{ "pages.status.draft" | t }}
+            </span>
+          {% endif %}
           <datalist id="page_type_options">
             {% for option in pageTypeOptions %}
               <option value="{{ option.value }}"></option>
@@ -446,7 +463,7 @@
     </div>
 
     {% if isEdit %}
-    <div class="pb-8 absolute right-4">
+    <div class="pb-8 absolute right-8">
       <button type="submit" formaction="{{ deleteAction }}" formnovalidate data-delete-button data-confirm-message="{{ "view_strings.sections_editor.delete_page_confirm" | t }}" title="{{ "view_strings.sections_editor.delete" | t }}" aria-label="{{ "view_strings.sections_editor.delete" | t }}"
               class="inline-flex h-10 w-10 shrink-0 self-end items-center justify-center rounded-lg bg-red-600 text-white shadow-sm transition-colors hover:bg-red-700 sm:ml-auto">
         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#trash"></use></svg>
