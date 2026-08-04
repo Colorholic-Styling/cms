@@ -95,6 +95,19 @@ describe('view assembly', () => {
     expect(editor.indexOf('id="lect_json_details"')).toBeLessThan(editor.indexOf('view_strings.sections_editor.created_by'));
   });
 
+  it('places the parent page control after the slug copy action', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor.indexOf('data-parent-combobox')).toBeGreaterThan(editor.indexOf('id="copy-slug-btn"'));
+    expect(editor.indexOf('data-parent-combobox')).toBeLessThan(editor.indexOf('id="page_type"'));
+    expect(editor).toContain('id="page_id" name="page_id"');
+  });
+
+  it('places the page weight control with the header metadata', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor.indexOf('id="weight"')).toBeGreaterThan(editor.indexOf('id="page_type"'));
+    expect(editor.indexOf('id="weight"')).toBeLessThan(editor.indexOf('<!-- end page edit header -->'));
+  });
+
   it('flattens feature views into the shared runtime namespace', () => {
     // Ownership lives in the source tree, not the served path: renderView()
     // and the client engine's root list must keep working unchanged.
