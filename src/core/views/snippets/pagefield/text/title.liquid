@@ -1,0 +1,9 @@
+<div class="relative w-full group">
+  <label for="{{ field.id }}" class="sr-only">{{ field.label }}</label>
+  <input id="{{ field.id }}" type="text" name="{{ field.inputName }}"
+         value="{{ field.value }}"
+         placeholder="{{ field.placeholder | default: field.label }}"
+         aria-label="{{ field.label }}"
+         class="block w-full bg-transparent p-0 font-sans text-3xl font-normal text-gray-800 placeholder:text-gray-400 focus:outline-none focus:text-indigo-600"
+         {% if field.required %}required{% endif %}>
+</div>

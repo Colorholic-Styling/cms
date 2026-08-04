@@ -941,6 +941,9 @@ describe('admin routes', () => {
     expect(data.name).toBe('Admin User');
     expect(data.email).toBe('admin@example.com');
     expect(data.hasIdentities).toBe(true);
+    const profileView = await (await env.VIEWS.fetch('https://views.local/sections/profile.liquid')).text();
+    expect(profileView).toContain('action="/auth/logout"');
+    expect(profileView).toContain('data-theme-toggle');
     expect(data.identities).toEqual(expect.arrayContaining([
       expect.objectContaining({ provider: 'eventuai', label: 'Eventuai' }),
       expect.objectContaining({

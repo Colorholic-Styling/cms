@@ -81,7 +81,7 @@ describe('database locale registry', () => {
       ...[
         'boolean/basic', 'checkbox/basic', 'color/basic', 'date/basic', 'date/datetime', 'date/range-tz',
         'email/basic', 'link/basic', 'number/basic', 'page/basic', 'picture/basic', 'radio/basic', 'richtext/md',
-        'select/basic', 'switch/basic', 'tel/basic', 'text/basic', 'textarea/basic', 'time/basic', 'url/basic',
+        'select/basic', 'switch/basic', 'tel/basic', 'text/basic', 'text/title', 'textarea/basic', 'time/basic', 'url/basic',
       ].map((name) => `snippets/pagefield/${name}.liquid`),
     ];
     const sources = await Promise.all(viewPaths.map(async (path) => {

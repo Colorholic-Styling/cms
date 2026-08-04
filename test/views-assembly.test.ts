@@ -35,6 +35,7 @@ const CORE_VIEWS = [
   'sections/error.liquid',
   'snippets/structured-editor.liquid',
   'snippets/pagefield/text/basic.liquid',
+  'snippets/pagefield/text/title.liquid',
   'assets/client-render.js',
   'locales/en.json',
 ];
@@ -67,6 +68,31 @@ describe('view assembly', () => {
 
   it('keeps the core chrome in a lean profile', () => {
     for (const view of CORE_VIEWS) expect(lean).toContain(view);
+  });
+
+  it('uses the trash icon for the host page delete action', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor).toContain('data-delete-button');
+    expect(editor).toContain('{{ iconHrefPrefix }}#trash');
+  });
+
+  it('places the editable page type below the slug as a compact badge', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor.indexOf('id="page_type"')).toBeGreaterThan(editor.indexOf('id="slug"'));
+    expect(editor).toContain('rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-700');
+    expect(editor).toContain('sm:text-xs');
+  });
+
+  it('keeps the editor whitelist control beside the bottom page metadata', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor.indexOf('data-editors-combobox')).toBeGreaterThan(editor.indexOf('id="lect_json_details"'));
+    expect(editor.indexOf('data-editors-combobox')).toBeGreaterThan(editor.indexOf('view_strings.sections_editor.created_by'));
+    expect(editor).toContain('id="editors" name="editors"');
+  });
+
+  it('places raw Lect metadata above the bottom page metadata', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor.indexOf('id="lect_json_details"')).toBeLessThan(editor.indexOf('view_strings.sections_editor.created_by'));
   });
 
   it('flattens feature views into the shared runtime namespace', () => {

@@ -24,4 +24,13 @@ describe('desktop sidebar collapse', () => {
     expect(view).toContain('setCollapsed(false, true)');
     expect(view).toContain('details.open = true');
   });
+
+  it('keeps the collapsed footer toggle inside the iPad safe area', async () => {
+    const css = await (await env.VIEWS.fetch('https://views.local/assets/admin.css')).text();
+
+    expect(css).toContain('safe-area-inset-bottom');
+    expect(css).toContain('data-sidebar-footer-toggle');
+    expect(css).toContain('html[data-sidebar-collapsed=true] [data-sidebar-footer-action]');
+    expect(css).toContain('html[data-sidebar-collapsed=true] [data-sidebar-footer-controls]');
+  });
 });
