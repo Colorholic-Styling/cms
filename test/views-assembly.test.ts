@@ -34,6 +34,8 @@ const CORE_VIEWS = [
   'sections/login.liquid',
   'sections/error.liquid',
   'snippets/structured-editor.liquid',
+  'snippets/structured-item-group.liquid',
+  'snippets/structured-item.liquid',
   'snippets/pagefield/text/basic.liquid',
   'snippets/pagefield/text/title.liquid',
   'assets/client-render.js',
@@ -112,18 +114,32 @@ describe('view assembly', () => {
     expect(structured.indexOf('{{ iconHrefPrefix }}#document')).toBeLessThan(structured.indexOf('view_strings.snippets_structured_editor.content'));
   });
 
+  it('adds a settings icon before the structured settings label', async () => {
+    const structured = await (await env.VIEWS.fetch('https://views.local/snippets/structured-editor.liquid')).text();
+    expect(structured).toContain('<details data-cms-collapsible data-collapsible-key="root:settings"');
+    expect(structured).toContain('data-collapsible-icon');
+    expect(structured).toContain('{{ iconHrefPrefix }}#settings');
+    expect(structured.indexOf('{{ iconHrefPrefix }}#settings')).toBeLessThan(structured.indexOf('view_strings.snippets_structured_editor.settings'));
+  });
+
   it('adds a blocks icon before structured item group names', async () => {
-    const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
-    expect(renderer).toContain("iconHref + '#blocks");
-    expect(renderer.indexOf("iconHref + '#blocks")).toBeLessThan(renderer.indexOf('escapeHtml(group.name)'));
+    const group = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item-group.liquid')).text();
+    expect(group).toContain('{{ iconHrefPrefix }}#blocks');
+    expect(group.indexOf('{{ iconHrefPrefix }}#blocks')).toBeLessThan(group.indexOf('{{ group.name }}'));
   });
 
   it('makes structured item groups and items collapsible by their summaries', async () => {
     const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
-    expect(renderer).toContain('<details data-cms-collapsible');
-    expect(renderer).toContain('data-collapsible-key');
-    expect(renderer).toContain('data-weight-sortable-row');
-    expect(renderer).toContain('<summary class="flex cursor-pointer');
+    const group = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item-group.liquid')).text();
+    const item = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item.liquid')).text();
+    expect(group).toContain('<details data-cms-collapsible');
+    expect(item).toContain('data-cms-collapsible');
+    expect(item).toContain('data-weight-sortable-row');
+    expect(group).toContain('<summary class="flex cursor-pointer');
+    expect(item).toContain('<summary class="flex cursor-pointer');
+    expect(item).toContain('data-weight-sortable-input');
+    expect(renderer).toContain("renderLiquid('/snippets/structured-item-group.liquid'");
+    expect(renderer).toContain("renderLiquid('/snippets/structured-item.liquid'");
     expect(renderer).toContain('details[data-cms-collapsible]');
     expect(renderer).toContain('setupCollapsibleDetails();');
     expect(renderer).toContain('cms-editor-structured-collapse:');

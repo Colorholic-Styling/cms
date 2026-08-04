@@ -1,0 +1,18 @@
+<details data-cms-collapsible data-collapsible-key="{{ groupKey }}" class="min-w-0 rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-4" open>
+  <summary class="flex mb-0 cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">
+    <span class="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-semibold text-gray-700">
+      <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
+      <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#blocks"></use></svg>
+      <span>{{ group.name }}</span>
+    </span>
+    <button type="submit" name="action" value="{{ group.addAction }}"
+            class="w-full shrink-0 px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-semibold text-gray-700 sm:w-auto">Add Item</button>
+  </summary>
+  <div data-weight-sortable class="space-y-3 mt-4">
+    {% if hasRows %}
+      {{ rowsHtml | raw }}
+    {% else %}
+      <p class="text-sm text-gray-400">No items yet.</p>
+    {% endif %}
+  </div>
+</details>

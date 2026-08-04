@@ -1,0 +1,34 @@
+<details data-cms-collapsible data-collapsible-key="{{ scopeKey }}" data-weight-sortable-row class="min-w-0 rounded-lg bg-white border border-gray-200 p-4 space-y-3" open>
+  <summary class="mb-0 flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+    <div class="flex min-w-0 items-center gap-1.5">
+      <button type="button" data-weight-sortable-handle title="{{ dragToReorder }}" aria-label="{{ dragToReorder }}" class="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#list"></use></svg>
+      </button>
+      <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
+      <span class="min-w-0 text-xs text-gray-400">{{ row.label }}</span>
+    </div>
+    <div class="flex shrink-0 items-center gap-3">
+      <div class="flex items-center gap-1 text-sm text-gray-500">
+        <span aria-hidden="true">#</span>
+        <label for="{{ weightInputId }}" class="sr-only">Weight for {{ row.label | downcase }}</label>
+        <input data-weight-sortable-input type="number" id="{{ weightInputId }}" name="{{ row.weightInputName }}"
+               value="{{ row.weight }}"
+               class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg font-bold focus:border-indigo-500 focus:outline-none">
+      </div>
+      {% if row.showDelete %}
+        <button type="submit" name="action" value="{{ row.deleteAction }}"
+                title="Delete {{ row.label | downcase }}" aria-label="Delete {{ row.label | downcase }}"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-700">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#trash-can"></use></svg>
+          <span class="sr-only">Delete</span>
+        </button>
+      {% endif %}
+    </div>
+  </summary>
+  {% if row.hasSettings %}
+    <div class="space-y-3 mt-4 pt-2 border-t border-gray-200">
+      {{ settingsHtml | raw }}
+    </div>
+  {% endif %}
+  {{ contentHtml | raw }}
+</details>

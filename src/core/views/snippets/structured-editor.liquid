@@ -1,8 +1,14 @@
 {% if hasSettings %}
-  <section class="min-w-0 space-y-3 [&_input]:bg-[#141a26]">
-    <p class="text-sm font-semibold text-gray-700 hidden">{{ "view_strings.snippets_structured_editor.settings" | t }}</p>
+  <details data-cms-collapsible data-collapsible-key="root:settings" class="mb-2 min-w-0 space-y-3 [&_input]:bg-[#141a26]" open>
+    <summary class="inline-flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-700 [&::-webkit-details-marker]:hidden">
+      <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
+      <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#settings"></use></svg>
+      <span>{{ "view_strings.snippets_structured_editor.settings" | t }}</span>
+    </summary>
+    <div class="mb-8">
     {{ settingsHtml | raw }}
-  </section>
+    </div>
+  </details>
 {% endif %}
 
 <div class="min-w-0 rounded-xl border border-gray-200 bg-white p-4 shadow-sm space-y-5 sm:p-6">

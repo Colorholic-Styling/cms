@@ -2888,11 +2888,12 @@ describe('structured editor weights', () => {
     const response = await env.VIEWS.fetch('https://views.local/assets/client-render.js');
     expect(response.ok).toBe(true);
     const source = await response.text();
+    const item = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item.liquid')).text();
 
     expect(source).toContain('data-weight-sortable');
     expect(source).toContain('data-weight-sortable-handle');
     expect(source).toContain('data-weight-sortable-row');
-    expect(source).toContain('data-weight-sortable-input');
+    expect(item).toContain('data-weight-sortable-input');
     expect(source).toContain('function syncWeights(scope)');
     expect(source).toContain("input.value = String(index)");
   });

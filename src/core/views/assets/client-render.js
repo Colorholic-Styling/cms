@@ -445,74 +445,31 @@
   }
 
   async function renderItemGroup(group, scopeKey) {
-    const iconHref = escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix);
     const groupKey = scopeKey + ':' + group.addAction;
     const rows = group.rows && group.rows.length
       ? (await Promise.all(group.rows.map((row) => renderItemRow(row, groupKey + ':item:' + row.weightInputName)))).join('')
-      : '<p class="text-sm text-gray-400">No items yet.</p>';
+      : '';
 
-    return '\n    <details data-cms-collapsible data-collapsible-key="' + escapeHtml(groupKey) + '" class="min-w-0 rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-4" open>\n' +
-      '      <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">\n' +
-      '        <span class="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-semibold text-gray-700">\n' +
-      '          <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + iconHref + '#chevron-right"></use></svg>\n' +
-      '          <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + iconHref + '#blocks"></use></svg>\n' +
-      '          <span>' + escapeHtml(group.name) + '</span>\n' +
-      '        </span>\n' +
-      '        <button type="submit" name="action" value="' + escapeHtml(group.addAction) + '"\n' +
-      '                class="w-full shrink-0 px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-semibold text-gray-700 sm:w-auto">Add Item</button>\n' +
-      '      </summary>\n' +
-      '      <div data-weight-sortable class="space-y-3">\n' +
-      rows +
-      '      </div>\n' +
-      '\n    </details>';
+    return renderLiquid('/snippets/structured-item-group.liquid', {
+      group,
+      groupKey,
+      rowsHtml: rows,
+      hasRows: Boolean(group.rows && group.rows.length),
+    });
   }
 
   async function renderItemRow(row, scopeKey) {
     const settingsHtml = await renderFieldSet(row.settingsFields, row.itemGroups, false, scopeKey + ':settings');
     const contentHtml = await renderFieldSet(row.contentFields, row.itemGroups, true, scopeKey + ':content');
-    const deleteButton = row.showDelete
-      ? '<button type="submit" name="action" value="' + escapeHtml(row.deleteAction) + '"\n' +
-        '                   title="Delete ' + escapeHtml(row.label.toLowerCase()) + '" aria-label="Delete ' + escapeHtml(row.label.toLowerCase()) + '"\n' +
-        '                   class="inline-flex h-8 w-8 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-700">\n' +
-        '             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix) + '#trash-can"></use></svg>\n' +
-        '             <span class="sr-only">Delete</span>\n' +
-        '           </button>'
-      : '';
-
     const dragToReorder = translate('view_strings.sections_tags.drag_to_reorder', 'Drag to reorder');
-    return '<details data-cms-collapsible data-collapsible-key="' + escapeHtml(scopeKey) + '" data-weight-sortable-row class="min-w-0 rounded-lg bg-white border border-gray-200 p-4 space-y-3" open>\n' +
-      '                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">\n' +
-      '                  <div class="flex min-w-0 items-center gap-1.5">\n' +
-      '                    <button type="button" data-weight-sortable-handle title="' + escapeHtml(dragToReorder) + '" aria-label="' + escapeHtml(dragToReorder) + '" class="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing">\n' +
-      '                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix) + '#list"></use></svg>\n' +
-      '                    </button>\n' +
-      '                    <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix) + '#chevron-right"></use></svg>\n' +
-      '                    <span class="min-w-0 text-xs text-gray-400">' + escapeHtml(row.label) + '</span>\n' +
-      '                  </div>\n' +
-      '                  <div class="flex shrink-0 items-center gap-3">\n' +
-      renderCompactWeightInput(row.weightInputName, row.weight, 'Weight for ' + row.label.toLowerCase()) +
-      deleteButton +
-      '                  </div>\n' +
-      '                </summary>\n' +
-      (row.hasSettings
-        ? '<div class="space-y-3">\n' +
-          '                         <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Settings</p>\n' +
-          settingsHtml +
-          '                       </div>'
-        : '') +
-      contentHtml +
-      '              </details>';
-  }
-
-  function renderCompactWeightInput(name, value, label) {
-    const id = fieldId(name);
-    return '<div class="flex items-center gap-1 text-sm text-gray-500">\n' +
-      '            <span aria-hidden="true">#</span>\n' +
-      '            <label for="' + escapeHtml(id) + '" class="sr-only">' + escapeHtml(label) + '</label>\n' +
-      '            <input data-weight-sortable-input type="number" id="' + escapeHtml(id) + '" name="' + escapeHtml(name) + '"\n' +
-      '                   value="' + escapeHtml(String(value ?? '')) + '"\n' +
-      '                   class="w-12 border-b border-transparent bg-transparent p-0 text-right text-lg font-bold focus:border-indigo-500 focus:outline-none">\n' +
-      '          </div>';
+    return renderLiquid('/snippets/structured-item.liquid', {
+      row,
+      scopeKey,
+      settingsHtml,
+      contentHtml,
+      weightInputId: fieldId(row.weightInputName),
+      dragToReorder,
+    });
   }
 
   // Item groups can appear at the page root, inside a block, and nested inside

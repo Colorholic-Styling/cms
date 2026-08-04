@@ -78,6 +78,8 @@ describe('database locale registry', () => {
       ].map((name) => `sections/${name}.liquid`),
       'snippets/color-tag-picker.liquid',
       'snippets/structured-editor.liquid',
+      'snippets/structured-item-group.liquid',
+      'snippets/structured-item.liquid',
       ...[
         'boolean/basic', 'checkbox/basic', 'color/basic', 'date/basic', 'date/datetime', 'date/range-tz',
         'email/basic', 'link/basic', 'number/basic', 'page/basic', 'picture/basic', 'radio/basic', 'richtext/md',
