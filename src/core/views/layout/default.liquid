@@ -17,6 +17,17 @@
     {% if admin %}
     (function() {
       try {
+        var url = new URL(window.location.href);
+        if (!url.searchParams.has('flash')) return;
+        url.searchParams.delete('flash');
+        window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+      } catch (error) {
+        /* ignore */
+      }
+    })();
+
+    (function() {
+      try {
         if (window.localStorage.getItem('worker-cms-sidebar-collapsed') === 'true') {
           document.documentElement.setAttribute('data-sidebar-collapsed', 'true');
         }

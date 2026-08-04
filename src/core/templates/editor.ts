@@ -682,7 +682,7 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
     parentOptions,
     selectedParent: {
       id: selectedParent?.id ?? '',
-      label: selectedParent?.label ?? '/',
+      label: selectedParent?.label ?? '',
     },
     pageTypeOptions: structured
       ? Object.keys(structured.config.blueprint).map((pageType) => ({ value: pageType }))

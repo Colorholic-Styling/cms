@@ -70,6 +70,12 @@ describe('view assembly', () => {
     for (const view of CORE_VIEWS) expect(lean).toContain(view);
   });
 
+  it('removes the admin flash query parameter without changing the rest of the URL', async () => {
+    const layout = await (await env.VIEWS.fetch('https://views.local/layout/default.liquid')).text();
+    expect(layout).toContain("url.searchParams.delete('flash')");
+    expect(layout).toContain("window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)");
+  });
+
   it('uses the trash icon for the host page delete action', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
     expect(editor).toContain('data-delete-button');
@@ -90,22 +96,89 @@ describe('view assembly', () => {
     expect(editor).toContain('id="editors" name="editors"');
   });
 
+  it('places field copy controls after the bottom page metadata', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    const clipboard = editor.indexOf('data-fields-clipboard');
+    expect(clipboard).toBeGreaterThan(editor.indexOf('view_strings.sections_editor.created_by'));
+    expect(clipboard).toBeGreaterThan(editor.indexOf('view_strings.sections_editor.last_modified_by'));
+    expect(clipboard).toBeGreaterThan(editor.indexOf('data-editors-combobox'));
+    expect(editor.indexOf('data-fields-copy')).toBeGreaterThan(clipboard);
+    expect(editor.indexOf('data-fields-paste')).toBeGreaterThan(clipboard);
+  });
+
+  it('adds a document icon before the structured content label', async () => {
+    const structured = await (await env.VIEWS.fetch('https://views.local/snippets/structured-editor.liquid')).text();
+    expect(structured).toContain('{{ iconHrefPrefix }}#document');
+    expect(structured.indexOf('{{ iconHrefPrefix }}#document')).toBeLessThan(structured.indexOf('view_strings.snippets_structured_editor.content'));
+  });
+
+  it('adds a blocks icon before structured item group names', async () => {
+    const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
+    expect(renderer).toContain("iconHref + '#blocks");
+    expect(renderer.indexOf("iconHref + '#blocks")).toBeLessThan(renderer.indexOf('escapeHtml(group.name)'));
+  });
+
+  it('makes structured item groups and items collapsible by their summaries', async () => {
+    const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
+    expect(renderer).toContain('<details data-cms-collapsible');
+    expect(renderer).toContain('data-collapsible-key');
+    expect(renderer).toContain('data-weight-sortable-row');
+    expect(renderer).toContain('<summary class="flex cursor-pointer');
+    expect(renderer).toContain('details[data-cms-collapsible]');
+    expect(renderer).toContain('setupCollapsibleDetails();');
+    expect(renderer).toContain('cms-editor-structured-collapse:');
+    expect(renderer).toContain('window.localStorage.setItem(storageKey');
+  });
+
   it('places raw Lect metadata above the bottom page metadata', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
     expect(editor.indexOf('id="lect_json_details"')).toBeLessThan(editor.indexOf('view_strings.sections_editor.created_by'));
   });
 
-  it('places the parent page control after the slug copy action', async () => {
+  it('places the parent page control below page weight', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
-    expect(editor.indexOf('data-parent-combobox')).toBeGreaterThan(editor.indexOf('id="copy-slug-btn"'));
-    expect(editor.indexOf('data-parent-combobox')).toBeLessThan(editor.indexOf('id="page_type"'));
+    expect(editor.indexOf('data-parent-combobox')).toBeGreaterThan(editor.indexOf('id="weight"'));
+    expect(editor.indexOf('data-parent-combobox')).toBeLessThan(editor.indexOf('data-publish-schedule-toggle'));
     expect(editor).toContain('id="page_id" name="page_id"');
+    expect(editor).toContain('placeholder="{{ "view_strings.sections_editor.no_parent" | t }}"');
+    expect(editor).toContain('data-parent-label=""');
   });
 
-  it('places the page weight control with the header metadata', async () => {
+  it('places the page weight control above the publish schedule card', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
-    expect(editor.indexOf('id="weight"')).toBeGreaterThan(editor.indexOf('id="page_type"'));
-    expect(editor.indexOf('id="weight"')).toBeLessThan(editor.indexOf('<!-- end page edit header -->'));
+    expect(editor.indexOf('id="weight"')).toBeGreaterThan(editor.indexOf('<!-- end page edit header -->'));
+    expect(editor.indexOf('id="weight"')).toBeLessThan(editor.indexOf('data-publish-schedule-toggle'));
+    expect(editor).toContain('id="weight" name="weight"');
+  });
+
+  it('stretches the publish schedule card to the page header height', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    expect(editor).toContain('md:flex-row');
+    expect(editor).toContain('md:max-w-[25%]');
+    expect(editor).toContain('border-l border-gray-200');
+  });
+
+  it('keeps publish actions inside the publish schedule card', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    const schedule = editor.indexOf('view_strings.sections_editor.publish_schedule');
+    const publish = editor.indexOf('name="action" value="publish"');
+    const unpublish = editor.indexOf('data-unpublish-button');
+    const panelEnd = editor.indexOf('<!-- end publish schedule panel -->');
+    const structured = editor.indexOf('{{ structuredBlock | raw }}');
+    expect(schedule).toBeGreaterThanOrEqual(0);
+    expect(publish).toBeGreaterThan(schedule);
+    expect(publish).toBeLessThan(structured);
+    expect(unpublish).toBeGreaterThan(schedule);
+    expect(unpublish).toBeLessThan(structured);
+    expect(panelEnd).toBeGreaterThan(unpublish);
+    expect(editor).toContain('view_strings.sections_editor.re_publish');
+    expect(editor).toContain('data-publish-schedule-toggle');
+    expect(editor).toContain('id="publish_schedule_panel"');
+    expect(editor).toContain('cms-editor-publish-schedule-collapsed');
+    expect(editor).toContain('window.localStorage');
+    expect(editor).toContain('aria-expanded="false"');
+    expect(editor).toContain('data-publish-schedule-panel class="min-w-0 flex-1 mt-2" hidden');
+    expect(editor).toContain('let publishScheduleCollapsed = true;');
   });
 
   it('flattens feature views into the shared runtime namespace', () => {

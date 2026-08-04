@@ -404,21 +404,21 @@
   async function renderStructuredEditor(model) {
     const prepared = {
       ...model,
-      settingsHtml: await renderFieldSet(model.settingsFields, model.itemGroups, false),
-      contentHtml: await renderFieldSet(model.contentFields, model.itemGroups, true),
+      settingsHtml: await renderFieldSet(model.settingsFields, model.itemGroups, false, 'root:settings'),
+      contentHtml: await renderFieldSet(model.contentFields, model.itemGroups, true, 'root:content'),
       blocks: await Promise.all((model.blocks || []).map(async (block) => ({
         ...block,
-        settingsHtml: await renderFieldSet(block.settingsFields, block.itemGroups, false),
-        contentHtml: await renderFieldSet(block.contentFields, block.itemGroups, true),
+        settingsHtml: await renderFieldSet(block.settingsFields, block.itemGroups, false, 'block:' + block.index + ':settings'),
+        contentHtml: await renderFieldSet(block.contentFields, block.itemGroups, true, 'block:' + block.index + ':content'),
       }))),
     };
     return renderLiquid('/snippets/structured-editor.liquid', prepared);
   }
 
-  async function renderFieldSet(fields, itemGroups, includeItems) {
+  async function renderFieldSet(fields, itemGroups, includeItems, scopeKey = 'root') {
     const fieldHtml = await renderFieldGrid(await renderFields(fields || []));
     if (!includeItems) return fieldHtml;
-    const groups = await Promise.all((itemGroups || []).map((group) => renderItemGroup(group)));
+    const groups = await Promise.all((itemGroups || []).map((group, index) => renderItemGroup(group, scopeKey + ':group:' + index)));
     return fieldHtml + groups.join('');
   }
 
@@ -444,26 +444,32 @@
       '\n    </div>';
   }
 
-  async function renderItemGroup(group) {
+  async function renderItemGroup(group, scopeKey) {
+    const iconHref = escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix);
+    const groupKey = scopeKey + ':' + group.addAction;
     const rows = group.rows && group.rows.length
-      ? (await Promise.all(group.rows.map((row) => renderItemRow(row)))).join('')
+      ? (await Promise.all(group.rows.map((row) => renderItemRow(row, groupKey + ':item:' + row.weightInputName)))).join('')
       : '<p class="text-sm text-gray-400">No items yet.</p>';
 
-    return '\n    <div class="min-w-0 rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-4">\n' +
-      '      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">\n' +
-      '        <p class="min-w-0 break-words text-sm font-semibold text-gray-700">' + escapeHtml(group.name) + '</p>\n' +
+    return '\n    <details data-cms-collapsible data-collapsible-key="' + escapeHtml(groupKey) + '" class="min-w-0 rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-4" open>\n' +
+      '      <summary class="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between [&::-webkit-details-marker]:hidden">\n' +
+      '        <span class="inline-flex min-w-0 items-center gap-1.5 break-words text-sm font-semibold text-gray-700">\n' +
+      '          <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + iconHref + '#chevron-right"></use></svg>\n' +
+      '          <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + iconHref + '#blocks"></use></svg>\n' +
+      '          <span>' + escapeHtml(group.name) + '</span>\n' +
+      '        </span>\n' +
       '        <button type="submit" name="action" value="' + escapeHtml(group.addAction) + '"\n' +
       '                class="w-full shrink-0 px-3 py-1.5 rounded-lg bg-white border border-gray-300 text-xs font-semibold text-gray-700 sm:w-auto">Add Item</button>\n' +
-      '      </div>\n' +
+      '      </summary>\n' +
       '      <div data-weight-sortable class="space-y-3">\n' +
       rows +
       '      </div>\n' +
-      '\n    </div>';
+      '\n    </details>';
   }
 
-  async function renderItemRow(row) {
-    const settingsHtml = await renderFieldSet(row.settingsFields, row.itemGroups, false);
-    const contentHtml = await renderFieldSet(row.contentFields, row.itemGroups, true);
+  async function renderItemRow(row, scopeKey) {
+    const settingsHtml = await renderFieldSet(row.settingsFields, row.itemGroups, false, scopeKey + ':settings');
+    const contentHtml = await renderFieldSet(row.contentFields, row.itemGroups, true, scopeKey + ':content');
     const deleteButton = row.showDelete
       ? '<button type="submit" name="action" value="' + escapeHtml(row.deleteAction) + '"\n' +
         '                   title="Delete ' + escapeHtml(row.label.toLowerCase()) + '" aria-label="Delete ' + escapeHtml(row.label.toLowerCase()) + '"\n' +
@@ -474,19 +480,20 @@
       : '';
 
     const dragToReorder = translate('view_strings.sections_tags.drag_to_reorder', 'Drag to reorder');
-    return '<div data-weight-sortable-row class="min-w-0 rounded-lg bg-white border border-gray-200 p-4 space-y-3">\n' +
-      '                <div class="flex items-center justify-between gap-3">\n' +
+    return '<details data-cms-collapsible data-collapsible-key="' + escapeHtml(scopeKey) + '" data-weight-sortable-row class="min-w-0 rounded-lg bg-white border border-gray-200 p-4 space-y-3" open>\n' +
+      '                <summary class="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">\n' +
       '                  <div class="flex min-w-0 items-center gap-1.5">\n' +
       '                    <button type="button" data-weight-sortable-handle title="' + escapeHtml(dragToReorder) + '" aria-label="' + escapeHtml(dragToReorder) + '" class="inline-flex h-7 w-7 shrink-0 cursor-grab items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 active:cursor-grabbing">\n' +
       '                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix) + '#list"></use></svg>\n' +
       '                    </button>\n' +
+      '                    <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="' + escapeHtml(renderGlobals(activeViewBasePath).iconHrefPrefix) + '#chevron-right"></use></svg>\n' +
       '                    <span class="min-w-0 text-xs text-gray-400">' + escapeHtml(row.label) + '</span>\n' +
       '                  </div>\n' +
       '                  <div class="flex shrink-0 items-center gap-3">\n' +
       renderCompactWeightInput(row.weightInputName, row.weight, 'Weight for ' + row.label.toLowerCase()) +
       deleteButton +
       '                  </div>\n' +
-      '                </div>\n' +
+      '                </summary>\n' +
       (row.hasSettings
         ? '<div class="space-y-3">\n' +
           '                         <p class="text-xs font-semibold uppercase tracking-wide text-gray-400">Settings</p>\n' +
@@ -494,7 +501,7 @@
           '                       </div>'
         : '') +
       contentHtml +
-      '              </div>';
+      '              </details>';
   }
 
   function renderCompactWeightInput(name, value, label) {
@@ -585,6 +592,43 @@
       dragScope = null;
       dragHandle = null;
       dragChanged = false;
+    });
+  }
+
+  function setupCollapsibleDetails() {
+    const storageKey = 'cms-editor-structured-collapse:' + window.location.pathname;
+    let storedState = {};
+    try {
+      const rawState = window.localStorage.getItem(storageKey);
+      const parsedState = rawState ? JSON.parse(rawState) : null;
+      if (parsedState && typeof parsedState === 'object' && !Array.isArray(parsedState)) storedState = parsedState;
+    } catch (_error) {
+      storedState = {};
+    }
+
+    function persistState() {
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(storedState));
+      } catch (_error) {
+        // Ignore browsers that block localStorage or have reached its quota.
+      }
+    }
+
+    document.querySelectorAll('details[data-cms-collapsible]').forEach((details) => {
+      const key = details.getAttribute('data-collapsible-key');
+      const summary = details.querySelector(':scope > summary');
+      const icon = summary && summary.querySelector('[data-collapsible-icon]');
+      if (!key || !icon) return;
+      if (typeof storedState[key] === 'boolean') details.open = storedState[key];
+      const updateIcon = () => {
+        icon.style.transform = details.open ? 'rotate(90deg)' : 'rotate(0deg)';
+      };
+      details.addEventListener('toggle', () => {
+        updateIcon();
+        storedState[key] = details.open;
+        persistState();
+      });
+      updateIcon();
     });
   }
 
@@ -788,6 +832,7 @@
       const html = await renderLiquid(payload.layoutPath || '/layout/default.liquid', layoutData);
       replaceDocument(html);
       setupWeightSortables();
+      setupCollapsibleDetails();
     } catch (error) {
       console.error(error);
       const root = document.getElementById('cms-client-root') || document.body;
