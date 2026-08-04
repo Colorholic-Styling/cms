@@ -3,6 +3,7 @@
     "fields": {
       "code": "語言代碼",
       "content_enabled": "內容語言",
+      "default_language": "預設語言",
       "direction": "方向",
       "fallback": "後備語言",
       "file_value": "語言檔內容",
@@ -16,6 +17,8 @@
     },
     "languages": {
       "add": "新增語言",
+      "default": "預設內容語言",
+      "default_description": "用於新增內容，並作為主要翻譯來源。",
       "description": "管理資料庫中的內容語言及 CMS 介面語言。",
       "title": "語言"
     },

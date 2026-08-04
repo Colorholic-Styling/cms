@@ -4,9 +4,12 @@ import type { Env } from '../src/types';
 import { clearConfigCache, resolveCmsConfig } from '../src/core/db/content-config';
 import {
   buildTranslationCatalog,
+  CONTENT_DEFAULT_LANGUAGE_SETTING_KEY,
   deleteLocale,
   flattenMessages,
+  loadDefaultContentLanguage,
   listLocales,
+  saveDefaultContentLanguage,
   saveLocale,
   saveLocaleMessage,
 } from '../src/core/i18n';
@@ -18,6 +21,8 @@ const cmsEnv = env as unknown as Env;
 beforeEach(async () => {
   await env.DB.prepare("DELETE FROM locale_messages WHERE locale_code = 'fr'").run();
   await env.DB.prepare("DELETE FROM locales WHERE code = 'fr'").run();
+  await env.DB.prepare('DELETE FROM settings WHERE key = ?').bind(CONTENT_DEFAULT_LANGUAGE_SETTING_KEY).run();
+  await env.DB.prepare("UPDATE locales SET content_enabled = 1 WHERE code = 'mis'").run();
   clearConfigCache();
 });
 
@@ -27,6 +32,31 @@ describe('database locale registry', () => {
     const unspecified = locales.find((locale) => locale.code === 'mis');
     expect(unspecified).toMatchObject({ content_enabled: 1, ui_enabled: 0, builtin: 1 });
     await expect(deleteLocale(cmsEnv, 'mis')).rejects.toThrow('cannot be deleted');
+  });
+
+  it('allows another enabled content language to become default and then disables mis', async () => {
+    await saveDefaultContentLanguage(cmsEnv, 'zh-hant');
+    expect(await loadDefaultContentLanguage(cmsEnv)).toBe('zh-hant');
+
+    await saveLocale(cmsEnv, {
+      label: 'Unspecified language', content_enabled: '', ui_enabled: '', fallback_code: '', weight: '0',
+    }, 'mis');
+
+    const locales = await listLocales(cmsEnv);
+    expect(locales.find((locale) => locale.code === 'mis')?.content_enabled).toBe(0);
+    expect((await resolveCmsConfig(cmsEnv)).defaultLanguage).toBe('zh-hant');
+  });
+
+  it('keeps the selected default content language enabled', async () => {
+    await expect(saveLocale(cmsEnv, {
+      label: 'Unspecified language', content_enabled: '', ui_enabled: '', fallback_code: '', weight: '0',
+    }, 'mis')).resolves.toBe('mis');
+    expect((await listLocales(cmsEnv)).find((locale) => locale.code === 'mis')?.content_enabled).toBe(1);
+  });
+
+  it('does not allow the selected default content language to be deleted', async () => {
+    await saveDefaultContentLanguage(cmsEnv, 'zh-hant');
+    await expect(deleteLocale(cmsEnv, 'zh-hant')).rejects.toThrow('default content language');
   });
 
   it('extends the effective content languages from the database', async () => {

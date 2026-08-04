@@ -3,6 +3,7 @@
     "fields": {
       "code": "语言代码",
       "content_enabled": "内容语言",
+      "default_language": "默认语言",
       "direction": "方向",
       "fallback": "回退语言",
       "file_value": "语言文件内容",
@@ -16,6 +17,8 @@
     },
     "languages": {
       "add": "添加语言",
+      "default": "默认内容语言",
+      "default_description": "用于新建内容，并作为主要翻译来源。",
       "description": "管理数据库中的内容语言和 CMS 界面语言。",
       "title": "语言"
     },

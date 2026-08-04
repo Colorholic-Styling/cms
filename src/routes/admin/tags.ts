@@ -5,7 +5,6 @@ import { taxonomyFormPage, taxonomiesPage } from '../../core/templates/taxonomie
 import type { TaxonomyFormData } from '../../core/templates/taxonomies';
 import { tagFormPage, tagsPage } from '../../core/templates/tags';
 import type { TagTaxonomyOption } from '../../core/templates/tags';
-import { cmsConfig } from '../../cms-config';
 import {
   getLectLocalizedValue,
   mergeLects,
@@ -314,9 +313,9 @@ async function tagForm(c: AppContext, tag?: Tag) {
   const language = languageFromRequest(c, undefined, config);
   const lect = safeParseLect(tag?.lect);
   const rawTranslatedName = getLectLocalizedValue(lect, 'name', language);
-  const translatedName = language === cmsConfig.defaultLanguage ? rawTranslatedName || tag?.name || '' : rawTranslatedName;
-  const defaultTranslatedName = getLectLocalizedValue(lect, 'name', cmsConfig.defaultLanguage) || tag?.name || '';
-  const translatedPlaceholder = language === cmsConfig.defaultLanguage ? '' : defaultTranslatedName;
+  const translatedName = language === config.defaultLanguage ? rawTranslatedName || tag?.name || '' : rawTranslatedName;
+  const defaultTranslatedName = getLectLocalizedValue(lect, 'name', config.defaultLanguage) || tag?.name || '';
+  const translatedPlaceholder = language === config.defaultLanguage ? '' : defaultTranslatedName;
   const selectedParent = { id: '', label: '' };
   if (tag?.parent_tag) {
     const parent = await c.env.DB.prepare('SELECT id, name, lect FROM tags WHERE id = ?')
@@ -324,7 +323,7 @@ async function tagForm(c: AppContext, tag?: Tag) {
       .first<Tag>();
     if (parent) {
       selectedParent.id = String(parent.id);
-      selectedParent.label = getLectLocalizedValue(safeParseLect(parent.lect), 'name', cmsConfig.defaultLanguage) || parent.name;
+      selectedParent.label = getLectLocalizedValue(safeParseLect(parent.lect), 'name', config.defaultLanguage) || parent.name;
     }
   }
   return renderPage(c, tagFormPage, {

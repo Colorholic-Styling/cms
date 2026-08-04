@@ -6,6 +6,7 @@ export interface LocaleViewRow {
   label: string;
   contentEnabled: boolean;
   uiEnabled: boolean;
+  isDefault: boolean;
   direction: string;
   fallbackCode: string;
   weight: number;
@@ -19,11 +20,15 @@ export interface LocaleViewRow {
 
 export async function languagesPage(views: Fetcher, opts: BaseTemplateProps & {
   locales: LocaleViewRow[];
+  defaultLanguage: string;
+  defaultLanguageOptions: Array<{ code: string; label: string; selected: boolean }>;
   flash?: string;
   error?: string;
 }): Promise<string> {
   const body = await renderView(views, '/templates/languages.json', {
     locales: opts.locales,
+    defaultLanguage: opts.defaultLanguage,
+    defaultLanguageOptions: opts.defaultLanguageOptions,
     hasLocales: opts.locales.length > 0,
     flash: opts.flash ?? '',
     error: opts.error ?? '',

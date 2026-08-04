@@ -1,9 +1,11 @@
 import { getCookie, setCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { Env } from '../types';
+import { getSetting, saveSetting } from './db/settings';
 import { coreExtensions } from './extensions';
 
 export const DEFAULT_CONTENT_LANGUAGE = 'mis';
+export const CONTENT_DEFAULT_LANGUAGE_SETTING_KEY = 'content.default_language';
 export const DEFAULT_UI_LOCALE = 'en';
 export const UI_LOCALE_COOKIE = 'cms_ui_locale';
 
@@ -46,21 +48,45 @@ export async function listLocales(env: Env): Promise<LocaleRecord[]> {
 export async function localeRegistry(env: Env): Promise<{
   locales: LocaleRecord[];
   contentLanguages: string[];
+  defaultContentLanguage: string;
   uiLocales: LocaleRecord[];
 }> {
   const locales = await listLocales(env);
+  const contentLanguages = locales.filter((locale) => locale.content_enabled === 1).map((locale) => locale.code);
   return {
     locales,
-    contentLanguages: locales.filter((locale) => locale.content_enabled === 1).map((locale) => locale.code),
+    contentLanguages,
+    defaultContentLanguage: await loadDefaultContentLanguage(env, locales),
     uiLocales: locales.filter((locale) => locale.ui_enabled === 1),
   };
+}
+
+export async function loadDefaultContentLanguage(env: Env, locales?: LocaleRecord[]): Promise<string> {
+  const available = locales ?? await listLocales(env);
+  const contentLocales = available.filter((locale) => locale.content_enabled === 1);
+  const configured = (await getSetting(env, CONTENT_DEFAULT_LANGUAGE_SETTING_KEY))?.trim().toLowerCase();
+  return contentLocales.find((locale) => locale.code === configured)?.code
+    ?? contentLocales.find((locale) => locale.code === DEFAULT_CONTENT_LANGUAGE)?.code
+    ?? contentLocales[0]?.code
+    ?? DEFAULT_CONTENT_LANGUAGE;
+}
+
+export async function saveDefaultContentLanguage(env: Env, codeValue: unknown): Promise<string> {
+  const code = normalizeLocaleCode(codeValue);
+  const locale = await env.DB.prepare(
+    'SELECT code FROM locales WHERE code = ? AND content_enabled = 1',
+  ).bind(code).first<{ code: string }>();
+  if (!locale) throw new Error('The default content language must be enabled for content');
+  await saveSetting(env, CONTENT_DEFAULT_LANGUAGE_SETTING_KEY, code);
+  return code;
 }
 
 export async function saveLocale(env: Env, input: Record<string, unknown>, existingCode?: string): Promise<string> {
   const code = normalizeLocaleCode(existingCode ?? input.code);
   const label = String(input.label ?? '').trim().slice(0, 100);
   if (!label) throw new Error('Language label is required');
-  const contentEnabled = code === DEFAULT_CONTENT_LANGUAGE ? 1 : truthy(input.content_enabled);
+  const currentDefault = await loadDefaultContentLanguage(env);
+  const contentEnabled = code === currentDefault ? 1 : truthy(input.content_enabled);
   const uiEnabled = code === DEFAULT_CONTENT_LANGUAGE ? 0 : truthy(input.ui_enabled);
   const direction = input.direction === 'rtl' ? 'rtl' : 'ltr';
   const fallback = input.fallback_code ? normalizeLocaleCode(input.fallback_code) : null;
@@ -91,6 +117,7 @@ export async function saveLocale(env: Env, input: Record<string, unknown>, exist
 export async function deleteLocale(env: Env, codeValue: unknown): Promise<void> {
   const code = normalizeLocaleCode(codeValue);
   if (code === DEFAULT_CONTENT_LANGUAGE) throw new Error('The unspecified content language cannot be deleted');
+  if (code === await loadDefaultContentLanguage(env)) throw new Error('The default content language cannot be deleted');
   const row = await env.DB.prepare('SELECT builtin FROM locales WHERE code = ?').bind(code).first<{ builtin: number }>();
   if (row?.builtin) throw new Error('Built-in locales cannot be deleted');
   await env.DB.prepare('DELETE FROM locales WHERE code = ?').bind(code).run();

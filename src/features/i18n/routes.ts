@@ -16,8 +16,10 @@ import {
   deleteLocaleMessage,
   listLocaleMessages,
   listLocales,
+  localeRegistry,
   normalizeLocaleCode,
   loadBundledLocaleCatalog,
+  saveDefaultContentLanguage,
   saveLocale,
   saveLocaleMessage,
 } from '../../core/i18n';
@@ -34,12 +36,14 @@ function message(value: string | undefined): string {
 }
 
 i18nRoutes.get('/settings/languages', async (c) => {
-  const locales = await listLocales(c.env);
+  const registry = await localeRegistry(c.env);
+  const locales = registry.locales;
   const rows: LocaleViewRow[] = locales.map((locale) => ({
     code: locale.code,
     label: locale.label,
     contentEnabled: locale.content_enabled === 1,
     uiEnabled: locale.ui_enabled === 1,
+    isDefault: locale.code === registry.defaultContentLanguage,
     direction: locale.direction,
     fallbackCode: locale.fallback_code ?? '',
     weight: locale.weight,
@@ -56,9 +60,29 @@ i18nRoutes.get('/settings/languages', async (c) => {
   }));
   return renderPage(c, languagesPage, {
     locales: rows,
+    defaultLanguage: registry.defaultContentLanguage,
+    defaultLanguageOptions: locales
+      .filter((locale) => locale.content_enabled === 1)
+      .map((locale) => ({
+        code: locale.code,
+        label: locale.label,
+        selected: locale.code === registry.defaultContentLanguage,
+      })),
     flash: message(c.req.query('flash')),
     error: message(c.req.query('error')),
   });
+});
+
+i18nRoutes.post('/settings/languages/default', async (c) => {
+  const form = await c.req.formData();
+  try {
+    const code = await saveDefaultContentLanguage(c.env, form.get('default_language'));
+    clearConfigCache();
+    logAudit(c, 'locale.default.update', 'locale', code);
+    return c.redirect('/admin/settings/languages?flash=Default+language+saved', 303);
+  } catch (error) {
+    return c.redirect(`/admin/settings/languages?error=${encodeURIComponent(error instanceof Error ? error.message : 'Unable to save default language')}`, 303);
+  }
 });
 
 i18nRoutes.post('/settings/languages', async (c) => {
@@ -147,4 +171,3 @@ i18nRoutes.post('/settings/translations/:locale/:key/delete', async (c) => {
   logAudit(c, 'locale_message.delete', 'locale', locale);
   return c.redirect(`/admin/settings/translations?locale=${encodeURIComponent(locale)}&flash=Translation+deleted`, 303);
 });
-

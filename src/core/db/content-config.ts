@@ -3,7 +3,7 @@
 // content types contributed by active plugins.
 //
 // Plugins extend content types; the database locale registry extends the
-// content-language list. `mis` remains the site-level default.
+// content-language list and supplies the persisted site-level default.
 // ============================================================
 
 import { cmsConfig } from '../../cms-config';
@@ -18,7 +18,7 @@ import {
 import { dbBlockTypeToContentTypes, listDbBlockTypes } from './block-type-store';
 import type { Env } from '../../types';
 import type { ContributedContentTypes as PluginContentTypes } from '../extensions';
-import { DEFAULT_CONTENT_LANGUAGE, localeRegistry } from '../i18n';
+import { localeRegistry } from '../i18n';
 
 const CONFIG_TTL_MS = 60_000;
 let cached: { config: CmsConfig; expires: number } | null = null;
@@ -57,11 +57,11 @@ export async function resolveCmsConfig(env: Env): Promise<CmsConfig> {
         localeRegistry(env),
         loadPageTypeExtensions(env),
       ])
-    : [[], [], { contentLanguages: cmsConfig.languages }, {}];
+    : [[], [], { contentLanguages: cmsConfig.languages, defaultContentLanguage: cmsConfig.defaultLanguage }, {}];
 
   // Shallow-clone the mutable record fields so we never mutate the base.
   const merged: CmsConfig = {
-    defaultLanguage: DEFAULT_CONTENT_LANGUAGE,
+    defaultLanguage: registry.defaultContentLanguage,
     languages: registry.contentLanguages.length ? registry.contentLanguages : cmsConfig.languages,
     blueprint: { ...cmsConfig.blueprint },
     blocks: { ...cmsConfig.blocks },

@@ -1,7 +1,6 @@
 // Admin JSON API endpoints.
 
 import { Hono } from 'hono';
-import { cmsConfig } from '../../cms-config';
 import { getLectLocalizedValue, safeParseLect } from '../../core/db/lect';
 import type { Env, Variables, Tag, Taxonomy } from '../../types';
 import { num } from '../../core/http/forms';
@@ -54,6 +53,7 @@ apiRoutes.get('/api/parent-pages', requirePermission('content:read'), async (c) 
 apiRoutes.get('/api/parent-tags', requirePermission('content:read'), async (c) => {
   const query = c.req.query('q')?.trim() ?? '';
   const excludeId = num(c.req.query('exclude'), 0);
+  const config = await resolveCmsConfig(c.env);
   const params: unknown[] = [];
   const conditions: string[] = [];
 
@@ -81,7 +81,7 @@ apiRoutes.get('/api/parent-tags', requirePermission('content:read'), async (c) =
 
   return c.json(tags.results.map((tag) => ({
     id: tag.id,
-    name: getLectLocalizedValue(safeParseLect(tag.lect), 'name', cmsConfig.defaultLanguage) || tag.name,
+    name: getLectLocalizedValue(safeParseLect(tag.lect), 'name', config.defaultLanguage) || tag.name,
     slug: tag.slug,
   })));
 });
@@ -173,7 +173,7 @@ apiRoutes.get('/api/tags/:type', requirePermission('content:read'), async (c) =>
     .all<Tag>();
   return c.json(tags.results.map((tag) => ({
     value: tag.id,
-    label: getLectLocalizedValue(safeParseLect(tag.lect), 'name', cmsConfig.defaultLanguage) || tag.name,
+    label: getLectLocalizedValue(safeParseLect(tag.lect), 'name', config.defaultLanguage) || tag.name,
   })));
 });
 
