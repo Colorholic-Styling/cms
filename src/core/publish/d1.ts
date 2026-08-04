@@ -109,7 +109,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
       if (!uuids.length) return new Map();
       const placeholders = uuids.map(() => '?').join(',');
       const livePages = await publishedDb.prepare(
-        `SELECT uuid, lect, weight FROM pages WHERE uuid IN (${placeholders})`,
+        `SELECT uuid, lect, weight, start, end, timezone FROM pages WHERE uuid IN (${placeholders})`,
       )
         .bind(...uuids)
         .all<LivePageSnapshot>();
@@ -120,7 +120,7 @@ export function d1Adapter(publishedDb: D1DatabaseClient): PublishAdapter {
       if (!pageTypes.length) return [];
       const placeholders = pageTypes.map(() => '?').join(',');
       const livePages = await publishedDb.prepare(
-        `SELECT uuid, lect, weight FROM pages WHERE page_type IN (${placeholders})`,
+        `SELECT uuid, lect, weight, start, end, timezone FROM pages WHERE page_type IN (${placeholders})`,
       )
         .bind(...pageTypes)
         .all<LivePageSnapshot>();

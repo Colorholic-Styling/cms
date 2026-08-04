@@ -68,6 +68,9 @@ export function r2Adapter(bucket: R2Bucket, prefix = ''): PublishAdapter {
           uuid,
           lect: document.lect === undefined || document.lect === null ? null : JSON.stringify(document.lect),
           weight: typeof document.weight === 'number' ? document.weight : 0,
+          start: typeof document.start === 'string' ? document.start : null,
+          end: typeof document.end === 'string' ? document.end : null,
+          timezone: typeof document.timezone === 'string' ? document.timezone : null,
         }];
       }),
     );

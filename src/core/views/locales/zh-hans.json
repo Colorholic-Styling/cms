@@ -63,7 +63,9 @@
     "status": {
       "all": "全部",
       "draft": "草稿",
-      "live": "已发布"
+      "scheduled": "已排期",
+      "live": "已发布",
+      "ended": "已结束"
     }
   },
   "privacy": {

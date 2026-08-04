@@ -147,7 +147,7 @@ async function bulkAdvancedSearchInline(
     pageTypes: string[];
     criteria: ReturnType<typeof parseAdvancedSearchCriteria>;
     operator: ReturnType<typeof advancedSearchOperator>;
-    status?: 'draft' | 'live';
+    status?: 'draft' | 'scheduled' | 'live' | 'ended';
     returnTo: string;
   },
 ): Promise<Response> {

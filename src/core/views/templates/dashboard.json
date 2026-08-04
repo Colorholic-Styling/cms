@@ -5,7 +5,21 @@
       "settings": {
         "title": "{{ pageTitle }}",
         "description": "{{ pageCountLabel }}"
-      }
+      },
+      "blocks": {
+        "new": {
+          "type": "link",
+          "settings": {
+            "href": "/admin/pages/new",
+            "label": "{{ 'view_strings.sections_dashboard.new_page' | t }}",
+            "icon": "plus",
+            "variant": "primary"
+          }
+        }
+      },
+      "block_order": [
+        "new"
+      ]
     },
     "content": {
       "type": "dashboard"

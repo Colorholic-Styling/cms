@@ -39,6 +39,7 @@ const CORE_VIEWS = [
   'snippets/pagefield/text/basic.liquid',
   'snippets/pagefield/text/title.liquid',
   'assets/client-render.js',
+  'assets/editor.js',
   'locales/en.json',
 ];
 
@@ -78,10 +79,49 @@ describe('view assembly', () => {
     expect(layout).toContain("window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash)");
   });
 
+  it('ships scheduled, live, and ended page status labels', async () => {
+    const catalog = await (await env.VIEWS.fetch('https://views.local/locales/en.json')).json() as {
+      pages: { status: Record<string, string> };
+    };
+    expect(catalog.pages.status).toMatchObject({ scheduled: 'Scheduled', live: 'Live', ended: 'Ended' });
+    const dashboard = await (await env.VIEWS.fetch('https://views.local/sections/dashboard.liquid')).text();
+    expect(dashboard).toContain('pages.status.scheduled');
+    expect(dashboard).toContain('pages.status.live');
+    expect(dashboard).toContain('pages.status.ended');
+    expect(dashboard).toContain('bg-blue-100 text-blue-600');
+  });
+
+  it('ships a sync action for live content drift', async () => {
+    const [icons, dashboard, advancedSearch] = await Promise.all([
+      env.VIEWS.fetch('https://views.local/assets/icons.svg').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/sections/dashboard.liquid').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/sections/advanced-search.liquid').then((response) => response.text()),
+    ]);
+    expect(icons).toContain('<symbol id="sync"');
+    expect(dashboard).toContain('view_strings.sections_dashboard.live_content_differs_from_draft');
+    expect(dashboard).toContain('{{ iconHrefPrefix }}#warning');
+    expect(dashboard).toContain('action="{{ page.publishAction }}"');
+    expect(dashboard).toContain('{{ iconHrefPrefix }}#sync');
+    expect(advancedSearch).toContain('view_strings.sections_advanced_search.live_content_differs_from_draft');
+    expect(advancedSearch).toContain('{{ iconHrefPrefix }}#warning');
+    expect(advancedSearch).toContain('action="{{ page.publishAction }}"');
+    expect(advancedSearch).toContain('{{ iconHrefPrefix }}#sync');
+  });
+
   it('uses the trash icon for the host page delete action', async () => {
     const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
     expect(editor).toContain('data-delete-button');
     expect(editor).toContain('{{ iconHrefPrefix }}#trash');
+  });
+
+  it('loads page editor behavior from an external core asset', async () => {
+    const [editor, editorScript] = await Promise.all([
+      env.VIEWS.fetch('https://views.local/sections/editor.liquid').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/assets/editor.js').then((response) => response.text()),
+    ]);
+    expect(editor).not.toContain('<script');
+    expect(editorScript).toContain('window.WorkerCmsEditor');
+    expect(editorScript).not.toMatch(/{{|{%/);
   });
 
   it('places the editable page type below the slug as a compact badge', async () => {
@@ -130,13 +170,17 @@ describe('view assembly', () => {
 
   it('makes structured item groups and items collapsible by their summaries', async () => {
     const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
+    const structured = await (await env.VIEWS.fetch('https://views.local/snippets/structured-editor.liquid')).text();
     const group = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item-group.liquid')).text();
     const item = await (await env.VIEWS.fetch('https://views.local/snippets/structured-item.liquid')).text();
     expect(group).toContain('<details data-cms-collapsible');
     expect(item).toContain('data-cms-collapsible');
     expect(item).toContain('data-weight-sortable-row');
-    expect(group).toContain('<summary class="flex cursor-pointer');
-    expect(item).toContain('<summary class="flex cursor-pointer');
+    expect(structured).toContain('select-none');
+    expect(group).toContain('select-none');
+    expect(item).toContain('select-none');
+    expect(group).toContain('<summary class="');
+    expect(item).toContain('<summary class="');
     expect(item).toContain('data-weight-sortable-input');
     expect(renderer).toContain("renderLiquid('/snippets/structured-item-group.liquid'");
     expect(renderer).toContain("renderLiquid('/snippets/structured-item.liquid'");
@@ -175,7 +219,10 @@ describe('view assembly', () => {
   });
 
   it('keeps publish actions inside the publish schedule card', async () => {
-    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    const [editor, editorScript] = await Promise.all([
+      env.VIEWS.fetch('https://views.local/sections/editor.liquid').then((response) => response.text()),
+      env.VIEWS.fetch('https://views.local/assets/editor.js').then((response) => response.text()),
+    ]);
     const schedule = editor.indexOf('view_strings.sections_editor.publish_schedule');
     const publish = editor.indexOf('name="action" value="publish"');
     const unpublish = editor.indexOf('data-unpublish-button');
@@ -190,11 +237,11 @@ describe('view assembly', () => {
     expect(editor).toContain('view_strings.sections_editor.re_publish');
     expect(editor).toContain('data-publish-schedule-toggle');
     expect(editor).toContain('id="publish_schedule_panel"');
-    expect(editor).toContain('cms-editor-publish-schedule-collapsed');
-    expect(editor).toContain('window.localStorage');
+    expect(editorScript).toContain('cms-editor-publish-schedule-collapsed');
+    expect(editorScript).toContain('window.localStorage');
     expect(editor).toContain('aria-expanded="false"');
     expect(editor).toContain('data-publish-schedule-panel class="min-w-0 flex-1 mt-2" hidden');
-    expect(editor).toContain('let publishScheduleCollapsed = true;');
+    expect(editorScript).toContain('let publishScheduleCollapsed = true;');
   });
 
   it('flattens feature views into the shared runtime namespace', () => {

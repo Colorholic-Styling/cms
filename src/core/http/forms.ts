@@ -8,7 +8,7 @@ export type FormValue = File | string | null | undefined;
 
 export const DASHBOARD_DEFAULT_PAGE_SIZE = 100;
 export const DASHBOARD_MAX_PAGE_SIZE = 100;
-export type DashboardStatusFilter = '' | 'draft' | 'live';
+export type DashboardStatusFilter = '' | 'draft' | 'scheduled' | 'live' | 'ended';
 
 export function str(v: FormValue): string {
   return typeof v === 'string' ? v.trim() : '';
@@ -37,7 +37,7 @@ export function dashboardPageNumber(value: string | null | undefined): number {
 }
 
 export function dashboardStatusFilter(value: string | null | undefined): DashboardStatusFilter {
-  return value === 'draft' || value === 'live' ? value : '';
+  return value === 'draft' || value === 'scheduled' || value === 'live' || value === 'ended' ? value : '';
 }
 
 export function dashboardPageHref(

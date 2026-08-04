@@ -176,7 +176,7 @@ export interface QueuedBulkAction {
   pageTypes: string[];
   criteria: AdvancedSearchCriterion[];
   operator: AdvancedSearchOperator;
-  status?: 'draft' | 'live';
+  status?: 'draft' | 'scheduled' | 'live' | 'ended';
   /** Where the finished job sends the browser back to. */
   returnTo: string;
 }

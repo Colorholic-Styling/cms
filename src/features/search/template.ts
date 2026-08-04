@@ -51,6 +51,7 @@ export async function advancedSearchPage(views: Fetcher, opts: BaseTemplateProps
   queryWithoutPage: string;
   pages: DashboardPage[];
 }): Promise<string> {
+  const pageActionReturnQuery = `?return_to=${encodeURIComponent(opts.currentHref)}`;
   const body = await renderView(views, '/templates/advanced-search.json', {
     ...opts,
     hasResults: opts.pages.length > 0,
@@ -73,7 +74,7 @@ export async function advancedSearchPage(views: Fetcher, opts: BaseTemplateProps
       hasLiveLectDrift: !!page.hasLiveLectDrift,
       isPublished: page.isPublished,
       editHref: `/admin/pages/${page.id}/edit`,
-      publishAction: `/admin/pages/${page.id}/publish`,
+      publishAction: `/admin/pages/${page.id}/publish${pageActionReturnQuery}`,
       unpublishAction: `/admin/pages/${page.id}/unpublish`,
       deleteAction: `/admin/pages/${page.id}/delete`,
     })),

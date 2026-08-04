@@ -1,6 +1,6 @@
 {% if hasSettings %}
   <details data-cms-collapsible data-collapsible-key="root:settings" class="mb-2 min-w-0 space-y-3 [&_input]:bg-[#141a26]" open>
-    <summary class="inline-flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-700 [&::-webkit-details-marker]:hidden">
+    <summary class="inline-flex cursor-pointer select-none list-none items-center gap-2 text-sm font-semibold text-gray-700 [&::-webkit-details-marker]:hidden">
       <svg class="h-3.5 w-3.5 shrink-0 transition-transform" data-collapsible-icon fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#chevron-right"></use></svg>
       <svg class="h-4 w-4 shrink-0 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#settings"></use></svg>
       <span>{{ "view_strings.snippets_structured_editor.settings" | t }}</span>

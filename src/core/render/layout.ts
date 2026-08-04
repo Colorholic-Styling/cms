@@ -24,6 +24,7 @@ export const CORE_CLIENT_ASSETS: readonly string[] = [
   '/assets/picture-field.js',
   '/assets/page-ref.js',
   '/assets/richtext-md.js',
+  '/assets/editor.js',
 ];
 
 /**

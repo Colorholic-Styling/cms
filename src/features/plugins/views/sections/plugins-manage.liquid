@@ -54,11 +54,34 @@
                   {% endif %}
 
                   <form method="post" action="{{ plugin.toggleAction }}" class="inline shrink-0">
-                    <button type="submit" class="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-gray-300 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">{% if plugin.enabled %}{{ "plugins.actions.disable" | t }}{% else %}{{ "plugins.actions.enable" | t }}{% endif %}</button>
+                    <button type="submit"
+                            title="{% if plugin.enabled %}{{ "plugins.actions.disable" | t }}{% else %}{{ "plugins.actions.enable" | t }}{% endif %}"
+                            aria-label="{% if plugin.enabled %}{{ "plugins.actions.disable" | t }}{% else %}{{ "plugins.actions.enable" | t }}{% endif %}"
+                            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700">
+                      {% if plugin.enabled %}
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#eye-off"></use></svg>
+                        <span class="sr-only">{{ "plugins.actions.disable" | t }}</span>
+                      {% else %}
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#eye"></use></svg>
+                        <span class="sr-only">{{ "plugins.actions.enable" | t }}</span>
+                      {% endif %}
+                    </button>
                   </form>
-                  <a href="{{ plugin.editHref }}" class="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-gray-300 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50">{{ "view_strings.sections_plugins_manage.edit" | t }}</a>
+                  <a href="{{ plugin.editHref }}"
+                     title="{{ "view_strings.sections_plugins_manage.edit" | t }}"
+                     aria-label="{{ "view_strings.sections_plugins_manage.edit" | t }}"
+                     class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-indigo-600 transition-colors hover:bg-indigo-50 hover:text-indigo-800">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#pencil-square"></use></svg>
+                    <span class="sr-only">{{ "view_strings.sections_plugins_manage.edit" | t }}</span>
+                  </a>
                   <form method="post" action="{{ plugin.deleteAction }}" class="inline shrink-0" data-confirm="{{ "view_strings.sections_plugins_manage.remove_this_plugin" | t }}">
-                    <button type="submit" class="inline-flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-red-300 px-3 text-xs font-semibold text-red-700 hover:bg-red-50">{{ "view_strings.sections_plugins_manage.delete" | t }}</button>
+                    <button type="submit"
+                            title="{{ "view_strings.sections_plugins_manage.delete" | t }}"
+                            aria-label="{{ "view_strings.sections_plugins_manage.delete" | t }}"
+                            class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-red-500 transition-colors hover:bg-red-50 hover:text-red-700">
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#trash-can"></use></svg>
+                      <span class="sr-only">{{ "view_strings.sections_plugins_manage.delete" | t }}</span>
+                    </button>
                   </form>
                 </div>
               </td>

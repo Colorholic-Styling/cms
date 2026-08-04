@@ -12,7 +12,7 @@ import type { BlueprintEntry } from '../../../cms-config';
 import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
 import { coreExtensions } from '../../../core/extensions';
 import { reservePageCreate } from '../../../features/services';
-import { lectFromForm, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
+import { lectFromForm, publicationStatusForPage, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
 import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids, savePageVersion } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
@@ -42,7 +42,9 @@ function statusFilterLinks(routeBase: string, active: DashboardStatusFilter) {
   return [
     { label: 'All', translationKey: 'pages.status.all', href: routeBase, isActive: active === '' },
     { label: 'Draft', translationKey: 'pages.status.draft', href: `${routeBase}?status=draft`, isActive: active === 'draft' },
+    { label: 'Scheduled', translationKey: 'pages.status.scheduled', href: `${routeBase}?status=scheduled`, isActive: active === 'scheduled' },
     { label: 'Live', translationKey: 'pages.status.live', href: `${routeBase}?status=live`, isActive: active === 'live' },
+    { label: 'Ended', translationKey: 'pages.status.ended', href: `${routeBase}?status=ended`, isActive: active === 'ended' },
   ];
 }
 
@@ -70,46 +72,43 @@ async function liveDashboardUuids(c: AppContext): Promise<Set<string>> {
 
 async function liveDashboardPagesForRequest(
   c: AppContext,
-  options: { pageType?: string; requestedPage: number; pageSize: number },
+  options: {
+    pageType?: string;
+    requestedPage: number;
+    pageSize: number;
+    statusFilter: 'scheduled' | 'live' | 'ended';
+    now: Date;
+  },
 ) {
-  const { pageType, requestedPage, pageSize } = options;
+  const { pageType, requestedPage, pageSize, statusFilter, now } = options;
   const whereSql = pageType ? 'WHERE page_type = ?' : '';
   const baseParams = pageType ? [pageType] : [];
-  const countRow = await c.env.PUBLISHED_DB.prepare(`SELECT COUNT(*) AS total FROM pages ${whereSql}`)
-    .bind(...baseParams)
-    .first<{ total: number }>();
-  const total = countRow?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const currentPage = Math.min(requestedPage, totalPages);
-  const currentOffset = (currentPage - 1) * pageSize;
   const liveRows = await c.env.PUBLISHED_DB.prepare(
     `SELECT * FROM pages ${whereSql}
-     ORDER BY weight ASC, name ASC, id ASC
-     LIMIT ? OFFSET ?`,
+     ORDER BY weight ASC, name ASC, id ASC`,
   )
-    .bind(...baseParams, pageSize, currentOffset)
+    .bind(...baseParams)
     .all<Page>();
-  const liveMap = new Map(liveRows.results.map((page) => [page.uuid, page]));
+  const matchingRows = liveRows.results.filter((page) => (
+    publicationStatusForPage(page, true, now) === statusFilter
+  ));
+  const paginated = dashboardPaginationResult(matchingRows, requestedPage, pageSize);
+  const liveMap = new Map(paginated.results.map((page) => [page.uuid, page]));
   const draftRows = await listDashboardDraftPagesByUuids(
     c.env.DB,
-    liveRows.results.map((page) => page.uuid),
+    paginated.results.map((page) => page.uuid),
     { pageType },
   );
   const draftMap = new Map(draftRows.map((page) => [page.uuid, page]));
-  const results: DashboardPageRow[] = liveRows.results.map((page) => {
+  const results: DashboardPageRow[] = paginated.results.map((page) => {
     const draft = draftMap.get(page.uuid);
     return draft ?? { ...page, isDraftMissing: true };
   });
   const projectDraft = await draftLectProjector(c.env);
 
   return {
-    results: withLiveStatus(results, liveMap, projectDraft),
-    pagination: {
-      total,
-      totalPages,
-      currentPage,
-      limit: pageSize,
-    },
+    results: withLiveStatus(results, liveMap, projectDraft, now),
+    pagination: paginated.pagination,
   };
 }
 
@@ -141,6 +140,7 @@ async function dashboardPagesForRequest(
   options: { pageType?: string; statusFilter: DashboardStatusFilter; requestedPage: number; pageSize: number },
 ) {
   const { pageType, statusFilter, requestedPage, pageSize } = options;
+  const now = new Date();
   if (!statusFilter) {
     const draftPages = await listDashboardDraftPages(c.env.DB, {
       pageType,
@@ -153,14 +153,20 @@ async function dashboardPagesForRequest(
     ]);
     return {
       ...draftPages,
-      results: withLiveStatus(draftPages.results, liveMap, projectDraft),
+      results: withLiveStatus(draftPages.results, liveMap, projectDraft, now),
     };
   }
-  if (statusFilter === 'live') {
-    return liveDashboardPagesForRequest(c, { pageType, requestedPage, pageSize });
+  if (statusFilter === 'draft') {
+    return draftDashboardPagesForRequest(c, { pageType, requestedPage, pageSize });
   }
 
-  return draftDashboardPagesForRequest(c, { pageType, requestedPage, pageSize });
+  return liveDashboardPagesForRequest(c, {
+    pageType,
+    requestedPage,
+    pageSize,
+    statusFilter,
+    now,
+  });
 }
 
 // Escape hatch: `?native=1` (or `?editor=cms`) forces the built-in CMS editor

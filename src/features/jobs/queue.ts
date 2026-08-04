@@ -31,7 +31,7 @@ export interface AdvancedSearchBulkActionInput {
   pageTypes: string[];
   criteria: AdvancedSearchCriterion[];
   operator: AdvancedSearchOperator;
-  status?: 'draft' | 'live';
+  status?: 'draft' | 'scheduled' | 'live' | 'ended';
   returnTo: string;
   user: JWTPayload;
 }

@@ -127,7 +127,12 @@ function parseAdvancedSearchBulkActionJob(body: string | null): AdvancedSearchBu
     : [];
   const criteria = Array.isArray(value.criteria) ? value.criteria : [];
   const operator = value.operator === 'OR' || value.operator === 'NOT' ? value.operator : 'AND';
-  const status = value.status === 'draft' || value.status === 'live' ? value.status : undefined;
+  const status = value.status === 'draft'
+    || value.status === 'scheduled'
+    || value.status === 'live'
+    || value.status === 'ended'
+    ? value.status
+    : undefined;
   const returnTo = typeof value.returnTo === 'string' && value.returnTo.startsWith('/admin')
     ? value.returnTo
     : '/admin/advanced-search';

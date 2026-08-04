@@ -31,6 +31,10 @@ export interface LivePageSnapshot {
   uuid: string;
   lect: string | null;
   weight: number;
+  /** Schedule metadata is optional for third-party read adapters. */
+  start?: string | null;
+  end?: string | null;
+  timezone?: string | null;
 }
 
 export interface PublishAdapter {

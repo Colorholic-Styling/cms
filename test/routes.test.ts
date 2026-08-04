@@ -1844,6 +1844,67 @@ describe('admin routes', () => {
     expect(liveData.statusFilters).toContainEqual({ label: 'Live', translationKey: 'pages.status.live', href: '/admin?status=live', isActive: true });
   });
 
+  it('GET /admin classifies published pages by their schedule window', async () => {
+    const now = Date.now();
+    const dateTime = (offsetMs: number) => new Date(now + offsetMs).toISOString().slice(0, 16);
+    const hour = 60 * 60 * 1000;
+    const rows = [
+      [940, 'dashboard-scheduled-uuid', 'Dashboard Scheduled', 'dashboard-scheduled', dateTime(hour), dateTime(3 * hour)],
+      [941, 'dashboard-live-uuid', 'Dashboard Live', 'dashboard-live', dateTime(-hour), dateTime(hour)],
+      [942, 'dashboard-ended-uuid', 'Dashboard Ended', 'dashboard-ended', dateTime(-3 * hour), dateTime(-hour)],
+    ] as const;
+    for (const [id, uuid, name, slug, start, end] of rows) {
+      await env.PUBLISHED_DB.prepare(
+        `INSERT INTO pages (id, uuid, name, slug, weight, start, end, timezone, page_type, lect, creator, editors)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(id, uuid, name, slug, id - 930, start, end, '+0000', 'default', basePageLect, 1, '1').run();
+    }
+
+    const [scheduledResponse, liveResponse, endedResponse] = await Promise.all([
+      fetchWorker('/admin?status=scheduled', { headers: { Cookie: await authCookie() } }),
+      fetchWorker('/admin?status=live', { headers: { Cookie: await authCookie() } }),
+      fetchWorker('/admin?status=ended', { headers: { Cookie: await authCookie() } }),
+    ]);
+    const [scheduledData, liveData, endedData] = await Promise.all([
+      scheduledResponse.text().then(bodyData),
+      liveResponse.text().then(bodyData),
+      endedResponse.text().then(bodyData),
+    ]);
+    const names = (data: Record<string, unknown>) => (data.pages as Array<Record<string, unknown>>).map((page) => page.name);
+
+    expect(scheduledResponse.status).toBe(200);
+    expect(liveResponse.status).toBe(200);
+    expect(endedResponse.status).toBe(200);
+    expect(names(scheduledData)).toContain('Dashboard Scheduled');
+    expect(names(scheduledData)).not.toContain('Dashboard Live');
+    expect(names(scheduledData)).not.toContain('Dashboard Ended');
+    expect(names(liveData)).toContain('Dashboard Live');
+    expect(names(liveData)).not.toContain('Dashboard Scheduled');
+    expect(names(liveData)).not.toContain('Dashboard Ended');
+    expect(names(endedData)).toContain('Dashboard Ended');
+    expect(names(endedData)).not.toContain('Dashboard Scheduled');
+    expect(endedData.statusFilters).toContainEqual({ label: 'Ended', translationKey: 'pages.status.ended', href: '/admin?status=ended', isActive: true });
+    expect((scheduledData.pages as Array<Record<string, unknown>>).find((page) => page.name === 'Dashboard Scheduled'))
+      .toMatchObject({ publicationStatus: 'scheduled', isPublished: true });
+    expect((endedData.pages as Array<Record<string, unknown>>).find((page) => page.name === 'Dashboard Ended'))
+      .toMatchObject({ publicationStatus: 'ended', isPublished: true });
+  });
+
+  it('adds a re-publish action when the draft differs from its published copy', async () => {
+    const changedLect = stringifyLect({ ...basePageLectObject, name: localizedFixture('About changed') });
+    await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?').bind(changedLect, 101).run();
+
+    const response = await fetchWorker('/admin?status=live', { headers: { Cookie: await authCookie() } });
+    const data = bodyData(await response.text());
+    const page = (data.pages as Array<Record<string, unknown>>).find((entry) => entry.name === 'About');
+
+    expect(response.status).toBe(200);
+    expect(page).toMatchObject({
+      hasLiveLectDrift: true,
+      publishAction: '/admin/pages/101/publish?return_to=%2Fadmin%3Fpage%3D1%26pagesize%3D100%26status%3Dlive',
+    });
+  });
+
   it('GET /admin?status=live shows published pages missing from drafts with a pull action', async () => {
     await env.PUBLISHED_DB.prepare(
       `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)

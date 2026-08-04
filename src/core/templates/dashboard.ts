@@ -4,6 +4,7 @@ import type { Page } from '../../types';
 
 export interface DashboardPage extends Page {
   isPublished: boolean;
+  publicationStatus?: 'draft' | 'scheduled' | 'live' | 'ended';
   isDraftMissing?: boolean;
   contentPreview?: string;
   liveWeight?: number;
@@ -34,7 +35,7 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   flash?: string;
   returnPath?: string;
   pageTypeFilter?: string;
-  statusFilter?: '' | 'draft' | 'live';
+  statusFilter?: '' | 'draft' | 'scheduled' | 'live' | 'ended';
   statusFilters?: DashboardStatusFilterLink[];
   privacyTable?: boolean;
   searchValue?: string;
@@ -78,6 +79,7 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   const bulkParams = new URLSearchParams({ dashboard: '1' });
   if (statusFilter) bulkParams.set('status', statusFilter);
   const bulkAction = requestedBulkAction ?? `${bulkRoute}?${bulkParams.toString()}`;
+  const pageActionReturnQuery = `?return_to=${encodeURIComponent(returnPath)}`;
   const pageTypeOptions = pageTypeChoices.map((slug) => ({
     slug,
     href: `/admin/pages/list/${encodeURIComponent(slug)}`,
@@ -85,9 +87,13 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   }));
   const countSubject = statusFilter === 'live'
     ? 'live page'
-    : statusFilter === 'draft'
-      ? 'draft page'
-      : 'page';
+    : statusFilter === 'scheduled'
+      ? 'scheduled page'
+      : statusFilter === 'ended'
+        ? 'ended page'
+        : statusFilter === 'draft'
+          ? 'draft page'
+          : 'page';
   const countSuffix = pageCount === 1 ? '' : 's';
   const pageCountLabel = pagination && pageCount > 0
     ? `Showing ${paginationStart}-${paginationEnd} of ${pageCount} ${countSubject}${countSuffix}${statusFilter ? '' : ' in draft'}`
@@ -150,10 +156,11 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
       isDraftMissing: !!page.isDraftMissing,
       isSelectable: !page.isDraftMissing,
       isPublished: page.isPublished,
+      publicationStatus: page.publicationStatus ?? (page.isPublished ? 'live' : 'draft'),
       weightAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/weight`,
       editHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/edit`,
       readHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/read`,
-      publishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/publish`,
+      publishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/publish${pageActionReturnQuery}`,
       unpublishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/unpublish`,
       deleteAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/delete`,
       pullAction: `/admin/pages/pull/${encodeURIComponent(page.uuid)}`,

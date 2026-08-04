@@ -63,7 +63,9 @@
     "status": {
       "all": "全部",
       "draft": "草稿",
-      "live": "已發佈"
+      "scheduled": "已排程",
+      "live": "已發佈",
+      "ended": "已結束"
     }
   },
   "privacy": {

@@ -13,6 +13,7 @@ import {
   strParam,
 } from '../src/core/http/forms';
 import { validatePageBasics } from '../src/core/db/validation';
+import { publicationStatusForPage } from '../src/core/db/page-logic';
 import {
   advancedSearchCondition,
   advancedSearchOperator,
@@ -74,7 +75,9 @@ describe('forms helpers', () => {
 
   it('normalizes dashboard status filters', () => {
     expect(dashboardStatusFilter('draft')).toBe('draft');
+    expect(dashboardStatusFilter('scheduled')).toBe('scheduled');
     expect(dashboardStatusFilter('live')).toBe('live');
+    expect(dashboardStatusFilter('ended')).toBe('ended');
     expect(dashboardStatusFilter('published')).toBe('');
     expect(dashboardStatusFilter(undefined)).toBe('');
   });
@@ -84,6 +87,21 @@ describe('forms helpers', () => {
     expect(safeAdminReturnPath('https://evil.example/admin')).toBe('/admin');
     expect(safeAdminReturnPath('/somewhere-else')).toBe('/admin');
     expect(safeAdminReturnPath(undefined, '/admin/trash')).toBe('/admin/trash');
+  });
+});
+
+describe('publicationStatusForPage', () => {
+  const now = new Date('2026-08-04T04:00:00.000Z');
+
+  it('uses the published flag before evaluating the schedule window', () => {
+    expect(publicationStatusForPage({ start: '2026-08-04T13:00', timezone: '+0800' }, false, now)).toBe('draft');
+    expect(publicationStatusForPage({ start: '2026-08-04T13:00', timezone: '+0800' }, true, now)).toBe('scheduled');
+    expect(publicationStatusForPage({ end: '2026-08-04T12:00', timezone: '+0800' }, true, now)).toBe('ended');
+    expect(publicationStatusForPage({ start: '2026-08-04T11:00', end: '2026-08-04T13:00', timezone: '+0800' }, true, now)).toBe('live');
+  });
+
+  it('resolves IANA timezone values for scheduled pages', () => {
+    expect(publicationStatusForPage({ start: '2026-08-04T13:00', timezone: 'Asia/Hong_Kong' }, true, now)).toBe('scheduled');
   });
 });
 

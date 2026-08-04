@@ -18,6 +18,7 @@ import type { Env, JWTPayload, Page } from '../../types';
 import { trashDraftPages, type TrashedPageRef } from '../db/admin-queries';
 import { advancedSearchMatchingPageIds, type AdvancedSearchCriterion, type AdvancedSearchOperator } from '../db/search';
 import { isSubmissionMirror } from '../db/submission-ingest';
+import { publicationStatusForPage } from '../db/page-logic';
 
 /** The bulk actions a page listing offers. */
 export type BulkPageAction = 'publish' | 'unpublish' | 'delete';
@@ -43,8 +44,8 @@ export interface BulkTargetQuery {
   pageTypes: string[];
   criteria: AdvancedSearchCriterion[];
   operator: AdvancedSearchOperator;
-  /** Narrows to pages that are live, or to those that are not. */
-  status?: 'draft' | 'live';
+  /** Narrows to a page-list publication status. */
+  status?: 'draft' | 'scheduled' | 'live' | 'ended';
 }
 
 /**
@@ -56,11 +57,14 @@ export async function resolveBulkTargetIds(env: Env, query: BulkTargetQuery): Pr
   const ids = await advancedSearchMatchingPageIds(env.DB, query.pageTypes, query.criteria, query.operator);
   if (!query.status) return ids;
 
-  const liveUuids = new Set((await listLiveByTypes(env, query.pageTypes)).map((page) => page.uuid));
+  const livePages = await listLiveByTypes(env, query.pageTypes);
+  const liveMap = new Map(livePages.map((page) => [page.uuid, page]));
   const pages = await draftPagesByIds(env.DB, ids);
-  return pages
-    .filter((page) => (query.status === 'live' ? liveUuids.has(page.uuid) : !liveUuids.has(page.uuid)))
-    .map((page) => page.id);
+  return pages.filter((page) => {
+    const livePage = liveMap.get(page.uuid);
+    if (query.status === 'draft') return !livePage;
+    return !!livePage && publicationStatusForPage(livePage, true) === query.status;
+  }).map((page) => page.id);
 }
 
 /**

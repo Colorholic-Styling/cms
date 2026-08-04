@@ -63,7 +63,9 @@
     "status": {
       "all": "All",
       "draft": "Draft",
-      "live": "Live"
+      "scheduled": "Scheduled",
+      "live": "Live",
+      "ended": "Ended"
     }
   },
   "privacy": {
@@ -235,7 +237,7 @@
     "sections_dashboard.import_csv": "Import CSV",
     "sections_dashboard.ingest_submission": "Ingest submission",
     "sections_dashboard.last": "Last",
-    "sections_dashboard.live": "Live",
+    "sections_dashboard.live": "Published",
     "sections_dashboard.live_content_differs_from_draft": "Live content differs from draft",
     "sections_dashboard.live_content_differs_from_draft_publish_to_sync": "Live content differs from draft; publish to sync",
     "sections_dashboard.move_this_page_to_trash": "Move this page to trash?",
