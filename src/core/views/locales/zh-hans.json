@@ -240,6 +240,8 @@
     "sections_dashboard.live": "已发布",
     "sections_dashboard.live_content_differs_from_draft": "已发布内容与草稿不同",
     "sections_dashboard.live_content_differs_from_draft_publish_to_sync": "已发布内容与草稿不同；请发布以同步",
+    "sections_dashboard.live_weight_differs_from_draft": "已发布权重与草稿不同",
+    "sections_dashboard.live_weight_differs_from_draft_publish_to_sync": "已发布权重与草稿不同；请发布以同步",
     "sections_dashboard.move_this_page_to_trash": "要将此页面移至回收站吗？",
     "sections_dashboard.new_page": "新建页面",
     "sections_dashboard.next": "下一页",

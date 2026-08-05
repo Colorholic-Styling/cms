@@ -240,6 +240,8 @@
     "sections_dashboard.live": "已發佈",
     "sections_dashboard.live_content_differs_from_draft": "已發佈內容與草稿不同",
     "sections_dashboard.live_content_differs_from_draft_publish_to_sync": "已發佈內容與草稿不同；請發佈以同步",
+    "sections_dashboard.live_weight_differs_from_draft": "已發佈權重與草稿不同",
+    "sections_dashboard.live_weight_differs_from_draft_publish_to_sync": "已發佈權重與草稿不同；請發佈以同步",
     "sections_dashboard.move_this_page_to_trash": "要將此頁面移至垃圾桶嗎？",
     "sections_dashboard.new_page": "新增頁面",
     "sections_dashboard.next": "下一頁",

@@ -1905,6 +1905,24 @@ describe('admin routes', () => {
     });
   });
 
+  it('marks a page-list weight drift and exposes the publish action to sync it', async () => {
+    await env.PUBLISHED_DB.prepare('UPDATE pages SET weight = ? WHERE uuid = ?')
+      .bind(9, 'page-uuid-101')
+      .run();
+
+    const response = await fetchWorker('/admin/pages/list?status=live', { headers: { Cookie: await authCookie() } });
+    const data = bodyData(await response.text());
+    const page = (data.pages as Array<Record<string, unknown>>).find((entry) => entry.name === 'About');
+
+    expect(response.status).toBe(200);
+    expect(page).toMatchObject({
+      weight: 5,
+      liveWeight: 9,
+      hasLiveWeightDrift: true,
+      publishAction: '/admin/pages/101/publish?return_to=%2Fadmin%2Fpages%2Flist%3Fpage%3D1%26pagesize%3D100%26status%3Dlive',
+    });
+  });
+
   it('GET /admin?status=live shows published pages missing from drafts with a pull action', async () => {
     await env.PUBLISHED_DB.prepare(
       `INSERT INTO pages (id, uuid, name, slug, weight, page_type, lect, creator, editors)

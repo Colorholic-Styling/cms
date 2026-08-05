@@ -240,6 +240,8 @@
     "sections_dashboard.live": "Published",
     "sections_dashboard.live_content_differs_from_draft": "Live content differs from draft",
     "sections_dashboard.live_content_differs_from_draft_publish_to_sync": "Live content differs from draft; publish to sync",
+    "sections_dashboard.live_weight_differs_from_draft": "Live weight differs from draft",
+    "sections_dashboard.live_weight_differs_from_draft_publish_to_sync": "Live weight differs from draft; publish to sync",
     "sections_dashboard.move_this_page_to_trash": "Move this page to trash?",
     "sections_dashboard.new_page": "New Page",
     "sections_dashboard.next": "Next",

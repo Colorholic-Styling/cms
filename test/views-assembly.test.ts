@@ -102,6 +102,8 @@ describe('view assembly', () => {
     expect(dashboard).toContain('{{ iconHrefPrefix }}#warning');
     expect(dashboard).toContain('action="{{ page.publishAction }}"');
     expect(dashboard).toContain('{{ iconHrefPrefix }}#sync');
+    expect(dashboard).toContain('page.hasLiveWeightDrift');
+    expect(dashboard).toContain('view_strings.sections_dashboard.live_weight_differs_from_draft_publish_to_sync');
     expect(advancedSearch).toContain('view_strings.sections_advanced_search.live_content_differs_from_draft');
     expect(advancedSearch).toContain('{{ iconHrefPrefix }}#warning');
     expect(advancedSearch).toContain('action="{{ page.publishAction }}"');
