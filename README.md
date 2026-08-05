@@ -6,10 +6,11 @@ Content management system on Workers
 - **OAuth 2.1** login via Eventuai, GitHub, Google, Microsoft, or Apple with PKCE (Proof Key for Code Exchange); Apple ID tokens are signature- and nonce-verified
 - **Dual JWT** security – short-lived access tokens (15 min) + rotatable refresh tokens (7 days) stored as httpOnly cookies; refresh tokens are hashed and stored in D1 for revocation
 - **Capability-based access** – routes enforce granular permissions resolved from built-in or custom roles; delegated user/role managers cannot grant authority they do not already hold
-- **Separated D1 content stores** – the CMS database keeps auth, sessions, draft, trash, taxonomy, and media metadata; the published database keeps only live content for public reads
-- **Page versioning** – every save creates a new `page_versions` row; `draft_pages.current_page_version_id` points to the active version
+- **Separated D1 content stores** – the CMS database keeps auth, sessions, draft, trash, taxonomy, and media metadata; the published database keeps only live content for public reads. Both call the page tables `pages` / `page_tags` — same name, same shape — so a published database can serve as the next host's working set; this repo disambiguates by binding (`DB.pages` vs `PUBLISHED_DB.pages`)
+- **Page versioning** – `pages.lect` is the working copy and the single source of truth for a draft; every save appends a `page_versions` row. The log is an append-only backup: the newest row mirrors `pages.lect`, older rows are restore candidates. There is deliberately no current-version pointer
+- **Live collaborative editing** – `PageSyncDO` holds unsaved per-user field operations and editor presence in Durable Object SQLite, cleared on save
 - **Private R2 media uploads** – picture fields upload to a private R2 bucket and are served back through the Worker at `/media/...`
-- **Tailwind CSS + VanillaJS** admin UI with inline HTML toolbar for content editing
+- **Tailwind CSS + VanillaJS** admin UI rendered from Liquid views; the rich-text field keeps a contenteditable preview, its Markdown source, and the submitted HTML in sync (`marked` + `turndown`, bundled by esbuild)
 - **Plugins** – extend the CMS with separate Worker plugins (lifecycle hooks, content types, fields/blocks, admin pages, publish targets). See [Plugins](#plugins).
 - **Pluggable publish targets** – publishing fans out to one or more adapters: the published D1 database (default), static JSON in an R2 bucket, or any plugin Worker (IPFS, webhooks, search indexes). See [Publish targets](#publish-targets).
 - **Credits & diamonds** – two independent per-user currencies that meter chargeable plugin actions; atomic, overdraft-proof, ledger-audited, each with admin grants, user-to-user transfers, and a shared site-wide pool that covers users who run out. See [Credits](#credits).
@@ -39,17 +40,25 @@ Copy the `database_id` values printed by the commands into `wrangler.toml`:
 `DB` is the private CMS/admin database. It stores users, sessions, drafts,
 trash, taxonomy, page versions, and media metadata.
 
-`PUBLISHED_DB` is the published-content database. It stores the `live_pages`
-and `live_page_tags` rows used by public readers. A separate public Worker can
-be deployed with only this binding, so it has no access to CMS users, sessions,
+`PUBLISHED_DB` is the published-content database. It stores the `pages` and
+`page_tags` rows used by public readers. A separate public Worker can be
+deployed with only this binding, so it has no access to CMS users, sessions,
 drafts, or trash.
 
 For an existing deployment, keep the existing `DB` binding and create the new
-`PUBLISHED_DB`. Existing rows from old `live_*` tables are not moved
-automatically; publish pages again or copy the current `live_pages` and
-`live_page_tags` rows into `cms-published`. Older deployed CMS databases may
-still contain legacy `live_*` tables, but CMS routes ignore them after this
-change.
+`PUBLISHED_DB`. Rows are not moved automatically; publish the pages again, or
+copy the current published rows into `cms-published`.
+
+> **Breaking rename (August 2026).** `draft_pages` → `pages`,
+> `draft_page_tags` → `page_tags` in `DB`, and `live_pages` → `pages`,
+> `live_page_tags` → `page_tags` in `PUBLISHED_DB`. The generated baselines
+> below create the new names; a database created before the rename must be
+> migrated by hand (`ALTER TABLE ... RENAME TO ...` plus its indexes and
+> triggers) before deploying a Worker that reads them. Since both bindings now
+> use the same table name, a query aimed at the wrong binding no longer fails
+> loudly — check the binding first when page reads or writes land somewhere
+> unexpected. An upgraded CMS database may also still carry legacy `live_*`
+> tables; current routes ignore them and use `PUBLISHED_DB` instead.
 
 ### 3. Run migrations
 
@@ -69,9 +78,9 @@ For production, add `--remote` to each `wrangler d1 migrations apply` command.
 The `cms` migrations create auth tables plus draft, trash, taxonomy,
 versioning, media tables, and (with the `jobs` feature installed) the
 `admin_jobs` table for durable background admin actions such as long plugin
-duplicate/delete requests. The
-`cms-published` migrations create only the published `live_*` content tables.
-They do not automatically import rows from other D1 databases.
+duplicate/delete requests. The `cms-published` migrations create only the two
+published content tables (`pages`, `page_tags`). They do not automatically
+import rows from other D1 databases.
 
 The baseline migrations are generated from the `schema.sql` fragments beside
 the code they belong to — edit those, not `migrations/*.sql`, and run
@@ -120,13 +129,20 @@ The page editor uses a Worker-owned preview route for picture field thumbnails:
 /media-preview/<key>
 ```
 
-In production, `/media-preview/<key>` fetches the private R2-backed `/media/<key>` URL with Cloudflare Image Resizing options:
+It reads the object from R2 and resizes it to a 100×100 WebP square through the
+Cloudflare **Images binding**, then caches the result:
 
-```ts
-cf: { image: { width: 100, height: 100, fit: 'cover' } }
+```toml
+[images]
+binding = "IMAGES"
 ```
 
-Enable **Images > Transformations** for the zone before relying on this optimization. If transformations are not enabled, the route falls back to the original `/media/<key>` object for preview display.
+The binding works on `workers.dev` — no zone, custom domain, or **Images >
+Transformations** zone setting required. The route serves the original
+`/media/<key>` object instead whenever the transform cannot or should not run:
+no `IMAGES` binding, a missing object, a non-image content type, an input over
+20 MB, or a decode failure. Remove the binding to always serve full-size
+originals.
 
 ### 5. Configure secrets
 
@@ -288,16 +304,33 @@ A plugin can add six things:
   calls are awaited and failures surface in the editor. See
   [Publish targets](#publish-targets).
 
+A manifest may also declare, all admin-configured rather than plugin-enforced:
+`permissions` (extra permission types offered in the Roles admin), `assets`
+(JS/CSS the plugin wants to run inside CMS chrome — each path must be approved
+and content-hash pinned before it survives sanitization), `limits` (quotas the
+CMS enforces on page creation), `credits` (chargeable actions and their
+wallet), `autoPublishTypes` (owned types republished on save once already
+live), `contentTypes.publishLect` (fields stripped at publish time — see
+[Publish targets](#publish-targets)), `i18n: true` (the plugin serves its own
+locale catalogs), and `autoTenant: true` (see
+[Automatic tenant registration](#automatic-tenant-registration)).
+
 With no plugins registered, the system is inert and adds no plugin traffic.
 
 ### Localized Liquid views
 
 Core and plugin Liquid views share the CMS translation catalog. Use a namespaced
-key and escape the translated text at its output context:
+key:
 
 ```liquid
-{{ "plugin.events.guest_list" | t | escape }}
+{{ "plugin.events.guest_list" | t }}
 ```
+
+> **Views auto-escape.** Sections are rendered in the browser by
+> `client-render.js` with LiquidJS `outputEscape: 'escape'`, so every `{{ … }}`
+> is HTML-escaped by default — adding `| escape` double-escapes the text and
+> shows `&amp;lt;` in the UI. Values that are deliberately HTML (a server-built
+> fragment, an inline SVG icon) need an explicit `| raw`.
 
 Bundled defaults live in `src/core/views/locales/<locale>.json`, plus a fragment
 per feature at `src/features/<id>/views/locales/<locale>.json`; the build merges
@@ -554,7 +587,9 @@ Plugins declare their chargeable actions in the manifest (`credits`); an admin
 sets prices under **Plugins → Credits**. `page_create` costs are charged
 automatically by the host every time a page of that type is created (both the
 `/__cms` write-back API and the built-in editor); `metered` costs are reported
-by the plugin via `POST /__cms/credits/charge`. Charging is atomic and
+by the plugin via `POST /__cms/credits/charge`; `recurring` costs bill reported
+usage monthly through the cron sweep (see
+[Recurring subscriptions](#recurring-subscriptions)). Charging is atomic and
 overdraft-proof — a balance can never go below zero — and every change is
 appended to the `credit_ledger` audit trail shown on the profile page.
 
@@ -618,40 +653,54 @@ pools are keyed by currency rows, so adding another currency needs only a
 catalog entry, translations, and optional styling — no core TypeScript or SQL
 change.
 
-**Upgrading an existing database.** Fresh installs get the row-based wallet
-schema from the generated baseline. A database that already applied the old
-baseline must first add the diamond ledger shape if it has not already done
-so, then copy both legacy user columns into `credit_wallets`:
+Balances live in `credit_wallets` (one row per user per currency), not in
+columns on `users`. Fresh installs get that shape from the generated baseline.
+Databases that predate it were migrated by one-off scripts that have since been
+removed from the tree; a database still carrying the legacy balance columns
+must copy them into `credit_wallets` by hand before deploying a Worker that
+reads it. Legacy columns are simply unused afterwards, and fresh databases
+never create them.
 
-```bash
-wrangler d1 execute cms --remote --file migrations/upgrades/diamond-currency.sql
-wrangler d1 execute cms --remote --file migrations/upgrades/credit-wallets.sql
-```
+### Recurring subscriptions
 
-If `diamond-currency.sql` was applied previously, run only
-`credit-wallets.sql`. Run the wallet migration before deploying the Worker
-that reads `credit_wallets`. These are not wrangler migrations (nothing under
-`migrations/upgrades/` is applied automatically) and are not idempotent — run
-each required script once per database. Legacy balance columns remain unused
-on upgraded databases; fresh databases do not create them.
+A cost declared with `"charge": "recurring"` bills a plugin-reported usage
+quantity once a month instead of per action. The plugin reports usage with
+`POST /__cms/credits/usage`; the host keeps one `credit_subscriptions` row per
+(user, plugin, cost) and the cron sweep bills due rows through the same
+`spendCredits()` path as every other charge — same ledger rows, same shared-pool
+fallback, same currency rules.
+
+- `billing: "advance"` charges `ceil(quantity / per) * price` for the coming
+  month, starting on the first sweep after the subscription is created.
+- `billing: "arrears"` charges the **peak** usage since the last charge, one
+  month after creation, so usage cannot dodge the bill by shrinking just before
+  the boundary.
+
+The sweep claims a period before spending it (advancing `next_charge_at` under
+a guard on its old value), so concurrent sweeps cannot double-claim and a crash
+misses a charge rather than double-billing. Insufficient credits flip the row to
+`past_due` and retry daily; an unreachable plugin defers it an hour; a manifest
+that no longer declares the cost cancels the row.
 
 ---
 
 ## Database schema
 
-The flattened initial migrations create **31 application
-D1 tables**: 29 in the private CMS database and 2 in the published database.
-Live page editing also uses 2 SQLite tables inside each page's Durable Object;
-these are not D1 tables.
+With every feature enabled, the generated initial migrations create **32
+application D1 tables**: 30 in the private CMS database and 2 in the published
+database. Live page editing also uses 2 SQLite tables inside each page's
+Durable Object; these are not D1 tables.
 
-The counts below exclude D1/SQLite internal tables and Durable Object storage.
-The migration history was flattened into one initial file per D1 database in
-July 2026. These baselines are intended for fresh databases. Before deploying
-the flattened history over an existing installation, ensure every migration
-from the previous history through `0016_i18n.sql` (and published migration
-`0003_submission_scan_index.sql`) and `0002_credit_subscriptions.sql` has
-already been applied; Wrangler will not re-run a modified `0001` that the
-database has previously recorded.
+The counts below exclude D1/SQLite internal tables and Durable Object storage,
+and assume the default profile in `cms.features.json` — a smaller profile
+creates fewer tables.
+
+The migration history is flattened into one initial file per D1 database, and
+these baselines are intended for **fresh databases**. Wrangler will not re-run
+a modified `0001` that a database has already recorded, so an existing
+installation picks up neither newly enabled features (see
+[Feature profiles](#feature-profiles) for the additive-migration flow) nor the
+August 2026 table rename, which has to be applied by hand.
 
 An upgraded deployment may show additional legacy `live_*` tables in `DB`;
 current CMS routes ignore those tables and use `PUBLISHED_DB` instead.
@@ -687,15 +736,15 @@ A feature may own code, tables, or both. Ten are switchable:
 
 | Feature | Owns |
 |---|---|
-| `plugins` | The plugin platform: registry, hooks, proxy, manage UI, `/__cms` API — plus `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals` (+3 indexes) |
-| `credits` | Metered billing (credits and diamonds) and the credit summary screen — plus `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+4 indexes) |
+| `plugins` | The plugin platform: registry, hooks, proxy, manage UI, `/__cms` API — plus `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals`, `plugin_state` (+3 indexes) |
+| `credits` | Metered billing (credits and diamonds) and the credit summary screen — plus `credit_wallets`, `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions` (+4 indexes) |
 | `search` | The advanced-search screen and bulk actions (code only; the query builder is core) |
 | `users-roles` | The user and role admin screens (code only; the tables and permission resolver are core) |
 | `i18n` | The languages and translations screens (code only; see the note below) |
 | `trash` | `trash_pages`, `trash_page_tags`, `trash_page_versions` (+2 indexes, 2 triggers) |
 | `runtime-content-types` | `page_types`, `block_types` (+1 trigger) |
 | `media` | R2 uploads, `/media` delivery, the Files browser — plus `media_files` |
-| `plugin-pointer-indexes` | the 4 `idx_draft_pages_pointer_*` expression indexes (requires `plugins`) — schema only, in its own slice directory |
+| `plugin-pointer-indexes` | the 4 `idx_pages_pointer_*` expression indexes (requires `plugins`) — schema only, in its own slice directory |
 | `jobs` | Durable background execution for long plugin actions and bulk page actions — the queue consumer, the runner, plus `admin_jobs` (+2 indexes) |
 
 After editing `cms.features.json`:
@@ -792,21 +841,21 @@ from the bundle without deleting anything.
 What deletion does not clean up: the feature's `test/*.test.ts`. Remove those by
 hand.
 
-### CMS database (`DB`) — 28 tables
+### CMS database (`DB`) — 30 tables
 
 The private schema is divided into five feature categories:
 
 - **Content (13)**
-  - Page lifecycle: `draft_pages`, `page_versions`, `trash_pages`, `trash_page_versions`
-  - Classification: `taxonomies`, `tags`, `draft_page_tags`, `trash_page_tags`
+  - Page lifecycle: `pages`, `page_versions`, `trash_pages`, `trash_page_versions`
+  - Classification: `taxonomies`, `tags`, `page_tags`, `trash_page_tags`
   - Content model and media: `page_types`, `block_types`, `media_files`
   - Localization: `locales`, `locale_messages`
 - **Identity and access (5)**
   - `users`, `user_oauth_identities`, `sessions`, `roles`, `role_permissions`
-- **Credits (4)**
-  - `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions`
-- **Plugin (5)**
-  - `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals`, `settings`, `admin_jobs`
+- **Credits (5)**
+  - `credit_wallets`, `credit_ledger`, `shared_credits`, `shared_credit_ledger`, `credit_subscriptions`
+- **Plugin (6)**
+  - `plugins`, `plugin_asset_approvals`, `plugin_page_type_approvals`, `plugin_state`, `settings`, `admin_jobs`
 - **Compliance (1)**
   - `audit_log`
 
@@ -819,8 +868,14 @@ configuration.
 
 | Table | Purpose |
 |-------|---------|
-| `live_pages` | Published page metadata and structured `lect` content |
-| `live_page_tags` | Published page ↔ tag relationships |
+| `pages` | Published page metadata and structured `lect` content |
+| `page_tags` | Published page ↔ tag relationships |
+
+The two tables carry the same names and shapes as their `DB` counterparts, so a
+published database can be handed to another host as its working set (publish
+A → B, then B → C). Rows here are partitioned by writer: this Worker only
+upserts and deletes rows keyed by uuids it minted, while external submission
+Workers are INSERT-only. See [`src/core/publish/README.md`](src/core/publish/README.md).
 
 Keeping public content in this separate database allows a public Worker to read
 published pages without receiving access to users, sessions, drafts, trash,
@@ -839,19 +894,33 @@ by the D1 migration directories.
 ### Publish / un-publish flow
 
 ```
-                       ┌────▶  d1      PUBLISHED_DB.live_pages (default)
-DB.draft_pages ── Publish ──▶  r2      PUBLISH_BUCKET pages/<uuid>.json + index.json
-                       └────▶  plugin  /__plugin/publish/* (IPFS, webhooks, …)
+                       ┌──▶  d1      PUBLISHED_DB.pages (default)
+DB.pages ── Publish ───┼──▶  r2      PUBLISH_BUCKET pages/<uuid>.json + index.json
+                       └──▶  plugin  /__plugin/publish/* (IPFS, webhooks, …)
 ```
 
-Publish builds one snapshot from `DB.draft_pages` (page row + denormalized tag
-links) and fans it out to every configured **publish target**; un-publish and
-page deletion remove the page from every target the same way. See
+Publish builds one snapshot from `DB.pages` (page row + denormalized tag links)
+and fans it out to every configured **publish target**; un-publish and page
+deletion remove the page from every target the same way. See
 [Publish targets](#publish-targets).
 
-The default `d1` target upserts the snapshot into `PUBLISHED_DB.live_pages` by
-`uuid`, preserving the draft page's numeric `id`, and replaces its
-`live_page_tags` links; un-publish deletes both.
+The default `d1` target upserts the snapshot into `PUBLISHED_DB.pages` by
+`uuid`, preserving the draft page's numeric `id`, and replaces its `page_tags`
+links; un-publish deletes both.
+
+**Data minimization.** A plugin may declare `contentTypes.publishLect` rules
+for page types it owns — `keep` (allow-list) or `drop` (deny-list) of top-level
+`lect` fields — so PII, operational history, or secrets never reach the
+published database or any other target. The same projection is applied to the
+draft side wherever draft and live are compared, so projected types do not show
+as permanently "modified since publish".
+
+**Submission mirrors are never published or unpublished.** A published row
+without a draft counterpart is ingested back into `DB.pages` as a submission
+(cron-driven, or on demand via `POST /__cms/ingest/submissions`) and fires the
+`submission` hook; publishing one would overwrite the original live row and
+unpublishing one would delete it, so both are refused before reaching an
+adapter.
 
 ## Publish targets
 
@@ -860,7 +929,7 @@ the `PUBLISH_TARGETS` var (comma-separated, defaults to `"d1"`):
 
 | Target | Requires | What it does |
 |--------|----------|--------------|
-| `d1` | `PUBLISHED_DB` binding | Upserts `live_pages` / `live_page_tags` in the published database (the original flow) |
+| `d1` | `PUBLISHED_DB` binding | Upserts `pages` / `page_tags` in the published database (the original flow) |
 | `r2` | `PUBLISH_BUCKET` binding | Writes static JSON: `pages/<uuid>.json` (full snapshot, `lect` parsed) plus `index.json` (listing of all live pages) |
 
 ```toml
@@ -923,6 +992,7 @@ features on and off.
 │   ├── build-views.mjs        # views/ fragments -> dist/views/*
 │   ├── check-boundaries.mjs   # import-layering rules
 │   ├── check-profiles.mjs     # every feature profile executes and is removable
+│   ├── write-if-changed.mjs   # generator helper: only rewrite changed output
 │   └── install.mjs            # `npm run setup` wizard
 ├── src/
 │   ├── index.ts           # Worker entry: fetch, queue, scheduled, DO exports
@@ -937,7 +1007,8 @@ features on and off.
 │   │   ├── templates/     # Server renderers for the core admin screens
 │   │   ├── http/          # Headers, rate limit, request context, D1 sessions, forms
 │   │   ├── auth/          # JWT, sessions, cookies, guards, roles, permissions
-│   │   ├── db/            # Page/tag stores, lect, search, settings, content config
+│   │   ├── db/            # Page/tag stores, lect, search, settings, content
+│   │   │                  #   config, audit log, submission ingest, validation
 │   │   ├── render/        # Liquid, layout, admin chrome (buildBaseProps/renderPage)
 │   │   ├── pages/         # Bulk page actions (publish/unpublish/trash a set)
 │   │   ├── publish/       # Draft -> live pipeline and the d1/r2 adapters
@@ -950,8 +1021,10 @@ features on and off.
 │   │   ├── search/        # Advanced search screen and bulk actions
 │   │   ├── media/         # R2 uploads, /media delivery, the Files browser
 │   │   ├── trash/         # Soft-delete holding area
+│   │   ├── jobs/          # Queue-backed runner for long admin/plugin actions
 │   │   ├── runtime-content-types/  # Admin for DB-defined page/block types
 │   │   ├── i18n/          # Languages and translations admin
+│   │   ├── plugin-pointer-indexes/ # Schema-only slice: pointer expression indexes
 │   │   └── users-roles/   # User and role administration
 │   └── routes/            # The composition root: the only hand-written code
 │       ├── auth.ts        #   that mounts feature routers and calls feature
@@ -960,7 +1033,9 @@ features on and off.
 │                          #   routes (pages, tags, settings, profile, JSON API)
 ├── assets-source/         # Sources compiled into dist/views/assets/ — kept OUT
 │   ├── admin.css          #   of the view tree because wrangler serves the
-│   └── richtext-md.js     #   assets directory publicly
+│   ├── richtext-md.js     #   assets directory publicly. tailwind-sources.css
+│   └── tailwind-sources.css  # is GENERATED by build:views from the profile,
+│                          #   so the stylesheet prunes disabled features
 ├── dist/views/            # GENERATED by `npm run build:views`: src/core/views
 │                          #   plus the enabled features'. This is the directory
 │                          #   wrangler uploads — never edit it.
@@ -991,11 +1066,19 @@ through `renderPage`, and listing them alongside the manifests would make the
 import graph cyclic.
 
 A feature may depend on another only by declaring it in `requires`, which is
-validated at startup and enforced by the boundary guard. Today:
+validated at startup and enforced by the boundary guard. **Today no code feature
+declares one.** Each slice installs alone and an absent one is inert:
 
-| Feature | Requires |
+| Would-be dependency | How it is avoided instead |
 |---|---|
-| `users-roles` | `plugins`, `credits` |
-| `runtime-content-types`, `search`, `credits` | `plugins` |
-| `plugins` | `credits` — the mutual dependency noted under [Feature profiles](#feature-profiles) |
-| `trash`, `media`, `i18n` | — |
+| `users-roles` → `credits` | The wallet panels arrive as contributed base props through the generated feature-service registry |
+| `users-roles` → `plugins` | Plugin-contributed permissions reach the role editor the same way; without `plugins` it lists only built-in ones |
+| `credits` → `plugins` | Priced actions cross the service boundary as untrusted structural shapes the credits feature validates itself |
+| `runtime-content-types` → `plugins` | The "owned by" column reads core's `contentTypeContributors` |
+| `search` → the import/export provider | The CSV export button reads `importExportHrefs` and hides when nobody provides it |
+
+The only real declared dependency anywhere is in schema: the
+`plugin-pointer-indexes` fragment states `-- requires: plugins`, so a profile
+that enables it without the plugin platform fails the build. (The credits
+fragment's `-- requires: core` is a no-op — `core` is implicit and ignored by
+the assembler.)
