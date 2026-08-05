@@ -11,6 +11,7 @@ import {
 import { publicationStatusForPage, type PagePublicationStatus } from '../db/page-logic';
 import type { BlueprintProps, FieldProps, Lect, LectItem } from '../db/lect';
 import type { CmsConfig } from '../../cms-config';
+import type { UiTranslator } from '../i18n';
 
 interface RenderedLectFields {
   settingsFields: PageFieldRenderModel[];
@@ -566,6 +567,8 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
   /** Current draft's lect JSON — when previewing a version, the raw-metadata
    *  panel diffs the version against this instead of showing the editable box. */
   draftLect?: string;
+  /** Server-side UI translation for the document title. */
+  t?: UiTranslator;
   structured?: {
     config: CmsConfig;
     language: string;
@@ -605,7 +608,10 @@ export async function editorPage(views: Fetcher, opts: BaseTemplateProps & {
     ? opts.publicationStatus ?? publicationStatusForPage(page, isPublished)
     : 'draft';
   const selectedVersion = isVersionPreview && version ? version : undefined;
-  const pageTitle = isEdit ? `Edit: ${page.name}` : 'New Page';
+  const translate = opts.t ?? ((_key: string, fallback: string) => fallback);
+  const pageTitle = isEdit
+    ? `${translate('view_strings.sections_editor.edit_prefix', 'Edit: ')}${page.name}`
+    : translate('view_strings.sections_editor.new_page', 'New Page');
   const pageType = (structured ? getLectScalar(structured.lect, '_type') : '') || page?.page_type || defaultPageType || 'default';
   const structuredModel = structured ? renderStructuredEditor(structured) : null;
   const versionHrefBase = page ? `/admin/pages/${page.id}/edit` : action;

@@ -1276,6 +1276,11 @@ describe('admin routes', () => {
       unpublishAction: '/admin/pages/101/unpublish?return_to=%2Fadmin%2Fpages%2F101%2Fedit',
     });
 
+    const localizedEditor = await fetchWorker('/admin/pages/101/edit', {
+      headers: { Cookie: `${await authCookie()}; cms_ui_locale=zh-hant` },
+    });
+    expect(await localizedEditor.text()).toContain('<title>編輯：About - ');
+
     await env.DB.prepare('UPDATE pages SET lect = ? WHERE id = ?')
       .bind(JSON.stringify({ _type: 'default', name: { mis: 'Updated draft' } }), 101)
       .run();
@@ -1842,6 +1847,17 @@ describe('admin routes', () => {
     expect(JSON.stringify(liveData.pages)).not.toContain('Draft Only');
     expect(draftData.statusFilters).toContainEqual({ label: 'Draft', translationKey: 'pages.status.draft', href: '/admin?status=draft', isActive: true });
     expect(liveData.statusFilters).toContainEqual({ label: 'Live', translationKey: 'pages.status.live', href: '/admin?status=live', isActive: true });
+  });
+
+  it('translates the page-list header and count summary', async () => {
+    const response = await fetchWorker('/admin/pages/list/default?status=live', {
+      headers: { Cookie: `${await authCookie()}; cms_ui_locale=zh-hant` },
+    });
+    const data = bodyData(await response.text());
+
+    expect(response.status).toBe(200);
+    expect(data.pageTitle).toBe('頁面: default');
+    expect(data.pageCountLabel).toBe('顯示 1-1 項，共 1 個已發佈頁面');
   });
 
   it('GET /admin classifies published pages by their schedule window', async () => {

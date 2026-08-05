@@ -284,6 +284,16 @@ describe('view assembly', () => {
     expect(editorScript).toContain('let publishScheduleCollapsed = true;');
   });
 
+  it('offers save and publish beside save for published pages', async () => {
+    const editor = await (await env.VIEWS.fetch('https://views.local/sections/editor.liquid')).text();
+    const footer = editor.slice(editor.indexOf('<div class="flex min-w-0 flex-col gap-3 sm:flex-row'));
+    const save = footer.indexOf('view_strings.sections_editor.save_changes');
+    const saveAndPublish = footer.indexOf('view_strings.sections_editor.save_and_publish');
+    expect(editor).toContain('{% if isEdit and isPublished %}');
+    expect(saveAndPublish).toBeGreaterThan(save);
+    expect(footer).toContain('name="action" value="publish"');
+  });
+
   it('flattens feature views into the shared runtime namespace', () => {
     // Ownership lives in the source tree, not the served path: renderView()
     // and the client engine's root list must keep working unchanged.

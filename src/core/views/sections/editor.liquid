@@ -486,6 +486,12 @@
                 class="w-full px-6 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm sm:w-auto">
           {% if isEdit %}{{ "view_strings.sections_editor.save_changes" | t }}{% else %}{{ "view_strings.sections_editor.create_page" | t }}{% endif %}
         </button>
+        {% if isEdit and isPublished %}
+          <button type="submit" name="action" value="publish"
+                  class="w-full px-6 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm sm:w-auto">
+            {{ "view_strings.sections_editor.save_and_publish" | t }}
+          </button>
+        {% endif %}
       {% endif %}
       <a href="{{ backHref }}" class="w-full px-6 py-2 text-center bg-white text-gray-700 text-sm font-semibold rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors sm:w-auto">
         {{ "view_strings.sections_editor.cancel" | t }}

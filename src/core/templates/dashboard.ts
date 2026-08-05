@@ -1,6 +1,7 @@
 import { adminLayout, type BaseTemplateProps } from '../render/layout';
 import { renderView } from '../render/liquid';
 import type { Page } from '../../types';
+import type { UiTranslator } from '../i18n';
 
 export interface DashboardPage extends Page {
   isPublished: boolean;
@@ -47,6 +48,8 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   /** All page-type slugs, used to build the filter dropdown. */
   pageTypeChoices?: string[];
   pagination?: DashboardPagination;
+  /** Server-side UI translation for the page-list header and count summary. */
+  t?: UiTranslator;
 }): Promise<string> {
   const {
     pages,
@@ -65,6 +68,7 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     pageTypeChoices = [],
     pagination,
   } = opts;
+  const translate = opts.t ?? ((_key: string, fallback: string) => fallback);
   const pageCount = pagination?.total ?? pages.length;
   const paginationStart = pagination && pageCount > 0
     ? ((pagination.currentPage - 1) * pagination.pageSize) + 1
@@ -85,25 +89,39 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     href: `/admin/pages/list/${encodeURIComponent(slug)}`,
     isSelected: slug === pageTypeFilter,
   }));
-  const countSubject = statusFilter === 'live'
-    ? 'live page'
+  const countSubjectKey = statusFilter === 'live'
+    ? pageCount === 1 ? 'pages.count.live_page' : 'pages.count.live_pages'
     : statusFilter === 'scheduled'
-      ? 'scheduled page'
+      ? pageCount === 1 ? 'pages.count.scheduled_page' : 'pages.count.scheduled_pages'
       : statusFilter === 'ended'
-        ? 'ended page'
+        ? pageCount === 1 ? 'pages.count.ended_page' : 'pages.count.ended_pages'
         : statusFilter === 'draft'
-          ? 'draft page'
-          : 'page';
-  const countSuffix = pageCount === 1 ? '' : 's';
+          ? pageCount === 1 ? 'pages.count.draft_page' : 'pages.count.draft_pages'
+          : pageCount === 1 ? 'pages.count.page' : 'pages.count.pages';
+  const countSubjectFallback = statusFilter === 'live'
+    ? pageCount === 1 ? 'live page' : 'live pages'
+    : statusFilter === 'scheduled'
+      ? pageCount === 1 ? 'scheduled page' : 'scheduled pages'
+      : statusFilter === 'ended'
+        ? pageCount === 1 ? 'ended page' : 'ended pages'
+        : statusFilter === 'draft'
+          ? pageCount === 1 ? 'draft page' : 'draft pages'
+          : pageCount === 1 ? 'page' : 'pages';
+  const countSubject = translate(countSubjectKey, countSubjectFallback);
+  const countDraftSuffix = statusFilter ? '' : ` ${translate('pages.count.in_draft', 'in draft')}`;
+  const countShowing = translate('pages.count.showing', 'Showing');
+  const countOf = translate('pages.count.of', 'of');
   const pageCountLabel = pagination && pageCount > 0
-    ? `Showing ${paginationStart}-${paginationEnd} of ${pageCount} ${countSubject}${countSuffix}${statusFilter ? '' : ' in draft'}`
-    : `${pageCount} ${countSubject}${countSuffix}${statusFilter ? '' : ' in draft'}`;
+    ? `${countShowing} ${paginationStart}-${paginationEnd} ${countOf} ${pageCount} ${countSubject}${countDraftSuffix}`
+    : `${pageCount} ${countSubject}${countDraftSuffix}`;
+  const pagesLabel = translate('nav.pages', 'Pages');
+  const pageTitle = pageTypeFilter ? `${pagesLabel}: ${pageTypeFilter}` : pagesLabel;
   const body = await renderView(views, '/templates/dashboard.json', {
     flash,
     hasFlash: !!flash,
     returnPath,
     pageTypeFilter: pageTypeFilter ?? '',
-    pageTitle: pageTypeFilter ? `Pages: ${pageTypeFilter}` : 'Pages',
+    pageTitle,
     showPageTypeColumn,
     hasPageTypeChoices: pageTypeOptions.length > 0,
     allTypesSelected: !pageTypeFilter,
@@ -167,5 +185,5 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     })),
   });
 
-  return adminLayout(views, opts, { title: 'Dashboard', body });
+  return adminLayout(views, opts, { title: pageTitle, body });
 }

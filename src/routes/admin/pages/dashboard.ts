@@ -17,6 +17,7 @@ import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageU
 import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
+import { uiTranslator } from '../../../core/i18n';
 import { userCan } from '../../../core/auth/permissions';
 import { loadAdminHomeSettings } from '../../../core/db/settings';
 import { requirePermission } from '../../../core/auth/guards';
@@ -206,6 +207,7 @@ async function renderAllPagesList(c: AppContext, routeBase: string) {
   const statusParams = statusFilter ? { status: statusFilter } : {};
   const { importHref, exportHref } = await importExportLinks(c.env);
   const config = await resolveCmsConfig(c.env);
+  const t = await uiTranslator(c);
 
   return renderPage(c, dashboardPage, {
     pages: draftPages.results,
@@ -219,6 +221,7 @@ async function renderAllPagesList(c: AppContext, routeBase: string) {
     exportHref,
     pageTypeChoices: advancedSearchPageTypes(config),
     pagination: dashboardPagination(routeBase, draftPages, statusParams),
+    t,
   });
 }
 
@@ -261,6 +264,7 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
   const statusParams = statusFilter ? { status: statusFilter } : {};
   const config = await resolveCmsConfig(c.env);
   const { importHref, exportHref } = await importExportLinks(c.env, pageType);
+  const t = await uiTranslator(c);
 
   return renderPage(c, dashboardPage, {
       siteTitle: `${c.env.SITE_TITLE ?? '0xCMS'} · ${pageType}`,
@@ -277,6 +281,7 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
       pageTypeChoices: advancedSearchPageTypes(config),
       pagination: dashboardPagination(routeBase, draftPages, statusParams),
       privacyTable: pageTypeHasPrivacyFields(config.blueprint[pageType]),
+      t,
   });
 });
 

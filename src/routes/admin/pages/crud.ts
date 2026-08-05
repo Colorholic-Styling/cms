@@ -79,6 +79,7 @@ pageCrudRoutes.get('/pages/new', requirePermission('content:write'), async (c) =
     defaultPageType: pageType,
     defaultTimezone: defaultTimezone(c),
     backHref,
+    t: await uiTranslator(c),
     structured: structuredEditorProps(config, language, lect, pageType),
   }, viewSourceFor(c.env));
 });
@@ -159,6 +160,7 @@ pageCrudRoutes.post('/pages', requirePermission('content:write'), async (c) => {
       defaultPageType: pageType,
       defaultTimezone: defaultTimezone(c),
       backHref,
+      t: await uiTranslator(c),
       structured: structuredEditorProps(config, language, lect, pageType),
     }, viewSourceFor(c.env), 422);
   }
@@ -378,6 +380,7 @@ pageCrudRoutes.get('/pages/:id/edit', requirePermission('content:read'), async (
     action: withNativeFlag(c, `/admin/pages/${pageId}`),
     backHref,
     defaultTimezone: defaultTimezone(c),
+    t: await uiTranslator(c),
     // Current draft lect, so a version preview can diff against it.
     draftLect: stringifyLect(lectForPage(config, pageType, page.lect)),
     structured: structuredEditorProps(config, language, lect, pageType, data.versions),
@@ -489,6 +492,7 @@ pageCrudRoutes.post('/pages/:id', requirePermission('content:write'), async (c) 
       action: withNativeFlag(c, `/admin/pages/${pageId}`),
       backHref,
       defaultTimezone: defaultTimezone(c),
+      t: await uiTranslator(c),
       structured: structuredEditorProps(config, language, lect, pageType, data.versions),
     }, viewSourceFor(c.env), 422);
   }
