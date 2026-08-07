@@ -26,12 +26,14 @@ describe('flattened migration contract', () => {
     const names = env.TEST_MIGRATIONS.map((migration) => migration.name);
     expect(names.filter((name) => !/^\d{4}_enable_/.test(name))).toEqual(['0001_initial_schema.sql']);
     expect(names[0]).toBe('0001_initial_schema.sql');
-    // The published database has no feature switches, so its additive files are
-    // hand-written; same rule as the CMS baseline — idempotent CREATEs only, and
-    // the baseline stays the fresh-install path.
-    const publishedNames = env.TEST_PUBLISHED_MIGRATIONS.map((migration) => migration.name);
-    expect(publishedNames[0]).toBe('0001_published_schema.sql');
-    expect(publishedNames).toEqual(['0001_published_schema.sql', '0002_published_tags.sql']);
+    // The published database has no feature switches, so an additive file there
+    // is hand-written and short-lived: `0002_published_tags.sql` created the tag
+    // catalogue on databases that had already run the baseline, and was deleted
+    // once they had it — the baseline (regenerated from
+    // src/core/publish/schema.sql) is what fresh installs get. A published
+    // database that has not applied that table needs it created by hand.
+    expect(env.TEST_PUBLISHED_MIGRATIONS.map((migration) => migration.name))
+      .toEqual(['0001_published_schema.sql']);
   });
 
   it('creates the complete private schema without transitional tables', async () => {
