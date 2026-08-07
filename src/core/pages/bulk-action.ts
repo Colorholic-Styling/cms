@@ -295,6 +295,7 @@ export async function removeTagsFromDraftPages(
         `SELECT DISTINCT p.id
          FROM pages p
          JOIN page_tags existing ON existing.page_id = p.id
+         JOIN tags t ON t.id = existing.tag_id
          WHERE p.id IN (${pagePlaceholders})
            AND existing.tag_id IN (${tagPlaceholders})`,
       )
@@ -305,7 +306,8 @@ export async function removeTagsFromDraftPages(
         `DELETE FROM page_tags
          WHERE page_id IN (${pagePlaceholders})
            AND tag_id IN (${tagPlaceholders})
-           AND EXISTS (SELECT 1 FROM pages WHERE pages.id = page_tags.page_id)`,
+           AND EXISTS (SELECT 1 FROM pages WHERE pages.id = page_tags.page_id)
+           AND EXISTS (SELECT 1 FROM tags WHERE tags.id = page_tags.tag_id)`,
       )
         .bind(...pageChunk, ...tagChunk)
         .run();
