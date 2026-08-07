@@ -12,11 +12,17 @@ export async function tagsPage(views: Fetcher, opts: BaseTemplateProps & {
   taxonomies: TagTaxonomyOption[];
   tags: Tag[];
   filterTaxonomy: string;
+  canSync: boolean;
+  syncedCount: string;
+  syncError: string;
 }): Promise<string> {
-  const { taxonomies, tags, filterTaxonomy } = opts;
+  const { taxonomies, tags, filterTaxonomy, canSync, syncedCount, syncError } = opts;
   const taxonomyMap = new Map(taxonomies.map((type) => [type.id, type.name]));
   const body = await renderView(views, '/templates/tags.json', {
     hasTags: tags.length > 0,
+    canSync,
+    syncedCount,
+    syncError,
     filterOptions: taxonomies.map((type) => ({
       id: type.id,
       name: type.sourceLabel ? `${type.name} (${type.sourceLabel})` : type.name,

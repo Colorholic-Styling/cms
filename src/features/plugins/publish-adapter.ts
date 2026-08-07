@@ -7,6 +7,7 @@
 // Contract (all POST, JSON body, x-plugin-secret header):
 //   /__plugin/publish/page        full PublishSnapshot
 //   /__plugin/publish/remove      { uuid }
+//   /__plugin/publish/tags        { tags: PublishedTag[] }
 //   /__plugin/publish/remove-tag  { tagId }
 //
 // Unlike lifecycle hooks (fire-and-forget), publish calls are
@@ -14,7 +15,7 @@
 // ============================================================
 
 import type { ResolvedPlugin } from './types';
-import type { PublishAdapter, PublishSnapshot } from '../../core/publish/adapter';
+import type { PublishAdapter, PublishSnapshot, PublishedTag } from '../../core/publish/adapter';
 import { PLUGIN_ORIGIN, PLUGIN_PREFIX } from './registry';
 
 async function post(plugin: ResolvedPlugin, secret: string, tenantId: string, path: string, body: unknown, optional = false): Promise<void> {
@@ -27,7 +28,7 @@ async function post(plugin: ResolvedPlugin, secret: string, tenantId: string, pa
     },
     body: JSON.stringify(body),
   });
-  // Optional endpoints (remove-tag) may simply not exist in a plugin.
+  // Optional endpoints (tags, remove-tag) may simply not exist in a plugin.
   if (optional && response.status === 404) return;
   if (!response.ok) {
     throw new Error(`plugin ${plugin.manifest.id} publish/${path} returned ${response.status}`);
@@ -44,6 +45,10 @@ export function pluginAdapter(plugin: ResolvedPlugin, secret: string, tenantId =
 
     async unpublish(uuid: string): Promise<void> {
       await post(plugin, secret, tenantId, 'remove', { uuid });
+    },
+
+    async publishTags(tags: PublishedTag[]): Promise<void> {
+      await post(plugin, secret, tenantId, 'tags', { tags }, true);
     },
 
     async removeTag(tagId: number): Promise<void> {

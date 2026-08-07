@@ -24,7 +24,7 @@ import type { FormValue } from '../../core/http/forms';
 import { ensureDefaultLectName } from '../../core/db/page-logic';
 import { logAudit } from '../../core/db/audit';
 import { requirePermission } from '../../core/auth/guards';
-import { removeTagFromTargets } from '../../core/publish';
+import { publishTagToTargets, publishTagsToTargets, removeTagFromTargets } from '../../core/publish';
 import { renderPage } from '../../core/render/chrome';
 import { userCan } from '../../core/auth/permissions';
 import { resolveCmsConfig } from '../../core/db/content-config';
@@ -106,9 +106,12 @@ tagsRoutes.post('/taxonomies/:id', requirePermission('taxonomy:write'), async (c
     .bind(name, slug, id)
     .run();
   if (existing.slug !== slug) {
+    // Collect first: after the rewrite there is no way to tell which tags moved.
+    const moved = await tagIdsInTaxonomy(c.env.DB, existing.slug);
     await c.env.DB.prepare('UPDATE tags SET taxonomy_slug = ? WHERE taxonomy_slug = ?')
       .bind(slug, existing.slug)
       .run();
+    await publishTagsToTargets(c.env, moved);
   }
   logAudit(c, 'taxonomy.update', 'taxonomy', id, { name, slug });
   return c.redirect('/admin/taxonomies');
@@ -120,8 +123,10 @@ tagsRoutes.post('/taxonomies/:id/delete', requirePermission('taxonomy:write'), a
     .bind(id)
     .first<Taxonomy>();
   if (!taxonomy) return c.notFound();
+  const orphaned = await tagIdsInTaxonomy(c.env.DB, taxonomy.slug);
   await c.env.DB.prepare('UPDATE tags SET taxonomy_slug = NULL WHERE taxonomy_slug = ?').bind(taxonomy.slug).run();
   await c.env.DB.prepare('DELETE FROM taxonomies WHERE id = ?').bind(id).run();
+  await publishTagsToTargets(c.env, orphaned);
   logAudit(c, 'taxonomy.delete', 'taxonomy', id);
   return c.redirect('/admin/taxonomies');
 });
@@ -130,14 +135,18 @@ tagsRoutes.post('/taxonomies/:id/delete', requirePermission('taxonomy:write'), a
 
 tagsRoutes.get('/tags', async (c) => {
   const filterTaxonomy = str(c.req.query('filter_taxonomy'));
-  const [taxonomies, tags] = await Promise.all([
+  const [taxonomies, tags, canSync] = await Promise.all([
     tagTaxonomyOptions(c),
     listTags(c.env.DB, filterTaxonomy),
+    userCan(c, 'tag:write'),
   ]);
   return renderPage(c, tagsPage, {
     taxonomies,
     tags,
     filterTaxonomy,
+    canSync,
+    syncedCount: str(c.req.query('synced')),
+    syncError: str(c.req.query('error')),
   });
 });
 
@@ -166,7 +175,21 @@ tagsRoutes.post('/tags/batch-weight', requirePermission('tag:write'), async (c) 
     return c.json({ error: 'Some updates failed' }, 500);
   }
 
+  // Weight is the order published readers group by, so reordering has to reach
+  // the targets the same way a rename does.
+  await publishTagsToTargets(c.env, updates.map((update) => Number(update.id)));
+
   return c.json({ success: true });
+});
+
+// Backfills the published tag catalogue. A database that published pages before
+// the catalogue existed has tag links whose ids resolve to nothing there; edits
+// push one tag at a time, this pushes the lot.
+tagsRoutes.post('/tags/sync-published', requirePermission('tag:write'), async (c) => {
+  const outcome = await publishTagsToTargets(c.env);
+  logAudit(c, 'tag.sync-published', 'tag', undefined, { count: outcome.count, failures: outcome.failures });
+  const status = outcome.failures.length ? `error=${encodeURIComponent(outcome.failures.join(','))}` : `synced=${outcome.count}`;
+  return c.redirect(`/admin/tags?${status}`);
 });
 
 tagsRoutes.post('/tags', requirePermission('tag:write'), async (c) => {
@@ -185,6 +208,7 @@ tagsRoutes.post('/tags', requirePermission('tag:write'), async (c) => {
   )
     .bind(name, slug, weight, taxonomySlug, parentTagId, stringifyLect(lect))
     .run();
+  await publishTagToTargets(c.env, result.meta.last_row_id);
   logAudit(c, 'tag.create', 'tag', result.meta.last_row_id, { name, slug, weight, taxonomySlug });
   return c.redirect('/admin/tags');
 });
@@ -215,6 +239,7 @@ tagsRoutes.post('/tags/:id', requirePermission('tag:write'), async (c) => {
   )
     .bind(name, slug, weight, taxonomySlug, parentTagId, stringifyLect(lect), id)
     .run();
+  await publishTagToTargets(c.env, id);
   logAudit(c, 'tag.update', 'tag', id, { name, slug, weight, taxonomySlug });
   return c.redirect('/admin/tags');
 });
@@ -237,6 +262,14 @@ async function taxonomyForm(c: AppContext, taxonomy?: TaxonomyFormData, readOnly
     taxonomy,
     readOnly,
   });
+}
+
+/** Tags currently grouped under a taxonomy slug, for pushing a bulk re-group. */
+async function tagIdsInTaxonomy(db: D1DatabaseClient, taxonomySlug: string): Promise<number[]> {
+  const rows = await db.prepare('SELECT id FROM tags WHERE taxonomy_slug = ?')
+    .bind(taxonomySlug)
+    .all<{ id: number }>();
+  return rows.results.map((row) => row.id);
 }
 
 interface TagSchema {

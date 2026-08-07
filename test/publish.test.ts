@@ -7,11 +7,13 @@ import {
   getPublishAdapters,
   liveMapForDraftPages,
   publishPageToTargets,
+  publishTagToTargets,
+  publishTagsToTargets,
   unpublishPageFromTargets,
   unpublishPagesFromTargets,
 } from '../src/core/publish';
 import { clearManifestCache, __injectPluginFetcher, __clearInjectedFetchers } from '../src/features/plugins/registry';
-import type { PublishSnapshot } from '../src/core/publish/adapter';
+import type { PublishSnapshot, PublishedTag } from '../src/core/publish/adapter';
 import type { Env, Page } from '../src/types';
 import type { ResolvedPlugin } from '../src/features/plugins/types';
 
@@ -33,10 +35,22 @@ const PAGE: Page = {
   editors: null,
 };
 
+const NEWS_TAG: PublishedTag = {
+  id: 42,
+  uuid: 'cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+  name: 'News',
+  slug: 'news',
+  weight: 3,
+  taxonomy_slug: 'category',
+  parent_tag: null,
+  lect: JSON.stringify({ name: { en: 'News' } }),
+};
+
 function snapshotFor(page: Page): PublishSnapshot {
   return {
     page,
     tags: [{ uuid: 'tag-link-uuid', tag_id: 42, weight: 1, slug: 'news', name: 'News' }],
+    tagCatalogue: [NEWS_TAG],
     publishedAt: '2026-06-12T00:00:00.000Z',
   };
 }
@@ -46,7 +60,8 @@ async function cleanup(): Promise<void> {
   await env.DB.prepare('DELETE FROM plugins').run();
   await env.DB.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(PAGE.id).run();
   await env.DB.prepare('DELETE FROM pages WHERE id = ?').bind(PAGE.id).run();
-  await env.DB.prepare('DELETE FROM tags WHERE id = 42').run();
+  await env.DB.prepare('DELETE FROM tags WHERE id IN (42, 43)').run();
+  await env.PUBLISHED_DB.prepare('DELETE FROM tags WHERE id IN (42, 43)').run();
   const live = await env.PUBLISHED_DB.prepare('SELECT id FROM pages WHERE uuid = ?')
     .bind(PAGE.uuid)
     .first<{ id: number }>();
@@ -100,12 +115,106 @@ describe('d1 adapter', () => {
     expect(await adapter.getLiveLect!(PAGE.uuid)).toBeNull();
   });
 
+  it('writes the catalogue rows a published page needs, under the CMS ids', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publish(snapshotFor(PAGE));
+
+    // The link is only resolvable if the id agrees on both sides, so join the
+    // way a public reader would rather than reading the tag row directly.
+    const resolved = await env.PUBLISHED_DB.prepare(
+      `SELECT t.id, t.uuid, t.name, t.slug FROM page_tags pt
+       JOIN tags t ON t.id = pt.tag_id
+       WHERE pt.page_id = ?`,
+    )
+      .bind(PAGE.id)
+      .all<{ id: number; uuid: string; name: string; slug: string }>();
+    expect(resolved.results).toEqual([
+      { id: NEWS_TAG.id, uuid: NEWS_TAG.uuid, name: 'News', slug: 'news' },
+    ]);
+  });
+
+  it('corrects a tag renamed since the last publish', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publish(snapshotFor(PAGE));
+
+    await adapter.publish({
+      ...snapshotFor(PAGE),
+      tagCatalogue: [{ ...NEWS_TAG, name: 'Newsroom' }],
+    });
+
+    expect(await env.PUBLISHED_DB.prepare('SELECT id, name FROM tags WHERE uuid = ?')
+      .bind(NEWS_TAG.uuid)
+      .first<{ id: number; name: string }>()).toEqual({ id: 42, name: 'Newsroom' });
+  });
+
+  it('publishes an untagged page without touching the catalogue', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publish({ ...snapshotFor(PAGE), tags: [], tagCatalogue: [] });
+
+    expect(await env.PUBLISHED_DB.prepare('SELECT name FROM pages WHERE uuid = ?')
+      .bind(PAGE.uuid)
+      .first<{ name: string }>()).toEqual({ name: 'Hello' });
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM tags WHERE id = 42')
+      .first<{ n: number }>()).toEqual({ n: 0 });
+  });
+
+  it('mirrors the tag catalogue so a published link resolves to a name', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publishTags!([NEWS_TAG]);
+
+    const joined = await env.PUBLISHED_DB.prepare(
+      `SELECT t.name, t.slug, t.taxonomy_slug, t.weight, t.lect FROM tags t WHERE t.id = ?`,
+    )
+      .bind(42)
+      .first<{ name: string; slug: string; taxonomy_slug: string; weight: number; lect: string }>();
+    expect(joined).toEqual({
+      name: 'News', slug: 'news', taxonomy_slug: 'category', weight: 3, lect: '{"name":{"en":"News"}}',
+    });
+
+    // A rename reaches readers without republishing the pages carrying the tag.
+    await adapter.publishTags!([{ ...NEWS_TAG, name: 'Newsroom', slug: 'newsroom' }]);
+    const renamed = await env.PUBLISHED_DB.prepare('SELECT name, slug FROM tags WHERE id = ?')
+      .bind(42)
+      .all<{ name: string; slug: string }>();
+    expect(renamed.results).toEqual([{ name: 'Newsroom', slug: 'newsroom' }]);
+  });
+
+  it('sweeps a stale catalogue row holding the same id or slug under another uuid', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publishTags!([{ ...NEWS_TAG, id: 43, uuid: 'stale-tag-uuid', slug: 'news' }]);
+
+    // Same slug, different uuid: without the sweep the upsert would trip the
+    // slug unique constraint instead of replacing the stale mirror.
+    await adapter.publishTags!([NEWS_TAG]);
+
+    const rows = await env.PUBLISHED_DB.prepare('SELECT id, uuid FROM tags WHERE slug = ?')
+      .bind('news')
+      .all<{ id: number; uuid: string }>();
+    expect(rows.results).toEqual([{ id: 42, uuid: NEWS_TAG.uuid }]);
+  });
+
+  it('removeTag drops the catalogue row, its links, and any child pointer', async () => {
+    const adapter = d1Adapter(env.PUBLISHED_DB);
+    await adapter.publish(snapshotFor(PAGE));
+    await adapter.publishTags!([NEWS_TAG, { ...NEWS_TAG, id: 43, uuid: 'child-tag-uuid', slug: 'sports', parent_tag: 42 }]);
+
+    await adapter.removeTag!(42);
+
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM page_tags WHERE tag_id = 42').first<{ n: number }>())
+      .toEqual({ n: 0 });
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM tags WHERE id = 42').first<{ n: number }>())
+      .toEqual({ n: 0 });
+    expect(await env.PUBLISHED_DB.prepare('SELECT parent_tag FROM tags WHERE id = 43').first<{ parent_tag: number | null }>())
+      .toEqual({ parent_tag: null });
+  });
+
   it('unpublishMany removes several live pages and their tags in one pass', async () => {
     const adapter = d1Adapter(env.PUBLISHED_DB);
     const second: Page = { ...PAGE, id: PAGE.id + 5, uuid: 'ffffffff-bbbb-4ccc-8ddd-eeeeeeeeeeee', slug: 'hello-2' };
     const secondSnapshot: PublishSnapshot = {
       page: second,
       tags: [{ uuid: 'tag-link-uuid-2', tag_id: 42, weight: 1, slug: 'news', name: 'News' }],
+      tagCatalogue: [NEWS_TAG],
       publishedAt: '2026-06-12T00:00:00.000Z',
     };
     try {
@@ -445,6 +554,101 @@ describe('publish registry', () => {
 
   it('returns null when the draft page does not exist', async () => {
     expect(await publishPageToTargets(registryEnv(), 999999)).toBeNull();
+  });
+
+  it('publishing a page carries its tags into the catalogue with the CMS ids', async () => {
+    await seedDraft();
+    await env.DB.prepare("UPDATE tags SET taxonomy_slug = 'category', weight = 2, lect = ? WHERE id = 42")
+      .bind(JSON.stringify({ name: { en: 'News' } }))
+      .run();
+
+    const outcome = await publishPageToTargets(registryEnv(), PAGE.id);
+    expect(outcome!.failures).toEqual([]);
+
+    const draft = await env.DB.prepare('SELECT id, uuid, name, slug, weight, taxonomy_slug, parent_tag, lect FROM tags WHERE id = 42')
+      .first<Record<string, unknown>>();
+    const published = await env.PUBLISHED_DB.prepare('SELECT id, uuid, name, slug, weight, taxonomy_slug, parent_tag, lect FROM tags WHERE id = 42')
+      .first<Record<string, unknown>>();
+    // Same row, same id: the published page_tags.tag_id is only resolvable
+    // because the catalogue keeps the CMS's own numeric ids.
+    expect(published).toEqual(draft);
+
+    const joined = await env.PUBLISHED_DB.prepare(
+      `SELECT t.slug FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.page_id = ?`,
+    )
+      .bind(PAGE.id)
+      .all<{ slug: string }>();
+    expect(joined.results).toEqual([{ slug: 'news' }]);
+  });
+
+  it('publishes a page whose tag was deleted mid-flight without cataloguing it', async () => {
+    await seedDraft();
+    // The link outlives the tag row here (LEFT JOIN miss); publishing must not
+    // invent a catalogue entry for it, and must not fail either.
+    await env.DB.prepare('DELETE FROM tags WHERE id = 42').run();
+
+    const outcome = await publishPageToTargets(registryEnv(), PAGE.id);
+    expect(outcome!.failures).toEqual([]);
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM tags WHERE id = 42').first<{ n: number }>())
+      .toEqual({ n: 0 });
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM page_tags WHERE page_id = ?')
+      .bind(PAGE.id)
+      .first<{ n: number }>()).toEqual({ n: 1 });
+  });
+
+  it('still publishes when the tags table is too old to answer the catalogue query', async () => {
+    await seedDraft();
+    // Stands in for a tags table predating weight / taxonomy_slug / parent_tag /
+    // lect: the enriched read fails, the link read that publishing has always
+    // done still works.
+    const legacyDb = {
+      prepare: (sql: string) => {
+        if (sql.includes('t.taxonomy_slug')) throw new Error('no such column: t.taxonomy_slug');
+        return env.DB.prepare(sql);
+      },
+      batch: (statements: unknown[]) => env.DB.batch(statements as never),
+    };
+
+    const outcome = await publishPageToTargets(registryEnv({ DB: legacyDb }), PAGE.id);
+    expect(outcome!.failures).toEqual([]);
+
+    // The page and its links land; only the catalogue is skipped, and Sync
+    // published (or the next tag edit) fills it in later.
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM page_tags WHERE page_id = ?')
+      .bind(PAGE.id)
+      .first<{ n: number }>()).toEqual({ n: 1 });
+    expect(await env.PUBLISHED_DB.prepare('SELECT COUNT(*) AS n FROM tags WHERE id = 42').first<{ n: number }>())
+      .toEqual({ n: 0 });
+  });
+
+  it('pushes one tag to the catalogue and resyncs the whole table on demand', async () => {
+    await seedDraft();
+    await env.DB.prepare("INSERT INTO tags (id, name, slug, taxonomy_slug) VALUES (43, 'Sports', 'sports', 'category')").run();
+
+    const single = await publishTagToTargets(registryEnv(), 42);
+    expect(single.targets).toEqual(['d1']);
+    expect(single.failures).toEqual([]);
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM tags ORDER BY id').all<{ id: number }>())
+      .toMatchObject({ results: [{ id: 42 }] });
+
+    const all = await publishTagsToTargets(registryEnv());
+    expect(all.count).toBeGreaterThanOrEqual(2);
+    const catalogued = await env.PUBLISHED_DB.prepare('SELECT id, name, taxonomy_slug FROM tags WHERE id IN (42, 43) ORDER BY id')
+      .all<{ id: number; name: string; taxonomy_slug: string | null }>();
+    expect(catalogued.results).toEqual([
+      { id: 42, name: 'News', taxonomy_slug: null },
+      { id: 43, name: 'Sports', taxonomy_slug: 'category' },
+    ]);
+  });
+
+  it('sends no tag traffic when no target keeps a catalogue', async () => {
+    await seedDraft();
+    const outcome = await publishTagToTargets(
+      registryEnv({ PUBLISH_TARGETS: 'r2', PUBLISH_BUCKET: env.MEDIA_BUCKET }),
+      42,
+    );
+    expect(outcome.targets).toEqual([]);
+    expect(await env.PUBLISHED_DB.prepare('SELECT id FROM tags WHERE id = 42').first()).toBeNull();
   });
 
   // ── Publish-time lect projection (contentTypes.publishLect) ───────────────

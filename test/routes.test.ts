@@ -762,6 +762,7 @@ describe('admin routes', () => {
     { name: 'GET /admin/tags/:id/edit', path: '/admin/tags/301/edit', authenticated: true, expectedStatus: 200 },
     { name: 'POST /admin/tags/:id', method: 'POST', path: '/admin/tags/301', body: form({ name: 'News Updated', slug: 'news-updated', taxonomy_slug: 'categories' }), authenticated: true, expectedStatus: 302, location: '/admin/tags' },
     { name: 'POST /admin/tags/:id/delete', method: 'POST', path: '/admin/tags/301/delete', authenticated: true, expectedStatus: 302, location: '/admin/tags' },
+    { name: 'POST /admin/tags/sync-published', method: 'POST', path: '/admin/tags/sync-published', authenticated: true, expectedStatus: 302, location: /^\/admin\/tags\?synced=\d+$/ },
     { name: 'GET /admin/page_types', path: '/admin/page_types', authenticated: true, expectedStatus: 200 },
     { name: 'GET /admin/page_types/new', path: '/admin/page_types/new', authenticated: true, expectedStatus: 200 },
     { name: 'POST /admin/page_types', method: 'POST', path: '/admin/page_types', body: form({ name: 'Press Release', slug: 'press', blueprint: '["@date","name"]' }), authenticated: true, expectedStatus: 302, location: '/admin/page_types' },
