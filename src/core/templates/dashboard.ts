@@ -11,6 +11,7 @@ export interface DashboardPage extends Page {
   liveWeight?: number;
   hasLiveWeightDrift?: boolean;
   hasLiveLectDrift?: boolean;
+  tagNames?: string[];
 }
 
 interface DashboardPagination {
@@ -171,29 +172,35 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     previousHref: pagination?.previousHref ?? '',
     nextHref: pagination?.nextHref ?? '',
     lastHref: pagination?.lastHref ?? '',
-    pages: pages.map((page) => ({
-      id: page.id,
-      name: page.name,
-      slug: page.slug,
-      pageType: page.page_type ?? '-',
-      hasPageType: !!page.page_type,
-      pageTypeHref: showPageTypeColumn && page.page_type ? `/admin/pages/list/${encodeURIComponent(page.page_type)}` : '',
-      weight: page.weight,
-      liveWeight: page.liveWeight,
-      hasLiveWeightDrift: !!page.hasLiveWeightDrift,
-      hasLiveLectDrift: !!page.hasLiveLectDrift,
-      isDraftMissing: !!page.isDraftMissing,
-      isSelectable: !page.isDraftMissing,
-      isPublished: page.isPublished,
-      publicationStatus: page.publicationStatus ?? (page.isPublished ? 'live' : 'draft'),
-      weightAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/weight`,
-      editHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/edit`,
-      readHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/read`,
-      publishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/publish${pageActionReturnQuery}`,
-      unpublishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/unpublish`,
-      deleteAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/delete`,
-      pullAction: `/admin/pages/pull/${encodeURIComponent(page.uuid)}`,
-    })),
+    pages: pages.map((page) => {
+      const tagNames = page.tagNames ?? [];
+      return {
+        id: page.id,
+        name: page.name,
+        slug: page.slug,
+        tags: tagNames.slice(0, 5).map((name) => ({ name })),
+        hasTags: tagNames.length > 0,
+        hasMoreTags: tagNames.length > 5,
+        pageType: page.page_type ?? '-',
+        hasPageType: !!page.page_type,
+        pageTypeHref: showPageTypeColumn && page.page_type ? `/admin/pages/list/${encodeURIComponent(page.page_type)}` : '',
+        weight: page.weight,
+        liveWeight: page.liveWeight,
+        hasLiveWeightDrift: !!page.hasLiveWeightDrift,
+        hasLiveLectDrift: !!page.hasLiveLectDrift,
+        isDraftMissing: !!page.isDraftMissing,
+        isSelectable: !page.isDraftMissing,
+        isPublished: page.isPublished,
+        publicationStatus: page.publicationStatus ?? (page.isPublished ? 'live' : 'draft'),
+        weightAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/weight`,
+        editHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/edit`,
+        readHref: page.isDraftMissing ? '' : `/admin/pages/${page.id}/read`,
+        publishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/publish${pageActionReturnQuery}`,
+        unpublishAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/unpublish`,
+        deleteAction: page.isDraftMissing ? '' : `/admin/pages/${page.id}/delete`,
+        pullAction: `/admin/pages/pull/${encodeURIComponent(page.uuid)}`,
+      };
+    }),
   });
 
   return adminLayout(views, opts, { title: pageTitle, body });

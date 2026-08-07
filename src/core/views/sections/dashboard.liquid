@@ -92,6 +92,7 @@
               <option value="delete">{{ "view_strings.shared_bulk_actions.move_to_trash" | t }}</option>
               {% if hasBulkTagOptions %}
                 <option value="add_tag">{{ "view_strings.shared_bulk_actions.add_tags" | t }}</option>
+                <option value="remove_tag">{{ "view_strings.shared_bulk_actions.remove_tags" | t }}</option>
               {% endif %}
             </select>
           </label>
@@ -105,7 +106,8 @@
           </label>
           {% if hasBulkTagOptions %}
             <div class="hidden sm:col-span-2" data-dashboard-bulk-tags>
-              <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.shared_bulk_actions.tags_to_add" | t }}</span>
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500" data-dashboard-bulk-tag-label-add>{{ "view_strings.shared_bulk_actions.tags_to_add" | t }}</span>
+              <span class="mb-1 hidden text-xs font-semibold uppercase tracking-wider text-gray-500" data-dashboard-bulk-tag-label-remove>{{ "view_strings.shared_bulk_actions.tags_to_remove" | t }}</span>
               <div class="relative rounded-lg border border-gray-300 bg-white p-2" data-dashboard-bulk-tag-picker>
                 <div class="flex flex-wrap gap-1.5" data-dashboard-bulk-tag-chips></div>
                 <input type="search"
@@ -128,7 +130,10 @@
                   <p class="hidden px-3 py-2 text-sm text-gray-400" data-dashboard-bulk-tag-empty>{{ "view_strings.sections_editor.no_matching_tags" | t }}</p>
                 </div>
               </div>
-              <p class="mt-1 text-xs text-gray-500">{{ "view_strings.shared_bulk_actions.add_tags_help" | t }}</p>
+              <p class="mt-1 text-xs text-gray-500">
+                <span data-dashboard-bulk-tag-help-add>{{ "view_strings.shared_bulk_actions.add_tags_help" | t }}</span>
+                <span class="hidden" data-dashboard-bulk-tag-help-remove>{{ "view_strings.shared_bulk_actions.remove_tags_help" | t }}</span>
+              </p>
             </div>
           {% endif %}
         </div>
@@ -212,6 +217,16 @@
                     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
                       <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span>{{ "view_strings.sections_dashboard.draft" | t }}
                     </span>
+                  {% endif %}
+                  {% if page.hasTags %}
+                    {% for tag in page.tags %}
+                      <span class="inline-flex max-w-full items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                        <span class="truncate">{{ tag.name }}</span>
+                      </span>
+                    {% endfor %}
+                    {% if page.hasMoreTags %}
+                      <span class="inline-flex items-center rounded-full bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-500">{{ "view_strings.sections_dashboard.more" | t }}</span>
+                    {% endif %}
                   {% endif %}
                   {% if page.isPublished %}
                     {% if page.isDraftMissing %}
@@ -412,6 +427,10 @@
     const tagGroups = Array.from(document.querySelectorAll('[data-dashboard-bulk-tag-group]'));
     const tagChips = document.querySelector('[data-dashboard-bulk-tag-chips]');
     const tagEmpty = document.querySelector('[data-dashboard-bulk-tag-empty]');
+    const tagLabelAdd = document.querySelector('[data-dashboard-bulk-tag-label-add]');
+    const tagLabelRemove = document.querySelector('[data-dashboard-bulk-tag-label-remove]');
+    const tagHelpAdd = document.querySelector('[data-dashboard-bulk-tag-help-add]');
+    const tagHelpRemove = document.querySelector('[data-dashboard-bulk-tag-help-remove]');
     const selectedTagIds = new Set();
 
     const renderTagPicker = () => {
@@ -469,12 +488,19 @@
 
     tagOptions.forEach((option) => option.addEventListener('click', () => addTagChip(option)));
     tagSearch?.addEventListener('input', renderTagPicker);
-    action?.addEventListener('change', () => {
-      const addingTags = action.value === 'add_tag';
-      tagsPanel?.classList.toggle('hidden', !addingTags);
-      tagsPanel?.setAttribute('aria-hidden', addingTags ? 'false' : 'true');
-      if (addingTags) renderTagPicker();
-    });
+    const syncTagAction = () => {
+      const addingTags = action?.value === 'add_tag';
+      const removingTags = action?.value === 'remove_tag';
+      const changingTags = addingTags || removingTags;
+      tagsPanel?.classList.toggle('hidden', !changingTags);
+      tagsPanel?.setAttribute('aria-hidden', changingTags ? 'false' : 'true');
+      tagLabelAdd?.classList.toggle('hidden', !addingTags);
+      tagLabelRemove?.classList.toggle('hidden', !removingTags);
+      tagHelpAdd?.classList.toggle('hidden', !addingTags);
+      tagHelpRemove?.classList.toggle('hidden', !removingTags);
+      if (changingTags) renderTagPicker();
+    };
+    action?.addEventListener('change', syncTagAction);
 
     const countSelected = () => checkboxes.filter((checkbox) => checkbox.checked).length;
     const syncSelection = () => {
@@ -499,7 +525,8 @@
         event.preventDefault();
         return;
       }
-      if (action?.value === 'add_tag' && selectedTagIds.size === 0) {
+      const changingTags = action?.value === 'add_tag' || action?.value === 'remove_tag';
+      if (changingTags && selectedTagIds.size === 0) {
         event.preventDefault();
         alert(bulkForm.dataset.dashboardBulkChooseTag || 'Choose at least one tag');
         return;
@@ -517,11 +544,7 @@
         event.preventDefault();
       }
     });
-    if (action?.value === 'add_tag') {
-      tagsPanel?.classList.remove('hidden');
-      tagsPanel?.setAttribute('aria-hidden', 'false');
-      renderTagPicker();
-    }
+    syncTagAction();
     syncSelection();
   })();
 </script>

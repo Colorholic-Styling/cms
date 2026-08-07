@@ -1,4 +1,4 @@
-// Applying one action to many pages: publish, unpublish, move to trash, or add tags.
+// Applying one action to many pages: publish, unpublish, move to trash, or change tags.
 //
 // Core, not a feature, for the same reason the advanced-search query builder
 // is: two callers need it and neither may depend on the other. The search
@@ -21,7 +21,7 @@ import { isSubmissionMirror } from '../db/submission-ingest';
 import { publicationStatusForPage } from '../db/page-logic';
 
 /** The bulk actions a page listing offers. */
-export type BulkPageAction = 'publish' | 'unpublish' | 'delete' | 'add_tag';
+export type BulkPageAction = 'publish' | 'unpublish' | 'delete' | 'add_tag' | 'remove_tag';
 
 /**
  * Pages per slice. A slice is sized to fit one Worker invocation's subrequest
@@ -96,6 +96,18 @@ export async function applyBulkPageAction(
     return { updated: taggedPageIds.length, refused, failedTargets };
   }
 
+  if (action === 'remove_tag') {
+    const pages = await draftPagesByIds(env.DB, ids);
+    const untaggedPageIds = await removeTagsFromDraftPages(
+      env.DB,
+      pages.map((page) => page.id),
+      targetTagIds,
+    );
+    const untagged = new Set(untaggedPageIds);
+    await emitPageLifecycle(env, user, 'update', pages.filter((page) => untagged.has(page.id)));
+    return { updated: untaggedPageIds.length, refused, failedTargets };
+  }
+
   if (action === 'delete') {
     const deleted: TrashedPageRef[] = [];
     for (const chunk of chunks(ids)) {
@@ -145,7 +157,9 @@ export function bulkActionFlash(
     ? 'moved to trash'
     : action === 'add_tag'
       ? 'tagged'
-      : `${action}ed`;
+      : action === 'remove_tag'
+        ? 'had tags removed'
+        : `${action}ed`;
   const pageLabel = count === 1 ? 'page' : 'pages';
   const base = count === 0 ? 'No pages updated' : `${count} ${pageLabel} ${past}`;
   const notes: string[] = [];
@@ -249,6 +263,54 @@ export async function addTagsToDraftPages(
         .run();
 
       missing.results.forEach((page) => changedPageIds.add(page.id));
+    }
+  }
+
+  for (const pageChunk of chunks([...changedPageIds])) {
+    const placeholders = pageChunk.map(() => '?').join(',');
+    await db.prepare(`UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`)
+      .bind(...pageChunk)
+      .run();
+  }
+
+  return pages.filter((id) => changedPageIds.has(id));
+}
+
+/** Removes every requested existing tag from each page that has it. */
+export async function removeTagsFromDraftPages(
+  db: D1DatabaseClient,
+  pageIds: number[],
+  tagIds: number[],
+): Promise<number[]> {
+  const pages = Array.from(new Set(pageIds.filter((id) => Number.isInteger(id) && id > 0)));
+  const tags = Array.from(new Set(tagIds.filter((id) => Number.isInteger(id) && id > 0)));
+  if (!pages.length || !tags.length) return [];
+
+  const changedPageIds = new Set<number>();
+  for (const pageChunk of chunks(pages, 45)) {
+    for (const tagChunk of chunks(tags, 45)) {
+      const pagePlaceholders = pageChunk.map(() => '?').join(',');
+      const tagPlaceholders = tagChunk.map(() => '?').join(',');
+      const existing = await db.prepare(
+        `SELECT DISTINCT p.id
+         FROM pages p
+         JOIN page_tags existing ON existing.page_id = p.id
+         WHERE p.id IN (${pagePlaceholders})
+           AND existing.tag_id IN (${tagPlaceholders})`,
+      )
+        .bind(...pageChunk, ...tagChunk)
+        .all<{ id: number }>();
+
+      await db.prepare(
+        `DELETE FROM page_tags
+         WHERE page_id IN (${pagePlaceholders})
+           AND tag_id IN (${tagPlaceholders})
+           AND EXISTS (SELECT 1 FROM pages WHERE pages.id = page_tags.page_id)`,
+      )
+        .bind(...pageChunk, ...tagChunk)
+        .run();
+
+      existing.results.forEach((page) => changedPageIds.add(page.id));
     }
   }
 

@@ -47,11 +47,12 @@ const BULK_ACTIONS: Record<BulkPageAction, { permission: Permission; queued: str
   unpublish: { permission: 'content:publish', queued: 'Bulk unpublish queued. It may take a moment to finish.' },
   delete: { permission: 'content:delete', queued: 'Bulk deletion queued. It may take a moment to finish.' },
   add_tag: { permission: 'content:write', queued: 'Bulk tag addition queued. It may take a moment to finish.' },
+  remove_tag: { permission: 'content:write', queued: 'Bulk tag removal queued. It may take a moment to finish.' },
 };
 
 function bulkAction(value: FormDataEntryValue | null): BulkPageAction | null {
   const action = str(value);
-  return action === 'publish' || action === 'unpublish' || action === 'delete' || action === 'add_tag'
+  return action === 'publish' || action === 'unpublish' || action === 'delete' || action === 'add_tag' || action === 'remove_tag'
     ? action
     : null;
 }
@@ -84,8 +85,9 @@ async function bulkAdvancedSearch(
 
   const scope = str(form.get('scope')) === 'all' ? 'all' : 'selected';
   const ids = uniquePageIds(form.getAll('page_ids'));
-  const targetTagIds = action === 'add_tag' ? uniqueNumericIds(form.getAll('tag_ids')) : [];
-  if (action === 'add_tag' && !targetTagIds.length) {
+  const isTagAction = action === 'add_tag' || action === 'remove_tag';
+  const targetTagIds = isTagAction ? uniqueNumericIds(form.getAll('tag_ids')) : [];
+  if (isTagAction && !targetTagIds.length) {
     return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent('Choose at least one tag')}`));
   }
   let pageTypes: string[] = [];

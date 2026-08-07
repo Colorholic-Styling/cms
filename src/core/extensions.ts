@@ -177,7 +177,7 @@ export interface QueuedBulkAction {
   criteria: AdvancedSearchCriterion[];
   operator: AdvancedSearchOperator;
   status?: 'draft' | 'scheduled' | 'live' | 'ended';
-  /** Tag ids to add when `action` is `add_tag`. */
+  /** Tag ids to add or remove when `action` is a tag action. */
   targetTagIds?: number[];
   /** Where the finished job sends the browser back to. */
   returnTo: string;

@@ -156,9 +156,15 @@ describe('database locale registry', () => {
 
     expect(simplified['view_strings.shared_bulk_actions.move_to_trash']).toBe('移至回收站');
     expect(simplified['view_strings.shared_bulk_actions.apply_to']).toBe('应用于');
+    expect(simplified['view_strings.shared_bulk_actions.add_tags']).toBe('添加索引');
+    expect(simplified['view_strings.shared_bulk_actions.remove_tags']).toBe('移除索引');
+    expect(simplified['view_strings.shared_bulk_actions.tags_to_remove']).toBe('要移除的索引');
     expect(simplified['view_strings.sections_dashboard.all_matching_pages']).toBe('所有匹配页面');
     expect(traditional['view_strings.shared_bulk_actions.move_to_trash']).toBe('移至回收站');
     expect(traditional['view_strings.shared_bulk_actions.apply_to']).toBe('套用至');
+    expect(traditional['view_strings.shared_bulk_actions.add_tags']).toBe('新增索引');
+    expect(traditional['view_strings.shared_bulk_actions.remove_tags']).toBe('移除索引');
+    expect(traditional['view_strings.shared_bulk_actions.tags_to_remove']).toBe('要移除的索引');
     expect(traditional['view_strings.sections_dashboard.all_matching_pages']).toBe('所有相符頁面');
   });
 

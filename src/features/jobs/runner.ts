@@ -115,7 +115,7 @@ async function runAdvancedSearchBulkActionJob(env: Env, job: AdminJobRecord): Pr
 function parseAdvancedSearchBulkActionJob(body: string | null): AdvancedSearchBulkActionPayload {
   const value = body ? JSON.parse(body) as Partial<AdvancedSearchBulkActionPayload> : null;
   if (!value || typeof value !== 'object') throw new Error('Admin job is missing bulk action payload');
-  if (value.action !== 'publish' && value.action !== 'unpublish' && value.action !== 'delete' && value.action !== 'add_tag') {
+  if (value.action !== 'publish' && value.action !== 'unpublish' && value.action !== 'delete' && value.action !== 'add_tag' && value.action !== 'remove_tag') {
     throw new Error('Admin job has invalid bulk action');
   }
   const scope = value.scope === 'all' ? 'all' : 'selected';

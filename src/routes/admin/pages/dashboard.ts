@@ -37,7 +37,10 @@ async function importExportLinks(
 
 type DashboardStatusFilter = ReturnType<typeof dashboardStatusFilter>;
 type DashboardLiveUuidRow = { uuid: string };
-type DashboardPageRow = Page & { isDraftMissing?: boolean };
+type DashboardPageRow = Page & { isDraftMissing?: boolean; tagNames?: string[] };
+type DashboardPageTagNameRow = { page_id: number; name: string };
+type DashboardPublishedPageTagRow = { page_id: number; tag_id: number; weight: number; id: number };
+type DashboardTagNameRow = { id: number; name: string };
 
 function statusFilterLinks(routeBase: string, active: DashboardStatusFilter) {
   return [
@@ -72,6 +75,65 @@ function dashboardBulkTagGroups(
 
   return [...groups.values()]
     .sort((left, right) => left.name.localeCompare(right.name) || left.slug.localeCompare(right.slug));
+}
+
+async function addDashboardPageTags<T extends DashboardPageRow>(c: AppContext, pages: T[]): Promise<T[]> {
+  if (!pages.length) return pages;
+
+  const draftPageIds = pages.filter((page) => !page.isDraftMissing).map((page) => page.id);
+  const publishedPageIds = pages.filter((page) => page.isDraftMissing).map((page) => page.id);
+  const pageTagNames = new Map<string, string[]>();
+  const pageKey = (source: 'draft' | 'published', pageId: number) => `${source}:${pageId}`;
+  const addTag = (key: string, name: string) => {
+    const names = pageTagNames.get(key) ?? [];
+    names.push(name);
+    pageTagNames.set(key, names);
+  };
+
+  const [draftTagRows, publishedTagRows] = await Promise.all([
+    draftPageIds.length
+      ? c.env.DB.prepare(
+          `SELECT pt.page_id, t.name
+           FROM page_tags pt
+           JOIN tags t ON t.id = pt.tag_id
+           WHERE pt.page_id IN (${draftPageIds.map(() => '?').join(',')})
+           ORDER BY pt.page_id ASC, pt.weight ASC, pt.id ASC`,
+        )
+          .bind(...draftPageIds)
+          .all<DashboardPageTagNameRow>()
+      : Promise.resolve({ results: [] as DashboardPageTagNameRow[] }),
+    publishedPageIds.length
+      ? c.env.PUBLISHED_DB.prepare(
+          `SELECT page_id, tag_id, weight, id
+           FROM page_tags
+           WHERE page_id IN (${publishedPageIds.map(() => '?').join(',')})
+           ORDER BY page_id ASC, weight ASC, id ASC`,
+        )
+          .bind(...publishedPageIds)
+          .all<DashboardPublishedPageTagRow>()
+      : Promise.resolve({ results: [] as DashboardPublishedPageTagRow[] }),
+  ]);
+
+  for (const row of draftTagRows.results) addTag(pageKey('draft', row.page_id), row.name);
+
+  const publishedTagIds = Array.from(new Set(publishedTagRows.results.map((row) => row.tag_id)));
+  if (publishedTagIds.length) {
+    const tagNames = await c.env.DB.prepare(
+      `SELECT id, name FROM tags WHERE id IN (${publishedTagIds.map(() => '?').join(',')})`,
+    )
+      .bind(...publishedTagIds)
+      .all<DashboardTagNameRow>();
+    const tagNamesById = new Map(tagNames.results.map((tag) => [tag.id, tag.name]));
+    for (const row of publishedTagRows.results) {
+      const name = tagNamesById.get(row.tag_id);
+      if (name) addTag(pageKey('published', row.page_id), name);
+    }
+  }
+
+  return pages.map((page) => ({
+    ...page,
+    tagNames: pageTagNames.get(pageKey(page.isDraftMissing ? 'published' : 'draft', page.id)) ?? [],
+  }));
 }
 
 function dashboardPaginationResult<T>(items: T[], requestedPage: number, limit: number) {
@@ -167,6 +229,7 @@ async function dashboardPagesForRequest(
 ) {
   const { pageType, statusFilter, requestedPage, pageSize } = options;
   const now = new Date();
+  let result;
   if (!statusFilter) {
     const draftPages = await listDashboardDraftPages(c.env.DB, {
       pageType,
@@ -177,22 +240,26 @@ async function dashboardPagesForRequest(
       liveMapForDraftPages(c.env, draftPages.results),
       draftLectProjector(c.env),
     ]);
-    return {
+    result = {
       ...draftPages,
       results: withLiveStatus(draftPages.results, liveMap, projectDraft, now),
     };
-  }
-  if (statusFilter === 'draft') {
-    return draftDashboardPagesForRequest(c, { pageType, requestedPage, pageSize });
+  } else if (statusFilter === 'draft') {
+    result = await draftDashboardPagesForRequest(c, { pageType, requestedPage, pageSize });
+  } else {
+    result = await liveDashboardPagesForRequest(c, {
+      pageType,
+      requestedPage,
+      pageSize,
+      statusFilter,
+      now,
+    });
   }
 
-  return liveDashboardPagesForRequest(c, {
-    pageType,
-    requestedPage,
-    pageSize,
-    statusFilter,
-    now,
-  });
+  return {
+    ...result,
+    results: await addDashboardPageTags(c, result.results),
+  };
 }
 
 // Escape hatch: `?native=1` (or `?editor=cms`) forces the built-in CMS editor
@@ -299,22 +366,21 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
   const t = await uiTranslator(c);
 
   return renderPage(c, dashboardPage, {
-      siteTitle: `${c.env.SITE_TITLE ?? '0xCMS'} · ${pageType}`,
-      pages: draftPages.results,
-      flash: flash || undefined,
-      returnPath: dashboardPageHref(routeBase, draftPages.pagination.currentPage, pageSize, statusParams),
-      pageTypeFilter: pageType,
-      statusFilter,
-      statusFilters: statusFilterLinks(routeBase, statusFilter),
-      searchAction: `/admin/advanced-search/${encodeURIComponent(pageType)}`,
-      advancedSearchHref: `/admin/advanced-search/${encodeURIComponent(pageType)}`,
-      importHref,
-      exportHref,
-      pageTypeChoices: advancedSearchPageTypes(config),
-      bulkTagGroups: dashboardBulkTagGroups(taxonomy.tags, taxonomy.taxonomies, config.taxonomies),
-      pagination: dashboardPagination(routeBase, draftPages, statusParams),
-      privacyTable: pageTypeHasPrivacyFields(config.blueprint[pageType]),
-      t,
+    pages: draftPages.results,
+    flash: flash || undefined,
+    returnPath: dashboardPageHref(routeBase, draftPages.pagination.currentPage, pageSize, statusParams),
+    pageTypeFilter: pageType,
+    statusFilter,
+    statusFilters: statusFilterLinks(routeBase, statusFilter),
+    searchAction: `/admin/advanced-search/${encodeURIComponent(pageType)}`,
+    advancedSearchHref: `/admin/advanced-search/${encodeURIComponent(pageType)}`,
+    importHref,
+    exportHref,
+    pageTypeChoices: advancedSearchPageTypes(config),
+    bulkTagGroups: dashboardBulkTagGroups(taxonomy.tags, taxonomy.taxonomies, config.taxonomies),
+    pagination: dashboardPagination(routeBase, draftPages, statusParams),
+    privacyTable: pageTypeHasPrivacyFields(config.blueprint[pageType]),
+    t,
   });
 });
 

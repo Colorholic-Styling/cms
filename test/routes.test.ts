@@ -1426,15 +1426,15 @@ describe('admin routes', () => {
       .first<{ id: number }>()).toBeNull();
   });
 
-  it('POST /admin/advanced-search/:pageType/bulk adds selected tags idempotently', async () => {
+  it('POST /admin/advanced-search/:pageType/bulk adds and removes selected tags idempotently', async () => {
     const { queue, sent } = queueStub<CmsAdminJobMessage>();
     (env as unknown as { ADMIN_JOBS_QUEUE?: Queue<CmsAdminJobMessage> }).ADMIN_JOBS_QUEUE = queue;
     const cookie = await authCookie();
     const query = 'dashboard=1&status=draft';
     const returnTo = '/admin/pages/list/default?status=draft';
-    const body = () => {
+    const body = (action: 'add_tag' | 'remove_tag') => {
       const input = new URLSearchParams({
-        bulk_action: 'add_tag',
+        bulk_action: action,
         scope: 'selected',
         page_ids: '101',
         return_to: returnTo,
@@ -1446,7 +1446,7 @@ describe('admin routes', () => {
 
     const response = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
       method: 'POST',
-      body: body(),
+      body: body('add_tag'),
       headers: { Cookie: cookie },
     });
 
@@ -1469,7 +1469,7 @@ describe('admin routes', () => {
 
     const repeat = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
       method: 'POST',
-      body: body(),
+      body: body('add_tag'),
       headers: { Cookie: cookie },
     });
     expect(repeat.status).toBe(302);
@@ -1484,6 +1484,42 @@ describe('admin routes', () => {
       .bind(sent[1].jobId)
       .first<{ result_location: string }>();
     expect(repeatJob?.result_location).toContain('flash=No%20pages%20updated');
+
+    const removeResponse = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
+      method: 'POST',
+      body: body('remove_tag'),
+      headers: { Cookie: cookie },
+    });
+    expect(removeResponse.status).toBe(302);
+    expect(removeResponse.headers.get('Location')).toBe(
+      `${returnTo}&flash=Bulk%20tag%20removal%20queued.%20It%20may%20take%20a%20moment%20to%20finish.`,
+    );
+    expect(sent).toHaveLength(3);
+    const removeJob = await env.DB.prepare('SELECT body FROM admin_jobs WHERE id = ?')
+      .bind(sent[2].jobId)
+      .first<{ body: string }>();
+    expect(JSON.parse(removeJob?.body ?? '{}')).toMatchObject({ action: 'remove_tag', targetTagIds: [301, 302] });
+
+    await worker.queue(queueBatch([sent[2]]), env as unknown as AppEnv);
+
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM page_tags WHERE page_id = ?')
+      .bind(101)
+      .first<{ total: number }>()).toEqual({ total: 0 });
+
+    const repeatRemove = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
+      method: 'POST',
+      body: body('remove_tag'),
+      headers: { Cookie: cookie },
+    });
+    expect(repeatRemove.status).toBe(302);
+    expect(sent).toHaveLength(4);
+
+    await worker.queue(queueBatch([sent[3]]), env as unknown as AppEnv);
+
+    const repeatRemoveJob = await env.DB.prepare('SELECT result_location FROM admin_jobs WHERE id = ?')
+      .bind(sent[3].jobId)
+      .first<{ result_location: string }>();
+    expect(repeatRemoveJob?.result_location).toContain('flash=No%20pages%20updated');
   });
 
   it('POST /admin/advanced-search/:pageType/bulk moves all matching results to trash', async () => {
@@ -1909,6 +1945,35 @@ describe('admin routes', () => {
     expect(liveData.statusFilters).toContainEqual({ label: 'Live', translationKey: 'pages.status.live', href: '/admin?status=live', isActive: true });
   });
 
+  it('shows five page tags and a more badge in page-list rows', async () => {
+    await env.DB.prepare('DELETE FROM page_tags WHERE page_id = ?').bind(101).run();
+    for (let index = 1; index <= 6; index++) {
+      await env.DB.prepare('INSERT INTO tags (id, name, slug) VALUES (?, ?, ?)')
+        .bind(1200 + index, `Page tag ${index}`, `page-tag-${index}`)
+        .run();
+      await env.DB.prepare('INSERT INTO page_tags (id, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
+        .bind(4200 + index, 101, 1200 + index, index)
+        .run();
+    }
+
+    const response = await fetchWorker('/admin/pages/list', { headers: { Cookie: await authCookie() } });
+    const data = bodyData(await response.text());
+    const page = (data.pages as Array<Record<string, unknown>>).find((entry) => entry.name === 'About');
+    const section = await (await env.VIEWS.fetch('https://views.local/sections/dashboard.liquid')).text();
+
+    expect(response.status).toBe(200);
+    expect(page?.tags).toEqual([
+      { name: 'Page tag 1' },
+      { name: 'Page tag 2' },
+      { name: 'Page tag 3' },
+      { name: 'Page tag 4' },
+      { name: 'Page tag 5' },
+    ]);
+    expect(page?.hasMoreTags).toBe(true);
+    expect(section).toContain('view_strings.sections_dashboard.more');
+    expect(section.indexOf('{% if page.hasTags %}')).toBeGreaterThan(section.indexOf("page.publicationStatus == 'live'"));
+  });
+
   it('translates the page-list header and count summary', async () => {
     const response = await fetchWorker('/admin/pages/list/default?status=live', {
       headers: { Cookie: `${await authCookie()}; cms_ui_locale=zh-hant` },
@@ -2006,6 +2071,9 @@ describe('admin routes', () => {
     )
       .bind(930, 'dashboard-live-only-uuid', 'Dashboard Live Only', 'dashboard-live-only', 8, 'default', basePageLect, 1, '1')
       .run();
+    await env.PUBLISHED_DB.prepare('INSERT INTO page_tags (id, page_id, tag_id, weight) VALUES (?, ?, ?, ?)')
+      .bind(931, 930, 301, 4)
+      .run();
 
     const response = await fetchWorker('/admin?status=live', { headers: { Cookie: await authCookie() } });
     const data = bodyData(await response.text());
@@ -2019,6 +2087,7 @@ describe('admin routes', () => {
       isPublished: true,
       editHref: '',
       pullAction: '/admin/pages/pull/dashboard-live-only-uuid',
+      tags: [{ name: 'News' }],
     });
   });
 
@@ -2119,6 +2188,8 @@ describe('admin routes', () => {
     expect(section).toContain('<option value="unpublish">');
     expect(section).toContain('<option value="delete">');
     expect(section).toContain('<option value="add_tag">');
+    expect(section).toContain('<option value="remove_tag">');
+    expect(section).toContain('data-dashboard-bulk-tag-label-remove');
     expect(section).toContain('data-dashboard-bulk-tag-option');
     expect(section).toContain('data-dashboard-bulk-scope');
     expect(section).toContain('<option value="all">');
@@ -2761,12 +2832,14 @@ describe('permission-aware admin UI', () => {
     expect(redirectedHome.headers.get('Location')).toBe('/admin/plugins/events/dashboard');
 
     const dashboardPayload = renderPayload(await (await fetchWorker('/admin?pagesize=100', { headers: { Cookie: await authCookie() } })).text());
+    const pageTypeDashboard = renderPayload(await (await fetchWorker('/admin/pages/list/default', { headers: { Cookie: await authCookie() } })).text());
     expect(dashboardPayload.layoutData.showSidebarPages).toBe(true);
     expect(dashboardPayload.layoutData.showSidebarTrash).toBe(true);
     expect(dashboardPayload.layoutData.showSidebarTags).toBe(false);
     expect(dashboardPayload.layoutData.showSidebarUsers).toBe(false);
     expect(dashboardPayload.layoutData.showSidebarMenu).toBe(true);
     expect(dashboardPayload.layoutData.siteTitle).toBe('Control Room');
+    expect(pageTypeDashboard.layoutData.siteTitle).toBe('Control Room');
     expect(dashboardPayload.layoutData.appIcon).toBe('settings');
     expect(dashboardPayload.layoutData.systemTimezone).toBe('+0800');
     expect((dashboardPayload.layoutData.sidebarNav as Array<{ label: string }>).map((item) => item.label)).toEqual([
