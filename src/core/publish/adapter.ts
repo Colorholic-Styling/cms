@@ -19,10 +19,32 @@ export interface PublishSnapshotTag {
   name: string | null;
 }
 
+/** A tag as the publish path hands it over: the CMS row minus its bookkeeping
+ *  columns, which each target mints for itself. Targets that keep a tag
+ *  catalogue (D1) store it; write-only targets get the same fields inlined on
+ *  every page's tag links and can ignore this. */
+export interface PublishedTag {
+  id: number;
+  uuid: string;
+  name: string;
+  slug: string;
+  weight: number;
+  taxonomy_slug: string | null;
+  parent_tag: number | null;
+  lect: string | null;
+}
+
 /** Everything a target needs to materialize one published page. */
 export interface PublishSnapshot {
   page: Page;
   tags: PublishSnapshotTag[];
+  /**
+   * The distinct tag rows behind `tags`, so a target that stores a catalogue
+   * (D1) can upsert the tags and the links in one publish and never serve a
+   * link whose id resolves to nothing. Empty when the page has no tags — or
+   * when the CMS's own tags table is too old to answer for them.
+   */
+  tagCatalogue: PublishedTag[];
   publishedAt: string;
 }
 
@@ -53,8 +75,16 @@ export interface PublishAdapter {
    *  (e.g. plugin targets). Throw on failure. */
   unpublishMany?(uuids: string[]): Promise<void>;
 
-  /** Optional: drop a deleted tag from published content. Targets that can't
-   *  do this cheaply may omit it — stale tags clear on the next publish. */
+  /** Optional: create or replace the published copy of one or more tags, so a
+   *  rename or a re-grouping reaches readers without republishing every page
+   *  that uses the tag. Called with a single tag on admin edits and with a
+   *  batch by the resync action; targets that keep no catalogue omit it.
+   *  Throw on failure. */
+  publishTags?(tags: PublishedTag[]): Promise<void>;
+
+  /** Optional: drop a deleted tag from published content — its links, and the
+   *  catalogue row for targets that keep one. Targets that can't do this
+   *  cheaply may omit it — stale tags clear on the next publish. */
   removeTag?(tagId: number): Promise<void>;
 
   // ── Live-state reads ─────────────────────────────────────────────────────

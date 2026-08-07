@@ -7,6 +7,7 @@ import { authenticatePlugin, forbiddenPageType } from './auth';
 import { stringList } from './serialize';
 import { resolveCmsConfig } from '../../../core/db/content-config';
 import { editorTaxonomy, ensureTagByName } from '../../../core/db/admin-queries';
+import { publishTagsToTargets } from '../../../core/publish';
 import { advancedSearchPathSpecs } from '../../../core/db/search';
 import { pageTypeScopeAllows } from '../page-types';
 
@@ -80,6 +81,11 @@ contentApiRoutes.post('/tags/ensure', async (c) => {
     }
     ensured.push({ taxonomy: target.slug, name, id });
   }
+
+  // Mirror to the publish targets that keep a tag catalogue, so a tag minted
+  // here resolves for readers as soon as a page carrying it goes live. Bounded
+  // by MAX_ENSURE_TAGS and idempotent, so re-ensuring an existing tag is cheap.
+  await publishTagsToTargets(c.env, [...seen.values()]);
 
   return c.json({ tags: ensured, errors });
 });

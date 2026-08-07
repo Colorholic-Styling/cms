@@ -26,7 +26,12 @@ describe('flattened migration contract', () => {
     const names = env.TEST_MIGRATIONS.map((migration) => migration.name);
     expect(names.filter((name) => !/^\d{4}_enable_/.test(name))).toEqual(['0001_initial_schema.sql']);
     expect(names[0]).toBe('0001_initial_schema.sql');
-    expect(env.TEST_PUBLISHED_MIGRATIONS.map((migration) => migration.name)).toEqual(['0001_published_schema.sql']);
+    // The published database has no feature switches, so its additive files are
+    // hand-written; same rule as the CMS baseline — idempotent CREATEs only, and
+    // the baseline stays the fresh-install path.
+    const publishedNames = env.TEST_PUBLISHED_MIGRATIONS.map((migration) => migration.name);
+    expect(publishedNames[0]).toBe('0001_published_schema.sql');
+    expect(publishedNames).toEqual(['0001_published_schema.sql', '0002_published_tags.sql']);
   });
 
   it('creates the complete private schema without transitional tables', async () => {
@@ -106,11 +111,19 @@ describe('flattened migration contract', () => {
       .toBeNull();
   });
 
-  it('keeps published content isolated in its two-table schema', async () => {
-    expect(await objectNames(env.PUBLISHED_DB, 'table')).toEqual(['page_tags', 'pages']);
+  it('keeps published content isolated in its three-table schema', async () => {
+    // `tags` is the tag catalogue the publish path mirrors, so a reader can
+    // resolve a page_tags link to a name and a grouping. `taxonomies` stays
+    // CMS-only — the published grouping key is the tag's own taxonomy_slug.
+    expect(await objectNames(env.PUBLISHED_DB, 'table')).toEqual(['page_tags', 'pages', 'tags']);
     expect(await objectNames(env.PUBLISHED_DB, 'index')).toEqual(expect.arrayContaining([
       'idx_pages_created_at_uuid', 'idx_pages_page_type_created_at',
-      'idx_pages_page_type_page_id',
+      'idx_pages_page_type_page_id', 'idx_tags_taxonomy_slug_weight_name',
     ]));
+
+    // No self-referencing foreign key, unlike DB.tags: a child tag can be
+    // mirrored before its parent exists.
+    const parentFks = await env.PUBLISHED_DB.prepare('PRAGMA foreign_key_list(tags)').all();
+    expect(parentFks.results).toEqual([]);
   });
 });
