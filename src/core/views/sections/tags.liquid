@@ -1,19 +1,38 @@
 <div class="min-w-0 px-4 pb-5 sm:px-6 sm:pb-8 lg:px-8">
-  <form method="GET" class="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-    <label for="filter_taxonomy" class="sr-only">{{ "view_strings.sections_tags.filter_by_taxonomy" | t }}</label>
-    <select id="filter_taxonomy" name="filter_taxonomy" class="min-w-0 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm sm:w-auto">
-      <option value="">{{ "view_strings.sections_tags.all_taxonomies" | t }}</option>
-      {% for option in filterOptions %}
-        <option value="{{ option.id }}" {% if option.selected %}selected{% endif %}>{{ option.name }}</option>
-      {% endfor %}
-    </select>
-    <button type="submit"
-            title="{{ "view_strings.sections_tags.filter" | t }}"
-            aria-label="{{ "view_strings.sections_tags.filter_tags" | t }}"
-            class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
-      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#list-filter"></use></svg>
-    </button>
-  </form>
+  {% if syncedCount %}
+    <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{{ "view_strings.sections_tags.synced_tags" | t }} {{ syncedCount }}</div>
+  {% endif %}
+  {% if syncError %}
+    <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ "view_strings.sections_tags.sync_failed" | t }} {{ syncError }}</div>
+  {% endif %}
+  <div class="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <form method="GET" class="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+      <label for="filter_taxonomy" class="sr-only">{{ "view_strings.sections_tags.filter_by_taxonomy" | t }}</label>
+      <select id="filter_taxonomy" name="filter_taxonomy" class="min-w-0 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm sm:w-auto">
+        <option value="">{{ "view_strings.sections_tags.all_taxonomies" | t }}</option>
+        {% for option in filterOptions %}
+          <option value="{{ option.id }}" {% if option.selected %}selected{% endif %}>{{ option.name }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit"
+              title="{{ "view_strings.sections_tags.filter" | t }}"
+              aria-label="{{ "view_strings.sections_tags.filter_tags" | t }}"
+              class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#list-filter"></use></svg>
+      </button>
+    </form>
+    {% if canSync %}
+      <form method="POST" action="/admin/tags/sync-published" class="shrink-0">
+        <button type="submit"
+                title="{{ "view_strings.sections_tags.sync_published_help" | t }}"
+                aria-label="{{ "view_strings.sections_tags.sync_published" | t }}"
+                class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><use href="{{ iconHrefPrefix }}#sync"></use></svg>
+          <span class="hidden lg:inline">{{ "view_strings.sections_tags.sync_published" | t }}</span>
+        </button>
+      </form>
+    {% endif %}
+  </div>
   <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
     <table class="w-full min-w-[620px] text-left" data-reorder="/admin/tags/batch-weight" data-reorder-key="updates" data-reorder-handle-only>
       <thead class="bg-gray-50 border-b border-gray-200">

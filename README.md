@@ -6,7 +6,7 @@ Content management system on Workers
 - **OAuth 2.1** login via Eventuai, GitHub, Google, Microsoft, or Apple with PKCE (Proof Key for Code Exchange); Apple ID tokens are signature- and nonce-verified
 - **Dual JWT** security – short-lived access tokens (15 min) + rotatable refresh tokens (7 days) stored as httpOnly cookies; refresh tokens are hashed and stored in D1 for revocation
 - **Capability-based access** – routes enforce granular permissions resolved from built-in or custom roles; delegated user/role managers cannot grant authority they do not already hold
-- **Separated D1 content stores** – the CMS database keeps auth, sessions, draft, trash, taxonomy, and media metadata; the published database keeps only live content for public reads. Both call the page tables `pages` / `page_tags` — same name, same shape — so a published database can serve as the next host's working set; this repo disambiguates by binding (`DB.pages` vs `PUBLISHED_DB.pages`)
+- **Separated D1 content stores** – the CMS database keeps auth, sessions, draft, trash, taxonomy, and media metadata; the published database keeps only live content (pages, tag links and the tag catalogue) for public reads. Both call the page tables `pages` / `page_tags` — same name, same shape — so a published database can serve as the next host's working set; this repo disambiguates by binding (`DB.pages` vs `PUBLISHED_DB.pages`)
 - **Page versioning** – `pages.lect` is the working copy and the single source of truth for a draft; every save appends a `page_versions` row. The log is an append-only backup: the newest row mirrors `pages.lect`, older rows are restore candidates. There is deliberately no current-version pointer
 - **Live collaborative editing** – `PageSyncDO` holds unsaved per-user field operations and editor presence in Durable Object SQLite, cleared on save
 - **Private R2 media uploads** – picture fields upload to a private R2 bucket and are served back through the Worker at `/media/...`
@@ -40,8 +40,10 @@ Copy the `database_id` values printed by the commands into `wrangler.toml`:
 `DB` is the private CMS/admin database. It stores users, sessions, drafts,
 trash, taxonomy, page versions, and media metadata.
 
-`PUBLISHED_DB` is the published-content database. It stores the `pages` and
-`page_tags` rows used by public readers. A separate public Worker can be
+`PUBLISHED_DB` is the published-content database. It stores the `pages`,
+`page_tags` and `tags` rows used by public readers — the `tags` catalogue is
+mirrored from `DB.tags` by the publish path, so a reader can resolve a tag link
+to a name and a grouping without the CMS database. A separate public Worker can be
 deployed with only this binding, so it has no access to CMS users, sessions,
 drafts, or trash.
 
@@ -78,9 +80,9 @@ For production, add `--remote` to each `wrangler d1 migrations apply` command.
 The `cms` migrations create auth tables plus draft, trash, taxonomy,
 versioning, media tables, and (with the `jobs` feature installed) the
 `admin_jobs` table for durable background admin actions such as long plugin
-duplicate/delete requests. The `cms-published` migrations create only the two
-published content tables (`pages`, `page_tags`). They do not automatically
-import rows from other D1 databases.
+duplicate/delete requests. The `cms-published` migrations create only the three
+published content tables (`pages`, `page_tags`, `tags`). They do not
+automatically import rows from other D1 databases.
 
 The baseline migrations are generated from the `schema.sql` fragments beside
 the code they belong to — edit those, not `migrations/*.sql`, and run
@@ -864,16 +866,22 @@ admin actions, although it also runs advanced-search bulk actions. The general
 `settings` table is grouped there because it stores runtime CMS and plugin
 configuration.
 
-### Published database (`PUBLISHED_DB`) — 2 tables
+### Published database (`PUBLISHED_DB`) — 3 tables
 
 | Table | Purpose |
 |-------|---------|
 | `pages` | Published page metadata and structured `lect` content |
 | `page_tags` | Published page ↔ tag relationships |
+| `tags` | Published tag catalogue (name, slug, weight, `taxonomy_slug`, `lect`) |
 
-The two tables carry the same names and shapes as their `DB` counterparts, so a
-published database can be handed to another host as its working set (publish
-A → B, then B → C). Rows here are partitioned by writer: this Worker only
+The three tables carry the same names and shapes as their `DB` counterparts, so
+a published database can be handed to another host as its working set (publish
+A → B, then B → C). `taxonomies` deliberately stays CMS-only: published pages
+group by tag, and the grouping key travels on the tag as `taxonomy_slug`.
+`tags` is written only by the publish path — tag create, edit and delete push
+immediately, so a rename reaches readers without republishing every page that
+uses it, and **Admin → Tags → Sync published** backfills a database whose
+catalogue predates this table. Rows here are partitioned by writer: this Worker only
 upserts and deletes rows keyed by uuids it minted, while external submission
 Workers are INSERT-only. See [`src/core/publish/README.md`](src/core/publish/README.md).
 
@@ -899,14 +907,20 @@ DB.pages ── Publish ───┼──▶  r2      PUBLISH_BUCKET pages/<uui
                        └──▶  plugin  /__plugin/publish/* (IPFS, webhooks, …)
 ```
 
-Publish builds one snapshot from `DB.pages` (page row + denormalized tag links)
-and fans it out to every configured **publish target**; un-publish and page
+Publish builds one snapshot from `DB.pages` (page row, denormalized tag links,
+and the tag rows behind them) and fans it out to every configured
+**publish target**; un-publish and page
 deletion remove the page from every target the same way. See
 [Publish targets](#publish-targets).
 
 The default `d1` target upserts the snapshot into `PUBLISHED_DB.pages` by
 `uuid`, preserving the draft page's numeric `id`, and replaces its `page_tags`
-links; un-publish deletes both.
+links; un-publish deletes both. The same write also upserts the tags that page
+uses into `PUBLISHED_DB.tags`, under the CMS's own tag ids — a published
+`page_tags.tag_id` only resolves because both databases agree on the id. Tag
+edits push on their own too, so a rename reaches readers without republishing
+every page that carries the tag, and a tag delete removes the catalogue row
+along with its links.
 
 **Data minimization.** A plugin may declare `contentTypes.publishLect` rules
 for page types it owns — `keep` (allow-list) or `drop` (deny-list) of top-level
@@ -929,7 +943,7 @@ the `PUBLISH_TARGETS` var (comma-separated, defaults to `"d1"`):
 
 | Target | Requires | What it does |
 |--------|----------|--------------|
-| `d1` | `PUBLISHED_DB` binding | Upserts `pages` / `page_tags` in the published database (the original flow) |
+| `d1` | `PUBLISHED_DB` binding | Upserts `pages` / `page_tags` / `tags` in the published database (the original flow) |
 | `r2` | `PUBLISH_BUCKET` binding | Writes static JSON: `pages/<uuid>.json` (full snapshot, `lect` parsed) plus `index.json` (listing of all live pages) |
 
 ```toml
@@ -956,8 +970,9 @@ The contract is three POST endpoints, JSON body, `x-plugin-secret` header:
 
 | Endpoint | Body | When |
 |----------|------|------|
-| `/__plugin/publish/page` | `{ page, tags, publishedAt }` | page published |
+| `/__plugin/publish/page` | `{ page, tags, tagCatalogue, publishedAt }` | page published (`tagCatalogue` holds the full tag rows behind `tags`) |
 | `/__plugin/publish/remove` | `{ uuid }` | page unpublished or deleted |
+| `/__plugin/publish/tags` | `{ tags }` | tags created or edited (optional — a 404 is ignored) |
 | `/__plugin/publish/remove-tag` | `{ tagId }` | tag deleted (optional — a 404 is ignored) |
 
 All targets are awaited on publish; per-target failures are logged and reported
