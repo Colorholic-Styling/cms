@@ -106,18 +106,25 @@
     window.location.href = window.location.pathname + '?' + params.toString();
   }
 
-  let tagSlugEdited = {% if isEdit %}true{% else %}false{% endif %};
+  const tagNameInput = document.getElementById('tag_name');
   const tagSlugInput = document.getElementById('tag_slug');
+  function tagSlugForName(name) {
+    return name.toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+
+  const initialTagSlug = tagSlugInput?.value.trim() || '';
+  const initialTagSlugFromName = tagSlugForName(tagNameInput?.value || '');
+  let tagSlugEdited = {% if isEdit %}initialTagSlug !== '' && initialTagSlug !== initialTagSlugFromName{% else %}false{% endif %};
   if (tagSlugInput) {
     tagSlugInput.addEventListener('input', () => { tagSlugEdited = true; });
   }
 
   function autoTagSlug(name) {
     if (tagSlugEdited || !tagSlugInput) return;
-    tagSlugInput.value = name.toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    tagSlugInput.value = tagSlugForName(name);
   }
 
   function copyTagSlug() {
@@ -128,7 +135,7 @@
   }
 
   document.getElementById('tag_language')?.addEventListener('change', (event) => switchTagLanguage(event.target.value));
-  document.getElementById('tag_name')?.addEventListener('input', (event) => autoTagSlug(event.target.value));
+  tagNameInput?.addEventListener('input', (event) => autoTagSlug(event.target.value));
   document.getElementById('copy-tag-slug-btn')?.addEventListener('click', copyTagSlug);
 
   // Parent-tag combobox: searches tags server-side (/admin/api/parent-tags) so

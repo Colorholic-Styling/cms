@@ -126,6 +126,15 @@ describe('view assembly', () => {
     expect(editorScript).not.toMatch(/{{|{%/);
   });
 
+  it('auto-generates tag slugs on new and edit forms while preserving custom slugs', async () => {
+    const tagForm = await (await env.VIEWS.fetch('https://views.local/sections/tag-form.liquid')).text();
+    expect(tagForm).toContain('function tagSlugForName(name)');
+    expect(tagForm).toContain('const initialTagSlugFromName = tagSlugForName(tagNameInput?.value || \'\');');
+    expect(tagForm).toContain('initialTagSlug !== \'\' && initialTagSlug !== initialTagSlugFromName');
+    expect(tagForm).toContain('tagSlugInput.addEventListener(\'input\', () => { tagSlugEdited = true; });');
+    expect(tagForm).toContain('tagNameInput?.addEventListener(\'input\', (event) => autoTagSlug(event.target.value));');
+  });
+
   it('uses the shared text field snippet when a field has no renderer', async () => {
     const renderer = await (await env.VIEWS.fetch('https://views.local/assets/client-render.js')).text();
     expect(renderer).toContain("const templatePath = model.templatePath || '/snippets/pagefield/text/basic.liquid';");
