@@ -46,21 +46,26 @@ const BULK_ACTIONS: Record<BulkPageAction, { permission: Permission; queued: str
   publish: { permission: 'content:publish', queued: 'Bulk publish queued. It may take a moment to finish.' },
   unpublish: { permission: 'content:publish', queued: 'Bulk unpublish queued. It may take a moment to finish.' },
   delete: { permission: 'content:delete', queued: 'Bulk deletion queued. It may take a moment to finish.' },
+  add_tag: { permission: 'content:write', queued: 'Bulk tag addition queued. It may take a moment to finish.' },
 };
 
 function bulkAction(value: FormDataEntryValue | null): BulkPageAction | null {
   const action = str(value);
-  return action === 'publish' || action === 'unpublish' || action === 'delete'
+  return action === 'publish' || action === 'unpublish' || action === 'delete' || action === 'add_tag'
     ? action
     : null;
 }
 
-function uniquePageIds(values: FormDataEntryValue[]): number[] {
+function uniqueNumericIds(values: FormDataEntryValue[]): number[] {
   const ids = values
     .map((value) => str(value))
     .filter((value) => /^\d+$/.test(value))
     .map((value) => parseInt(value, 10));
   return Array.from(new Set(ids));
+}
+
+function uniquePageIds(values: FormDataEntryValue[]): number[] {
+  return uniqueNumericIds(values);
 }
 
 async function bulkAdvancedSearch(
@@ -79,6 +84,10 @@ async function bulkAdvancedSearch(
 
   const scope = str(form.get('scope')) === 'all' ? 'all' : 'selected';
   const ids = uniquePageIds(form.getAll('page_ids'));
+  const targetTagIds = action === 'add_tag' ? uniqueNumericIds(form.getAll('tag_ids')) : [];
+  if (action === 'add_tag' && !targetTagIds.length) {
+    return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent('Choose at least one tag')}`));
+  }
   let pageTypes: string[] = [];
   const criteria = parseAdvancedSearchCriteria(c.req.url);
   const operator = advancedSearchOperator(c.req.query('operator'));
@@ -122,13 +131,24 @@ async function bulkAdvancedSearch(
     criteria,
     operator,
     status,
+    targetTagIds,
     returnTo,
   }) ?? false;
   if (queued) {
     return c.redirect(appendQuery(returnTo, `flash=${encodeURIComponent(BULK_ACTIONS[action].queued)}`));
   }
 
-  return bulkAdvancedSearchInline(c, { action, scope, ids, pageTypes, criteria, operator, status, returnTo });
+  return bulkAdvancedSearchInline(c, {
+    action,
+    scope,
+    ids,
+    pageTypes,
+    criteria,
+    operator,
+    status,
+    targetTagIds,
+    returnTo,
+  });
 }
 
 /**
@@ -148,6 +168,7 @@ async function bulkAdvancedSearchInline(
     criteria: ReturnType<typeof parseAdvancedSearchCriteria>;
     operator: ReturnType<typeof advancedSearchOperator>;
     status?: 'draft' | 'scheduled' | 'live' | 'ended';
+    targetTagIds: number[];
     returnTo: string;
   },
 ): Promise<Response> {
@@ -161,7 +182,7 @@ async function bulkAdvancedSearchInline(
     : input.ids;
 
   const slice = targetIds.slice(0, BULK_ACTION_PAGE_LIMIT);
-  const outcome = await applyBulkPageAction(c.env, c.get('user'), input.action, slice);
+  const outcome = await applyBulkPageAction(c.env, c.get('user'), input.action, slice, input.targetTagIds);
   const remaining = targetIds.length - slice.length;
   const flash = bulkActionFlash(
     input.action,

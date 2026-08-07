@@ -1426,6 +1426,66 @@ describe('admin routes', () => {
       .first<{ id: number }>()).toBeNull();
   });
 
+  it('POST /admin/advanced-search/:pageType/bulk adds selected tags idempotently', async () => {
+    const { queue, sent } = queueStub<CmsAdminJobMessage>();
+    (env as unknown as { ADMIN_JOBS_QUEUE?: Queue<CmsAdminJobMessage> }).ADMIN_JOBS_QUEUE = queue;
+    const cookie = await authCookie();
+    const query = 'dashboard=1&status=draft';
+    const returnTo = '/admin/pages/list/default?status=draft';
+    const body = () => {
+      const input = new URLSearchParams({
+        bulk_action: 'add_tag',
+        scope: 'selected',
+        page_ids: '101',
+        return_to: returnTo,
+      });
+      input.append('tag_ids', '301');
+      input.append('tag_ids', '302');
+      return input;
+    };
+
+    const response = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
+      method: 'POST',
+      body: body(),
+      headers: { Cookie: cookie },
+    });
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe(
+      `${returnTo}&flash=Bulk%20tag%20addition%20queued.%20It%20may%20take%20a%20moment%20to%20finish.`,
+    );
+    expect(sent).toHaveLength(1);
+    const job = await env.DB.prepare('SELECT body FROM admin_jobs WHERE id = ?')
+      .bind(sent[0].jobId)
+      .first<{ body: string }>();
+    expect(JSON.parse(job?.body ?? '{}')).toMatchObject({ action: 'add_tag', targetTagIds: [301, 302] });
+
+    await worker.queue(queueBatch([sent[0]]), env as unknown as AppEnv);
+
+    const taggedRows = await env.DB.prepare('SELECT tag_id FROM page_tags WHERE page_id = ? ORDER BY tag_id')
+      .bind(101)
+      .all<{ tag_id: number }>();
+    expect(taggedRows.results).toEqual([{ tag_id: 301 }, { tag_id: 302 }]);
+
+    const repeat = await fetchWorker(`/admin/advanced-search/default/bulk?${query}`, {
+      method: 'POST',
+      body: body(),
+      headers: { Cookie: cookie },
+    });
+    expect(repeat.status).toBe(302);
+    expect(sent).toHaveLength(2);
+
+    await worker.queue(queueBatch([sent[1]]), env as unknown as AppEnv);
+
+    expect(await env.DB.prepare('SELECT COUNT(*) AS total FROM page_tags WHERE page_id = ?')
+      .bind(101)
+      .first<{ total: number }>()).toEqual({ total: 2 });
+    const repeatJob = await env.DB.prepare('SELECT result_location FROM admin_jobs WHERE id = ?')
+      .bind(sent[1].jobId)
+      .first<{ result_location: string }>();
+    expect(repeatJob?.result_location).toContain('flash=No%20pages%20updated');
+  });
+
   it('POST /admin/advanced-search/:pageType/bulk moves all matching results to trash', async () => {
     const { queue, sent } = queueStub<CmsAdminJobMessage>();
     (env as unknown as { ADMIN_JOBS_QUEUE?: Queue<CmsAdminJobMessage> }).ADMIN_JOBS_QUEUE = queue;
@@ -2058,8 +2118,19 @@ describe('admin routes', () => {
     expect(section).toContain('<option value="publish">');
     expect(section).toContain('<option value="unpublish">');
     expect(section).toContain('<option value="delete">');
+    expect(section).toContain('<option value="add_tag">');
+    expect(section).toContain('data-dashboard-bulk-tag-option');
     expect(section).toContain('data-dashboard-bulk-scope');
     expect(section).toContain('<option value="all">');
+    expect(data.bulkTagGroups).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'Categories',
+        tags: expect.arrayContaining([
+          expect.objectContaining({ id: 301, name: 'News' }),
+          expect.objectContaining({ id: 302, name: 'Updates' }),
+        ]),
+      }),
+    ]));
   });
 
   it('bulk-selects matching dashboard pages outside the current pagination page', async () => {

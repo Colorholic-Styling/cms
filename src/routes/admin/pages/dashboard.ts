@@ -7,13 +7,13 @@ import { resolveCmsConfig } from '../../../core/db/content-config';
 import { advancedSearchPageTypes } from '../../../core/db/search';
 import { announcePageEvent } from '../../../core/page-events';
 import { blueprintToLect, stringifyLect } from '../../../core/db/lect';
-import type { Env, Variables, Page } from '../../../types';
+import type { Env, Variables, Page, Tag, Taxonomy } from '../../../types';
 import type { BlueprintEntry } from '../../../cms-config';
 import { dashboardPageHref, dashboardPageNumber, dashboardPageSize, dashboardStatusFilter, editorsFromForm, languageFromRequest, num, slugify, str, userIdFromContext } from '../../../core/http/forms';
 import { coreExtensions } from '../../../core/extensions';
 import { reservePageCreate } from '../../../features/services';
 import { lectFromForm, publicationStatusForPage, withDraftMetadata, withLiveStatus } from '../../../core/db/page-logic';
-import { ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids, savePageVersion } from '../../../core/db/admin-queries';
+import { editorTaxonomy, ensureUniqueDraftSlug, listDashboardDraftPages, listDashboardDraftPageUuids, listDashboardDraftPagesByUuids, savePageVersion } from '../../../core/db/admin-queries';
 import { liveMapForDraftPages } from '../../../core/publish';
 import { draftLectProjector } from '../../../core/publish/projection';
 import { dashboardPagination, renderPage } from '../../../core/render/chrome';
@@ -47,6 +47,31 @@ function statusFilterLinks(routeBase: string, active: DashboardStatusFilter) {
     { label: 'Live', translationKey: 'pages.status.live', href: `${routeBase}?status=live`, isActive: active === 'live' },
     { label: 'Ended', translationKey: 'pages.status.ended', href: `${routeBase}?status=ended`, isActive: active === 'ended' },
   ];
+}
+
+function dashboardBulkTagGroups(
+  tags: Tag[],
+  dbTaxonomies: Taxonomy[],
+  configTaxonomies: Record<string, string>,
+) {
+  const taxonomyNames = new Map(Object.entries(configTaxonomies));
+  for (const taxonomy of dbTaxonomies) taxonomyNames.set(taxonomy.slug, taxonomy.name);
+
+  const groups = new Map<string, { name: string; slug: string; isOther: boolean; tags: Array<{ id: number; name: string }> }>();
+  for (const tag of tags) {
+    const slug = tag.taxonomy_slug || '__other__';
+    const group = groups.get(slug) ?? {
+      name: tag.taxonomy_slug ? taxonomyNames.get(tag.taxonomy_slug) ?? tag.taxonomy_slug : 'Other',
+      slug,
+      isOther: !tag.taxonomy_slug,
+      tags: [],
+    };
+    group.tags.push({ id: tag.id, name: tag.name });
+    groups.set(slug, group);
+  }
+
+  return [...groups.values()]
+    .sort((left, right) => left.name.localeCompare(right.name) || left.slug.localeCompare(right.slug));
 }
 
 function dashboardPaginationResult<T>(items: T[], requestedPage: number, limit: number) {
@@ -205,8 +230,11 @@ async function renderAllPagesList(c: AppContext, routeBase: string) {
     pageSize,
   });
   const statusParams = statusFilter ? { status: statusFilter } : {};
-  const { importHref, exportHref } = await importExportLinks(c.env);
-  const config = await resolveCmsConfig(c.env);
+  const [{ importHref, exportHref }, config, taxonomy] = await Promise.all([
+    importExportLinks(c.env),
+    resolveCmsConfig(c.env),
+    editorTaxonomy(c.env.DB),
+  ]);
   const t = await uiTranslator(c);
 
   return renderPage(c, dashboardPage, {
@@ -220,6 +248,7 @@ async function renderAllPagesList(c: AppContext, routeBase: string) {
     importHref,
     exportHref,
     pageTypeChoices: advancedSearchPageTypes(config),
+    bulkTagGroups: dashboardBulkTagGroups(taxonomy.tags, taxonomy.taxonomies, config.taxonomies),
     pagination: dashboardPagination(routeBase, draftPages, statusParams),
     t,
   });
@@ -262,8 +291,11 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
   });
   const routeBase = `/admin/pages/list/${encodeURIComponent(pageType)}`;
   const statusParams = statusFilter ? { status: statusFilter } : {};
-  const config = await resolveCmsConfig(c.env);
-  const { importHref, exportHref } = await importExportLinks(c.env, pageType);
+  const [config, taxonomy, { importHref, exportHref }] = await Promise.all([
+    resolveCmsConfig(c.env),
+    editorTaxonomy(c.env.DB),
+    importExportLinks(c.env, pageType),
+  ]);
   const t = await uiTranslator(c);
 
   return renderPage(c, dashboardPage, {
@@ -279,6 +311,7 @@ pageDashboardRoutes.get('/pages/list/:pageType', requirePermission('content:read
       importHref,
       exportHref,
       pageTypeChoices: advancedSearchPageTypes(config),
+      bulkTagGroups: dashboardBulkTagGroups(taxonomy.tags, taxonomy.taxonomies, config.taxonomies),
       pagination: dashboardPagination(routeBase, draftPages, statusParams),
       privacyTable: pageTypeHasPrivacyFields(config.blueprint[pageType]),
       t,

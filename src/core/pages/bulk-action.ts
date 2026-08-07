@@ -1,4 +1,4 @@
-// Applying one action to many pages: publish, unpublish, or move to trash.
+// Applying one action to many pages: publish, unpublish, move to trash, or add tags.
 //
 // Core, not a feature, for the same reason the advanced-search query builder
 // is: two callers need it and neither may depend on the other. The search
@@ -21,7 +21,7 @@ import { isSubmissionMirror } from '../db/submission-ingest';
 import { publicationStatusForPage } from '../db/page-logic';
 
 /** The bulk actions a page listing offers. */
-export type BulkPageAction = 'publish' | 'unpublish' | 'delete';
+export type BulkPageAction = 'publish' | 'unpublish' | 'delete' | 'add_tag';
 
 /**
  * Pages per slice. A slice is sized to fit one Worker invocation's subrequest
@@ -76,12 +76,25 @@ export async function applyBulkPageAction(
   user: JWTPayload,
   action: BulkPageAction,
   ids: number[],
+  targetTagIds: number[] = [],
 ): Promise<BulkPageActionOutcome> {
   const failedTargets = new Set<string>();
   let updated = 0;
   let refused = 0;
 
   if (!ids.length) return { updated, refused, failedTargets };
+
+  if (action === 'add_tag') {
+    const pages = await draftPagesByIds(env.DB, ids);
+    const taggedPageIds = await addTagsToDraftPages(
+      env.DB,
+      pages.map((page) => page.id),
+      targetTagIds,
+    );
+    const tagged = new Set(taggedPageIds);
+    await emitPageLifecycle(env, user, 'update', pages.filter((page) => tagged.has(page.id)));
+    return { updated: taggedPageIds.length, refused, failedTargets };
+  }
 
   if (action === 'delete') {
     const deleted: TrashedPageRef[] = [];
@@ -128,7 +141,11 @@ export function bulkActionFlash(
   refused = 0,
   failedTargets: string[] = [],
 ): string {
-  const past = action === 'delete' ? 'moved to trash' : `${action}ed`;
+  const past = action === 'delete'
+    ? 'moved to trash'
+    : action === 'add_tag'
+      ? 'tagged'
+      : `${action}ed`;
   const pageLabel = count === 1 ? 'page' : 'pages';
   const base = count === 0 ? 'No pages updated' : `${count} ${pageLabel} ${past}`;
   const notes: string[] = [];
@@ -178,6 +195,71 @@ export async function draftPagesByIds(db: D1DatabaseClient, ids: number[]): Prom
   }
   const byId = new Map(pages.map((page) => [page.id, page]));
   return ids.map((id) => byId.get(id)).filter((page): page is Page => !!page);
+}
+
+/**
+ * Adds every requested existing tag that is missing from each page. The
+ * page_tags table predates a composite unique constraint, so the NOT EXISTS
+ * predicate is intentional: repeating a bulk action must not create duplicate
+ * links even on databases that still have the original schema.
+ */
+export async function addTagsToDraftPages(
+  db: D1DatabaseClient,
+  pageIds: number[],
+  tagIds: number[],
+): Promise<number[]> {
+  const pages = Array.from(new Set(pageIds.filter((id) => Number.isInteger(id) && id > 0)));
+  const tags = Array.from(new Set(tagIds.filter((id) => Number.isInteger(id) && id > 0)));
+  if (!pages.length || !tags.length) return [];
+
+  const changedPageIds = new Set<number>();
+  // Keep each statement comfortably below D1's bound-parameter limit even if
+  // a caller selects a large number of target tags.
+  for (const pageChunk of chunks(pages, 45)) {
+    for (const tagChunk of chunks(tags, 45)) {
+      const pagePlaceholders = pageChunk.map(() => '?').join(',');
+      const tagPlaceholders = tagChunk.map(() => '?').join(',');
+      const missing = await db.prepare(
+        `SELECT DISTINCT p.id
+         FROM pages p
+         CROSS JOIN tags t
+         WHERE p.id IN (${pagePlaceholders})
+           AND t.id IN (${tagPlaceholders})
+           AND NOT EXISTS (
+             SELECT 1 FROM page_tags existing
+             WHERE existing.page_id = p.id AND existing.tag_id = t.id
+           )`,
+      )
+        .bind(...pageChunk, ...tagChunk)
+        .all<{ id: number }>();
+
+      await db.prepare(
+        `INSERT INTO page_tags (page_id, tag_id)
+         SELECT p.id, t.id
+         FROM pages p
+         CROSS JOIN tags t
+         WHERE p.id IN (${pagePlaceholders})
+           AND t.id IN (${tagPlaceholders})
+           AND NOT EXISTS (
+             SELECT 1 FROM page_tags existing
+             WHERE existing.page_id = p.id AND existing.tag_id = t.id
+           )`,
+      )
+        .bind(...pageChunk, ...tagChunk)
+        .run();
+
+      missing.results.forEach((page) => changedPageIds.add(page.id));
+    }
+  }
+
+  for (const pageChunk of chunks([...changedPageIds])) {
+    const placeholders = pageChunk.map(() => '?').join(',');
+    await db.prepare(`UPDATE pages SET updated_at = CURRENT_TIMESTAMP WHERE id IN (${placeholders})`)
+      .bind(...pageChunk)
+      .run();
+  }
+
+  return pages.filter((id) => changedPageIds.has(id));
 }
 
 function chunks<T>(values: T[], size = 90): T[][] {

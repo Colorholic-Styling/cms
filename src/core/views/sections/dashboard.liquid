@@ -78,6 +78,7 @@
           data-dashboard-bulk-all-subject="{{ "view_strings.sections_dashboard.bulk_all_matching_pages_subject" | t }}"
           data-dashboard-bulk-page-singular="{{ "view_strings.sections_dashboard.bulk_selected_page" | t }}"
           data-dashboard-bulk-page-plural="{{ "view_strings.sections_dashboard.bulk_selected_pages" | t }}"
+          data-dashboard-bulk-choose-tag="{{ "view_strings.shared_bulk_actions.choose_tags" | t }}"
           aria-hidden="true">
       <input type="hidden" name="return_to" value="{{ returnPath }}">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -89,6 +90,9 @@
               <option value="publish">{{ "view_strings.shared_bulk_actions.publish" | t }}</option>
               <option value="unpublish">{{ "view_strings.shared_bulk_actions.unpublish" | t }}</option>
               <option value="delete">{{ "view_strings.shared_bulk_actions.move_to_trash" | t }}</option>
+              {% if hasBulkTagOptions %}
+                <option value="add_tag">{{ "view_strings.shared_bulk_actions.add_tags" | t }}</option>
+              {% endif %}
             </select>
           </label>
           <label class="block sm:w-56">
@@ -99,6 +103,34 @@
               <option value="all">{{ "view_strings.sections_dashboard.all_matching_pages" | t }}</option>
             </select>
           </label>
+          {% if hasBulkTagOptions %}
+            <div class="hidden sm:col-span-2" data-dashboard-bulk-tags>
+              <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-gray-500">{{ "view_strings.shared_bulk_actions.tags_to_add" | t }}</span>
+              <div class="relative rounded-lg border border-gray-300 bg-white p-2" data-dashboard-bulk-tag-picker>
+                <div class="flex flex-wrap gap-1.5" data-dashboard-bulk-tag-chips></div>
+                <input type="search"
+                       placeholder="{{ "view_strings.sections_editor.search_tags" | t }}"
+                       autocomplete="off"
+                       aria-label="{{ "view_strings.sections_editor.search_tags" | t }}"
+                       class="mt-1 h-8 w-full border-b border-transparent bg-transparent px-1 text-sm text-gray-700 focus:border-indigo-500 focus:outline-none"
+                       data-dashboard-bulk-tag-search>
+                <div class="mt-1 max-h-56 overflow-y-auto rounded-lg border border-gray-100 bg-white py-1" data-dashboard-bulk-tag-options>
+                  {% for group in bulkTagGroups %}
+                    <p class="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400" data-dashboard-bulk-tag-group>{% if group.isOther %}{{ "view_strings.shared_bulk_actions.untagged_tags" | t }}{% else %}{{ group.name }}{% endif %}</p>
+                    {% for tag in group.tags %}
+                      <button type="button"
+                              class="block w-full truncate px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                              data-dashboard-bulk-tag-option
+                              data-tag-id="{{ tag.id }}"
+                              data-tag-name="{{ tag.name }}">{{ tag.name }}</button>
+                    {% endfor %}
+                  {% endfor %}
+                  <p class="hidden px-3 py-2 text-sm text-gray-400" data-dashboard-bulk-tag-empty>{{ "view_strings.sections_editor.no_matching_tags" | t }}</p>
+                </div>
+              </div>
+              <p class="mt-1 text-xs text-gray-500">{{ "view_strings.shared_bulk_actions.add_tags_help" | t }}</p>
+            </div>
+          {% endif %}
         </div>
         <div class="flex items-center gap-3">
           <div class="text-sm text-gray-500"><span data-dashboard-selected-count>0</span> {{ "view_strings.shared_bulk_actions.selected" | t }}</div>
@@ -374,6 +406,75 @@
     const selectedCount = document.querySelector('[data-dashboard-selected-count]');
     const action = document.querySelector('[data-dashboard-bulk-action]');
     const scope = document.querySelector('[data-dashboard-bulk-scope]');
+    const tagsPanel = document.querySelector('[data-dashboard-bulk-tags]');
+    const tagSearch = document.querySelector('[data-dashboard-bulk-tag-search]');
+    const tagOptions = Array.from(document.querySelectorAll('[data-dashboard-bulk-tag-option]'));
+    const tagGroups = Array.from(document.querySelectorAll('[data-dashboard-bulk-tag-group]'));
+    const tagChips = document.querySelector('[data-dashboard-bulk-tag-chips]');
+    const tagEmpty = document.querySelector('[data-dashboard-bulk-tag-empty]');
+    const selectedTagIds = new Set();
+
+    const renderTagPicker = () => {
+      const query = (tagSearch?.value || '').trim().toLocaleLowerCase();
+      let matches = 0;
+      tagOptions.forEach((option) => {
+        const id = option.dataset.tagId || '';
+        const name = option.dataset.tagName || option.textContent || '';
+        const visible = !selectedTagIds.has(id) && (!query || name.toLocaleLowerCase().includes(query));
+        option.classList.toggle('hidden', !visible);
+        if (visible) matches += 1;
+      });
+      tagGroups.forEach((group) => {
+        let sibling = group.nextElementSibling;
+        let hasVisibleOption = false;
+        while (sibling && !sibling.matches('[data-dashboard-bulk-tag-group]') && !sibling.matches('[data-dashboard-bulk-tag-empty]')) {
+          if (!sibling.classList.contains('hidden')) hasVisibleOption = true;
+          sibling = sibling.nextElementSibling;
+        }
+        group.classList.toggle('hidden', !hasVisibleOption);
+      });
+      tagEmpty?.classList.toggle('hidden', matches > 0);
+    };
+
+    const addTagChip = (option) => {
+      const id = option.dataset.tagId || '';
+      const name = option.dataset.tagName || option.textContent?.trim() || '';
+      if (!id || selectedTagIds.has(id)) return;
+      selectedTagIds.add(id);
+
+      const chip = document.createElement('span');
+      chip.className = 'inline-flex max-w-full items-center gap-1 rounded bg-indigo-100 py-0.5 pl-2 pr-1 text-xs font-medium text-indigo-700';
+      chip.dataset.dashboardBulkTagChip = id;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'tag_ids';
+      input.value = id;
+      const label = document.createElement('span');
+      label.className = 'truncate';
+      label.textContent = name;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'shrink-0 rounded p-0.5 text-indigo-400 hover:bg-indigo-200 hover:text-indigo-700';
+      remove.setAttribute('aria-label', '{{ "view_strings.sections_editor.remove_tag" | t }}');
+      remove.textContent = '×';
+      remove.addEventListener('click', () => {
+        selectedTagIds.delete(id);
+        chip.remove();
+        renderTagPicker();
+      });
+      chip.append(input, label, remove);
+      tagChips?.appendChild(chip);
+      renderTagPicker();
+    };
+
+    tagOptions.forEach((option) => option.addEventListener('click', () => addTagChip(option)));
+    tagSearch?.addEventListener('input', renderTagPicker);
+    action?.addEventListener('change', () => {
+      const addingTags = action.value === 'add_tag';
+      tagsPanel?.classList.toggle('hidden', !addingTags);
+      tagsPanel?.setAttribute('aria-hidden', addingTags ? 'false' : 'true');
+      if (addingTags) renderTagPicker();
+    });
 
     const countSelected = () => checkboxes.filter((checkbox) => checkbox.checked).length;
     const syncSelection = () => {
@@ -398,6 +499,11 @@
         event.preventDefault();
         return;
       }
+      if (action?.value === 'add_tag' && selectedTagIds.size === 0) {
+        event.preventDefault();
+        alert(bulkForm.dataset.dashboardBulkChooseTag || 'Choose at least one tag');
+        return;
+      }
       const actionLabel = action?.selectedOptions?.[0]?.textContent?.trim() || action?.value || 'publish';
       const subject = scope?.value === 'all'
         ? bulkForm.dataset.dashboardBulkAllSubject
@@ -411,6 +517,11 @@
         event.preventDefault();
       }
     });
+    if (action?.value === 'add_tag') {
+      tagsPanel?.classList.remove('hidden');
+      tagsPanel?.setAttribute('aria-hidden', 'false');
+      renderTagPicker();
+    }
     syncSelection();
   })();
 </script>

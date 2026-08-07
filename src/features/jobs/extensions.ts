@@ -51,6 +51,7 @@ registerCoreExtensions({
       criteria: input.criteria,
       operator: input.operator,
       status: input.status,
+      targetTagIds: input.targetTagIds ?? [],
       returnTo: input.returnTo,
       user: c.get('user'),
     });

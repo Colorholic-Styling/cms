@@ -31,6 +31,13 @@ interface DashboardStatusFilterLink {
   isActive: boolean;
 }
 
+interface DashboardBulkTagGroup {
+  name: string;
+  slug: string;
+  isOther: boolean;
+  tags: Array<{ id: number; name: string }>;
+}
+
 export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   pages: DashboardPage[];
   flash?: string;
@@ -45,6 +52,7 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
   importHref?: string;
   exportHref?: string;
   bulkAction?: string;
+  bulkTagGroups?: DashboardBulkTagGroup[];
   /** All page-type slugs, used to build the filter dropdown. */
   pageTypeChoices?: string[];
   pagination?: DashboardPagination;
@@ -65,6 +73,7 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     importHref = '',
     exportHref = '',
     bulkAction: requestedBulkAction,
+    bulkTagGroups = [],
     pageTypeChoices = [],
     pagination,
   } = opts;
@@ -149,6 +158,8 @@ export async function dashboardPage(views: Fetcher, opts: BaseTemplateProps & {
     hasPages: pages.length > 0,
     hasSelectablePages: pages.some((page) => !page.isDraftMissing),
     bulkAction,
+    bulkTagGroups,
+    hasBulkTagOptions: bulkTagGroups.some((group) => group.tags.length > 0),
     showPagination: !!pagination && pagination.totalPages > 1,
     currentPage: pagination?.currentPage ?? 1,
     totalPages: pagination?.totalPages ?? 1,
