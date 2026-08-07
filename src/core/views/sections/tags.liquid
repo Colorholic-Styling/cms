@@ -1,8 +1,9 @@
 <div class="min-w-0 px-4 pb-5 sm:px-6 sm:pb-8 lg:px-8">
-  {% if syncedCount %}
+  {% comment %}Liquid treats "" as truthy, so both banners showed on a plain visit.{% endcomment %}
+  {% if syncedCount != blank %}
     <div class="mb-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">{{ "view_strings.sections_tags.synced_tags" | t }} {{ syncedCount }}</div>
   {% endif %}
-  {% if syncError %}
+  {% if syncError != blank %}
     <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{{ "view_strings.sections_tags.sync_failed" | t }} {{ syncError }}</div>
   {% endif %}
   <div class="mb-4 flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
