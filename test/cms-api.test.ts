@@ -599,6 +599,132 @@ describe('Plugin API create / read / list / update / delete', () => {
     expect(uncounted.pages).toHaveLength(1); // rows still paged normally
   });
 
+  it('lists several readable page types with independent limits and ordering', async () => {
+    await env.DB.prepare(
+      `INSERT INTO pages (uuid, page_type, name, slug, weight, lect, created_at, updated_at)
+       VALUES (?, 'event', 'Heavy', 'heavy', 20, '{}', '2026-01-01', '2026-01-01'),
+              (?, 'event', 'Light', 'light', 10, '{}', '2026-01-02', '2026-01-02'),
+              (?, 'guest', 'Older', 'older', 0, '{}', '2026-01-01', '2026-01-01'),
+              (?, 'guest', 'Newer', 'newer', 0, '{}', '2026-02-01', '2026-02-01')`,
+    ).bind(crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()).run();
+
+    const response = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [
+        { key: 'event', page_type: 'event', limit: 2, sort: 'weight', order: 'asc' },
+        { key: 'guest', page_type: 'guest', limit: 1, sort: 'created_at', order: 'desc' },
+      ],
+    });
+    expect(response.status).toBe(200);
+    const body = await response.json() as {
+      pages_by_type: Record<string, { pages: Array<{ name: string }>; groups: unknown[] }>;
+    };
+    expect(body.pages_by_type.event.pages.map((page) => page.name)).toEqual(['Light', 'Heavy']);
+    expect(body.pages_by_type.event.groups).toEqual([]);
+    expect(body.pages_by_type.guest.pages.map((page) => page.name)).toEqual(['Newer']);
+    expect(body.pages_by_type.guest.groups).toEqual([]);
+  });
+
+  it('groups a page resource by one tag taxonomy without extra API calls', async () => {
+    const taxonomy = `resource-${crypto.randomUUID().slice(0, 8)}`;
+    await env.DB.prepare('INSERT INTO taxonomies (name, slug) VALUES (?, ?)')
+      .bind('Service category', taxonomy).run();
+    await env.DB.prepare(
+      `INSERT INTO tags (name, slug, weight, taxonomy_slug, lect)
+       VALUES ('Colour', ?, 20, ?, ?), ('Styling', ?, 10, ?, ?)`,
+    ).bind(
+      `${taxonomy}-colour`, taxonomy, JSON.stringify({ name: { en: 'Colour analysis' } }),
+      `${taxonomy}-styling`, taxonomy, JSON.stringify({ name: { en: 'Styling' } }),
+    ).run();
+    const colour = await env.DB.prepare('SELECT id FROM tags WHERE slug = ?')
+      .bind(`${taxonomy}-colour`).first<{ id: number }>();
+    const styling = await env.DB.prepare('SELECT id FROM tags WHERE slug = ?')
+      .bind(`${taxonomy}-styling`).first<{ id: number }>();
+
+    const first = await env.DB.prepare(
+      `INSERT INTO pages (uuid, page_type, name, slug, weight, lect)
+       VALUES (?, 'event', 'Personal Colour', ?, 10, '{}') RETURNING id`,
+    ).bind(crypto.randomUUID(), `${taxonomy}-personal-colour`).first<{ id: number }>();
+    const second = await env.DB.prepare(
+      `INSERT INTO pages (uuid, page_type, name, slug, weight, lect)
+       VALUES (?, 'event', 'Wardrobe Styling', ?, 20, '{}') RETURNING id`,
+    ).bind(crypto.randomUUID(), `${taxonomy}-wardrobe`).first<{ id: number }>();
+    const untagged = await env.DB.prepare(
+      `INSERT INTO pages (uuid, page_type, name, slug, weight, lect)
+       VALUES (?, 'event', 'Other Service', ?, 30, '{}') RETURNING id`,
+    ).bind(crypto.randomUUID(), `${taxonomy}-other`).first<{ id: number }>();
+    if (!colour || !styling || !first || !second || !untagged) throw new Error('fixture insert failed');
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO page_tags (page_id, tag_id, weight) VALUES (?, ?, 5)').bind(first.id, colour.id),
+      env.DB.prepare('INSERT INTO page_tags (page_id, tag_id, weight) VALUES (?, ?, 10)').bind(first.id, styling.id),
+      env.DB.prepare('INSERT INTO page_tags (page_id, tag_id, weight) VALUES (?, ?, 5)').bind(second.id, styling.id),
+    ]);
+
+    const response = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [{
+        key: 'event', page_type: 'event', limit: 10, sort: 'weight', order: 'asc',
+        group_by: { tag_taxonomy: taxonomy, include_untagged: true },
+      }],
+    });
+    expect(response.status).toBe(200);
+    const collection = ((await response.json()) as {
+      pages_by_type: Record<string, {
+        pages: Array<{ name: string }>;
+        groups: Array<{ tag: { name: string; lect: unknown } | null; pages: Array<{ name: string }> }>;
+      }>;
+    }).pages_by_type.event;
+    expect(collection.pages.map((page) => page.name)).toEqual([
+      'Personal Colour', 'Wardrobe Styling', 'Other Service',
+    ]);
+    expect(collection.groups.map((group) => group.tag?.name ?? null)).toEqual([
+      'Styling', 'Colour', null,
+    ]);
+    expect(collection.groups.map((group) => group.pages.map((page) => page.name))).toEqual([
+      ['Personal Colour', 'Wardrobe Styling'], ['Personal Colour'], ['Other Service'],
+    ]);
+    expect(collection.groups[1].tag?.lect).toEqual({ name: { en: 'Colour analysis' } });
+  });
+
+  it('rejects forbidden, malformed, duplicate, and oversized batched lists', async () => {
+    const forbidden = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [{ key: 'article', page_type: 'article', limit: 1, sort: 'weight', order: 'asc' }],
+    });
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toMatchObject({ error: 'forbidden_page_type', page_type: 'article' });
+
+    const malformed = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [{ key: 'event', page_type: 'event', limit: 0, sort: 'weight', order: 'asc' }],
+    });
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({ error: 'invalid_query' });
+
+    const malformedGroup = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [{
+        key: 'event', page_type: 'event', limit: 1, sort: 'weight', order: 'asc',
+        group_by: { tag_taxonomy: '../unsafe', include_untagged: true },
+      }],
+    });
+    expect(malformedGroup.status).toBe(400);
+    expect(await malformedGroup.json()).toEqual({ error: 'invalid_query' });
+
+    const duplicate = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [
+        { key: 'event', page_type: 'event', limit: 1, sort: 'weight', order: 'asc' },
+        { key: 'event', page_type: 'guest', limit: 1, sort: 'weight', order: 'asc' },
+      ],
+    });
+    expect(duplicate.status).toBe(400);
+    expect(await duplicate.json()).toEqual({ error: 'duplicate_key', key: 'event' });
+
+    const oversized = await cmsApi('POST', '/__cms/pages/list-batch', {
+      queries: [
+        { key: 'event', page_type: 'event', limit: 300, sort: 'weight', order: 'asc' },
+        { key: 'guest', page_type: 'guest', limit: 300, sort: 'weight', order: 'asc' },
+      ],
+    });
+    expect(oversized.status).toBe(413);
+    expect(await oversized.json()).toEqual({ error: 'batch_too_large', max: 500 });
+  });
+
   it('projects only the requested columns when fields= is given', async () => {
     await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name: 'Ada', lect: { _pointers: { mail_list: '12' }, email: 'ada@example.com' } });
     await cmsApi('POST', '/__cms/pages', { page_type: 'guest', name: 'Bob', lect: { _pointers: { mail_list: '12' }, email: 'bob@example.com' } });
