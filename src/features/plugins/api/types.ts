@@ -31,6 +31,28 @@ export interface ApiPageTag {
   taxonomy_slug: string;
 }
 
+export interface ApiPageResourceTag {
+  id: number;
+  slug: string;
+  name: string;
+  weight: number;
+  taxonomy_slug: string;
+  parent_tag: number | null;
+  created_at: string;
+  updated_at: string;
+  lect: Lect;
+}
+
+export interface ApiPageResourceGroup {
+  tag: ApiPageResourceTag | null;
+  pages: ApiPage[];
+}
+
+export interface ApiPageResourceCollection {
+  pages: ApiPage[];
+  groups: ApiPageResourceGroup[];
+}
+
 export interface PluginAuth {
   plugin: ResolvedPlugin;
   pluginId: string;
@@ -67,6 +89,10 @@ export interface AdvancedSearchInput {
   pagesize?: unknown;
   sort?: unknown;
   order?: unknown;
+}
+
+export interface PageListBatchInput {
+  queries?: unknown;
 }
 
 export interface PreparedCreate {

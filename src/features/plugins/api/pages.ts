@@ -8,7 +8,15 @@
 
 import { Hono } from 'hono';
 import type { Env, Variables, Page } from '../../../types';
-import type { AdvancedSearchInput, ApiPage, DuplicateInput, PageInput } from './types';
+import type {
+  AdvancedSearchInput,
+  ApiPage,
+  ApiPageResourceCollection,
+  ApiPageResourceTag,
+  DuplicateInput,
+  PageInput,
+  PageListBatchInput,
+} from './types';
 import type { AppContext } from '../../../core/http/context';
 import { authenticatePlugin, forbiddenPageType } from './auth';
 import {
@@ -57,6 +65,50 @@ const DELETE_CHILDREN_BATCH = 100;
 const DELETE_CHILDREN_MAX_PER_CALL = 1000;
 
 const MAX_BATCH = 100;
+const MAX_LIST_BATCH_QUERIES = 20;
+const MAX_LIST_BATCH_PAGES = 500;
+const PAGE_TYPE_TOKEN = /^[a-z][a-z0-9_-]{0,63}$/;
+const TAXONOMY_TOKEN = /^[a-z][a-z0-9_-]{0,63}$/;
+const LIST_BATCH_SORTS = {
+  weight: 'weight',
+  name: 'name COLLATE NOCASE',
+  created_at: 'created_at',
+  updated_at: 'updated_at',
+  published_at: 'COALESCE(start, created_at)',
+} as const;
+const LIST_BATCH_OUTER_SORTS = {
+  weight: 'p.weight',
+  name: 'p.name COLLATE NOCASE',
+  created_at: 'p.created_at',
+  updated_at: 'p.updated_at',
+  published_at: 'COALESCE(p.start, p.created_at)',
+} as const;
+
+interface PageListBatchGroupBy {
+  tagTaxonomy: string;
+  includeUntagged: boolean;
+}
+
+interface PageListBatchQuery {
+  key: string;
+  pageType: string;
+  limit: number;
+  sort: keyof typeof LIST_BATCH_SORTS;
+  order: 'ASC' | 'DESC';
+  groupBy: PageListBatchGroupBy | null;
+}
+
+interface PageResourceRow extends Page {
+  resource_tag_id?: number | null;
+  resource_tag_slug?: string | null;
+  resource_tag_name?: string | null;
+  resource_tag_weight?: number | null;
+  resource_tag_taxonomy_slug?: string | null;
+  resource_tag_parent_tag?: number | null;
+  resource_tag_created_at?: string | null;
+  resource_tag_updated_at?: string | null;
+  resource_tag_lect?: string | null;
+}
 
 export const pagesApiRoutes = new Hono<{ Bindings: Env; Variables: Variables }>();
 
@@ -193,6 +245,170 @@ pagesApiRoutes.get('/pages', async (c) => {
     offset,
   });
 });
+
+// Several independent page-type lists in one authenticated host call and one
+// D1 batch. Each SELECT keeps its own ORDER BY/LIMIT so SQLite can use the
+// relevant page-type index rather than ranking a combined cross-type result.
+pagesApiRoutes.post('/pages/list-batch', async (c) => {
+  const auth = await authenticatePlugin(c);
+  if (auth instanceof Response) return auth;
+
+  const body = await c.req.json().catch(() => null) as PageListBatchInput | null;
+  const rawQueries = body && Array.isArray(body.queries) ? body.queries : null;
+  if (!rawQueries) return c.json({ error: 'invalid_body' }, 400);
+  if (rawQueries.length > MAX_LIST_BATCH_QUERIES) {
+    return c.json({ error: 'batch_too_large', max: MAX_LIST_BATCH_QUERIES }, 413);
+  }
+
+  const queries: PageListBatchQuery[] = [];
+  const keys = new Set<string>();
+  let requestedPages = 0;
+  for (const raw of rawQueries) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return c.json({ error: 'invalid_query' }, 400);
+    }
+    const input = raw as Record<string, unknown>;
+    const key = typeof input.key === 'string' ? input.key.trim() : '';
+    const pageType = typeof input.page_type === 'string' ? input.page_type.trim() : '';
+    const limit = typeof input.limit === 'number' && Number.isSafeInteger(input.limit) ? input.limit : 0;
+    const sort = typeof input.sort === 'string' && input.sort in LIST_BATCH_SORTS
+      ? input.sort as keyof typeof LIST_BATCH_SORTS
+      : null;
+    const orderValue = typeof input.order === 'string' ? input.order.toUpperCase() : '';
+    const order = orderValue === 'ASC' || orderValue === 'DESC' ? orderValue : null;
+    const rawGroupBy = input.group_by;
+    let groupBy: PageListBatchGroupBy | null = null;
+    if (rawGroupBy !== undefined) {
+      if (!rawGroupBy || typeof rawGroupBy !== 'object' || Array.isArray(rawGroupBy)) {
+        return c.json({ error: 'invalid_query' }, 400);
+      }
+      const groupInput = rawGroupBy as Record<string, unknown>;
+      const tagTaxonomy = typeof groupInput.tag_taxonomy === 'string'
+        ? groupInput.tag_taxonomy.trim()
+        : '';
+      const includeUntagged = groupInput.include_untagged === undefined
+        ? false
+        : groupInput.include_untagged;
+      if (!TAXONOMY_TOKEN.test(tagTaxonomy) || typeof includeUntagged !== 'boolean') {
+        return c.json({ error: 'invalid_query' }, 400);
+      }
+      groupBy = { tagTaxonomy, includeUntagged };
+    }
+    if (!PAGE_TYPE_TOKEN.test(key) || !PAGE_TYPE_TOKEN.test(pageType) || limit < 1 || limit > 500 || !sort || !order) {
+      return c.json({ error: 'invalid_query' }, 400);
+    }
+    if (keys.has(key)) return c.json({ error: 'duplicate_key', key }, 400);
+    if (!pageTypeScopeAllows(auth.readableTypes, pageType)) return forbiddenPageType(c, auth, pageType);
+    keys.add(key);
+    requestedPages += limit;
+    queries.push({ key, pageType, limit, sort, order, groupBy });
+  }
+  if (requestedPages > MAX_LIST_BATCH_PAGES) {
+    return c.json({ error: 'batch_too_large', max: MAX_LIST_BATCH_PAGES }, 413);
+  }
+  if (!queries.length) return c.json({ pages_by_type: {} });
+
+  const results = await c.env.DB.batch<PageResourceRow>(queries.map((query) => {
+    const sort = LIST_BATCH_SORTS[query.sort];
+    if (!query.groupBy) {
+      return c.env.DB.prepare(
+        `SELECT * FROM pages WHERE page_type = ? ORDER BY ${sort} ${query.order}, id ${query.order} LIMIT ?`,
+      ).bind(query.pageType, query.limit);
+    }
+    const outerSort = LIST_BATCH_OUTER_SORTS[query.sort];
+    return c.env.DB.prepare(
+      `WITH selected AS (
+         SELECT * FROM pages
+         WHERE page_type = ?
+         ORDER BY ${sort} ${query.order}, id ${query.order}
+         LIMIT ?
+       )
+       SELECT p.*,
+              resource_tag.id AS resource_tag_id,
+              resource_tag.slug AS resource_tag_slug,
+              resource_tag.name AS resource_tag_name,
+              resource_tag.weight AS resource_tag_weight,
+              resource_tag.taxonomy_slug AS resource_tag_taxonomy_slug,
+              resource_tag.parent_tag AS resource_tag_parent_tag,
+              resource_tag.created_at AS resource_tag_created_at,
+              resource_tag.updated_at AS resource_tag_updated_at,
+              resource_tag.lect AS resource_tag_lect
+       FROM selected p
+       LEFT JOIN (
+         SELECT pt.page_id, t.id, t.slug, t.name, t.weight, t.taxonomy_slug,
+                t.parent_tag, t.created_at, t.updated_at, t.lect
+         FROM page_tags pt
+         JOIN tags t ON t.id = pt.tag_id
+         WHERE t.taxonomy_slug = ?
+       ) resource_tag ON resource_tag.page_id = p.id
+       ORDER BY ${outerSort} ${query.order}, p.id ${query.order},
+                resource_tag.weight ASC, resource_tag.name COLLATE NOCASE ASC`,
+    ).bind(query.pageType, query.limit, query.groupBy.tagTaxonomy);
+  }));
+
+  return c.json({
+    pages_by_type: Object.fromEntries(queries.map((query, index) => [
+      query.key,
+      pageResourceCollection(results[index].results, query),
+    ])),
+  });
+});
+
+function pageResourceCollection(
+  rows: PageResourceRow[],
+  query: PageListBatchQuery,
+): ApiPageResourceCollection {
+  const pages = new Map<number, ApiPage>();
+  const groupedPageIds = new Map<number, number[]>();
+  const tags = new Map<number, ApiPageResourceTag>();
+  const untaggedPageIds: number[] = [];
+
+  for (const row of rows) {
+    if (!pages.has(row.id)) pages.set(row.id, serializePage(row));
+    if (!query.groupBy) continue;
+    if (typeof row.resource_tag_id !== 'number') {
+      if (query.groupBy.includeUntagged) untaggedPageIds.push(row.id);
+      continue;
+    }
+    const tagId = row.resource_tag_id;
+    if (!tags.has(tagId)) {
+      tags.set(tagId, {
+        id: tagId,
+        slug: row.resource_tag_slug ?? '',
+        name: row.resource_tag_name ?? '',
+        weight: row.resource_tag_weight ?? 0,
+        taxonomy_slug: row.resource_tag_taxonomy_slug ?? query.groupBy.tagTaxonomy,
+        parent_tag: row.resource_tag_parent_tag ?? null,
+        created_at: row.resource_tag_created_at ?? '',
+        updated_at: row.resource_tag_updated_at ?? '',
+        lect: safeParseLect(row.resource_tag_lect),
+      });
+    }
+    const pageIds = groupedPageIds.get(tagId) ?? [];
+    pageIds.push(row.id);
+    groupedPageIds.set(tagId, pageIds);
+  }
+
+  const sortedTags = [...tags.values()].sort((left, right) =>
+    left.weight - right.weight || left.name.localeCompare(right.name) || left.id - right.id);
+  const groups: ApiPageResourceCollection['groups'] = sortedTags.map((tag) => ({
+    tag,
+    pages: (groupedPageIds.get(tag.id) ?? []).flatMap((id) => {
+      const page = pages.get(id);
+      return page ? [page] : [];
+    }),
+  }));
+  if (query.groupBy?.includeUntagged && untaggedPageIds.length > 0) {
+    groups.push({
+      tag: null,
+      pages: untaggedPageIds.flatMap((id) => {
+        const page = pages.get(id);
+        return page ? [page] : [];
+      }),
+    });
+  }
+  return { pages: [...pages.values()], groups };
+}
 
 // Advanced page search for plugins. Unlike GET /pages?q=..., this accepts
 // multiple criteria with field paths and tag filters, matching the admin
